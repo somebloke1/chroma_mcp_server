@@ -1,0 +1,116 @@
+[build-system]
+requires = ["setuptools>=76.0.0", "wheel>=0.45.1", "setuptools_scm>=8.2.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 120
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 120
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+[tool.pytest.ini_options]
+minversion = "8.3.5"
+addopts = "-ra -q --cov=chroma_mcp --cov-report=xml --cov-report=term-missing"
+testpaths = [
+    "tests",
+]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.pylint.messages_control]
+disable = [
+    "C0111",  # missing-docstring
+    "C0103",  # invalid-name
+    "C0330",  # bad-continuation
+    "C0326",  # bad-whitespace
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[project]
+name = "chroma-mcp-server"
+version = "0.1.0"
+description = "Chroma MCP Server for vector database operations"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "Nold AI", email = "info@nold.ai"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "chromadb==0.6.3",
+    "fastmcp==0.4.1",
+    "python-dotenv==1.1.0",
+    "pydantic==2.10.6",
+    "onnxruntime==1.21.0",
+    "sentence-transformers==4.0.1",
+    "fastapi==0.115.11",
+    "httpx==0.28.1",
+    "numpy==2.2.3",
+    "pandas==2.2.3",
+    "scikit-learn==1.6.1",
+    "SQLAlchemy==2.0.39",
+    "typer==0.15.2",
+    "uvicorn==0.34.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.5",
+    "pytest-asyncio==0.26.0",
+    "pytest-cov==6.0.0",
+    "pytest-mock==3.14.0",
+    "black==25.1.0",
+    "isort==6.0.1",
+    "mypy==1.15.0",
+    "pylint==3.3.6",
+    "types-PyYAML==6.0.12.20241230",
+    "types-requests==2.32.0.20250306",
+    "types-setuptools==76.0.0.20250313",
+    "types-redis==4.6.0.20241004"
+]
+
+[project.urls]
+Homepage = "https://github.com/nold-ai/nold-ai-automation"
+Repository = "https://github.com/nold-ai/nold-ai-automation.git" 
