@@ -1,6 +1,7 @@
 # Chroma MCP Server
 
-[![Tests](https://github.com/nold-ai/nold-ai-automation/actions/workflows/test.yml/badge.svg)](https://github.com/nold-ai/nold-ai-automation/actions/workflows/test.yml)
+[![Tests](https://github.com/djm81/chroma_mcp_server/actions/workflows/tests.yml/badge.svg)](https://github.com/djm81/chroma_mcp_server/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/djm81/chroma_mcp_server/branch/main/graph/badge.svg)](https://codecov.io/gh/djm81/chroma_mcp_server)
 
 A Model-Context-Protocol (MCP) server implementation for ChromaDB vector database operations.
 
