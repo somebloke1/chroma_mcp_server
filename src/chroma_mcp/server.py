@@ -29,22 +29,35 @@ from .tools.document_tools import register_document_tools
 from .tools.thinking_tools import register_thinking_tools
 from .utils.errors import handle_chroma_error, validate_input, raise_validation_error, ValidationError, CollectionNotFoundError
 
-# Initialize logger
-logger = LoggerSetup.create_logger(
-    "ChromaMCP",
-    log_file="chroma_mcp_server.log",
-    log_level=os.getenv("LOG_LEVEL", "INFO")
-)
+# Add this near the top of the file, after imports but before any other code
+CHROMA_AVAILABLE = False
+try:
+    import chromadb
+    CHROMA_AVAILABLE = True
+except ImportError:
+    print("ChromaDB not available. Some features will be limited.")
+
+FASTMCP_AVAILABLE = False
+try:
+    import fastmcp
+    FASTMCP_AVAILABLE = True
+except ImportError:
+    print("FastMCP not available. Some features will be limited.")
+
+# Initialize logger - will be properly configured in config_server
+logger = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for the FastAPI app."""
     # Startup
     get_mcp()
-    logger.info("MCP instance initialized on server startup")
+    if logger:
+        logger.info("MCP instance initialized on server startup")
     yield
     # Shutdown (if needed in the future)
-    logger.info("Server shutting down")
+    if logger:
+        logger.info("Server shutting down")
 
 # Replace app declaration with lifespan parameter
 app = FastAPI(
@@ -69,7 +82,8 @@ def get_mcp() -> FastMCP:
         register_collection_tools(_mcp)
         register_document_tools(_mcp)
         register_thinking_tools(_mcp)
-        logger.info("Successfully registered MCP tools")
+        if logger:
+            logger.info("Successfully registered MCP tools")
     return _mcp
 
 def get_collection_handler():
@@ -107,6 +121,10 @@ def create_parser() -> argparse.ArgumentParser:
                        default=os.getenv('CHROMA_DATA_DIR'),
                        help='Directory for persistent client data')
     
+    parser.add_argument('--log-dir',
+                       default=os.getenv('CHROMA_LOG_DIR'),
+                       help='Directory for log files (default: current directory)')
+    
     # HTTP client options
     parser.add_argument('--host',
                        default=os.getenv('CHROMA_HOST'),
@@ -136,8 +154,8 @@ def create_parser() -> argparse.ArgumentParser:
     
     # General options
     parser.add_argument('--dotenv-path',
-                       default=os.getenv('CHROMA_DOTENV_PATH', '.chroma_env'),
-                       help='Path to .env file')
+                       default=os.getenv('CHROMA_DOTENV_PATH', '.env'),
+                       help='Path to .env file (optional)')
     
     # Embedding function options
     parser.add_argument('--cpu-execution-provider',
@@ -154,9 +172,23 @@ def config_server(args: argparse.Namespace) -> None:
     Args:
         args: Parsed command line arguments
     """
+    global logger
+    
     try:
-        # Load environment variables
-        load_dotenv(dotenv_path=args.dotenv_path)
+        # Load environment variables if dotenv file exists
+        if args.dotenv_path and os.path.exists(args.dotenv_path):
+            load_dotenv(dotenv_path=args.dotenv_path)
+        
+        # Initialize logger with custom log directory if provided
+        log_dir = args.log_dir
+        
+        # Setup the logger
+        logger = LoggerSetup.create_logger(
+            "ChromaMCP",
+            log_file="chroma_mcp_server.log",
+            log_level=os.getenv("LOG_LEVEL", "INFO"),
+            log_dir=log_dir
+        )
         
         # Handle CPU provider setting
         use_cpu_provider = None  # Auto-detect
@@ -180,9 +212,30 @@ def config_server(args: argparse.Namespace) -> None:
         provider_status = 'auto-detected' if use_cpu_provider is None else ('enabled' if use_cpu_provider else 'disabled')
         logger.info(f"Server configured (CPU provider: {provider_status})")
         
+        # Log the configuration details
+        if log_dir:
+            logger.info(f"Logs will be saved to: {log_dir}")
+        if args.data_dir:
+            logger.info(f"Data directory: {args.data_dir}")
+        
+        # Check for required dependencies
+        if not CHROMA_AVAILABLE:
+            print("WARNING: ChromaDB is not installed. Vector database operations will not be available.")
+            print("To enable full functionality, install the optional dependencies:")
+            print("pip install chroma-mcp-server[full]")
+        
+        if not FASTMCP_AVAILABLE:
+            print("WARNING: FastMCP is not installed. MCP tools will not be available.")
+            print("To enable full functionality, install the optional dependencies:")
+            print("pip install chroma-mcp-server[full]")
+        
     except Exception as e:
+        # If logger isn't initialized yet, use print for critical errors
         error_msg = f"Failed to configure server: {str(e)}"
-        logger.error(error_msg)
+        if logger:
+            logger.error(error_msg)
+        else:
+            print(f"ERROR: {error_msg}")
         raise McpError(ErrorData(
             code=INTERNAL_ERROR,
             message=error_msg
@@ -439,9 +492,16 @@ def main() -> None:
         get_mcp().run(transport='stdio')
         
     except Exception as e:
-        logger.critical(f"Critical error running MCP server: {e}")
-        import traceback
-        logger.critical(f"Traceback: {traceback.format_exc()}")
+        # Handle logging even if logger initialization failed
+        error_msg = f"Critical error running MCP server: {e}"
+        if logger:
+            logger.critical(error_msg)
+            import traceback
+            logger.critical(f"Traceback: {traceback.format_exc()}")
+        else:
+            import traceback
+            print(f"CRITICAL ERROR: {error_msg}")
+            print(f"Traceback: {traceback.format_exc()}")
         raise
 
 if __name__ == "__main__":

@@ -24,25 +24,29 @@ def ensure_venv() -> None:
     
     # Get the activation script path based on platform
     if sys.platform == "win32":
-        activate_script = venv_path / "Scripts" / "activate.bat"
+        venv_path = os.path.realpath(os.path.join(venv_path, "Scripts"))
+        activate_script = os.path.join(venv_path, "activate.bat")
         activate_cmd = str(activate_script)
+        venv_python = os.path.join(venv_path, "python.exe")
     else:
-        activate_script = venv_path / "bin" / "activate"
+        venv_path = os.path.realpath(os.path.join(venv_path, "bin"))
+        activate_script = os.path.join(venv_path, "activate")
         activate_cmd = f"source {activate_script}"
+        venv_python = os.path.join(venv_path, "python")
     
-    if not activate_script.exists():
+    if not os.path.exists(activate_script):
         print("Virtual environment is incomplete. Please run: python -m venv .venv")
         sys.exit(1)
     
     # Check if we're already in the virtual environment
     if not hasattr(sys, 'real_prefix') and not (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-        print("Activating virtual environment...")
+        print(f"Activating virtual environment using {activate_cmd} ...")
         
         # Prepare the command to run the script with activated venv
         if sys.platform == "win32":
-            cmd = f'cmd /c "{activate_cmd} && python {__file__} {" ".join(sys.argv[1:])}"'
+            cmd = f'cmd /c "{activate_cmd} && {venv_python} {__file__} {" ".join(sys.argv[1:])}"'
         else:
-            cmd = f'bash -c "{activate_cmd} && python {__file__} {" ".join(sys.argv[1:])}"'
+            cmd = f'bash -c "{activate_cmd} && {venv_python} {__file__} {" ".join(sys.argv[1:])}"'
         
         # Execute the command in a new shell
         sys.exit(os.system(cmd))

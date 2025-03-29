@@ -55,6 +55,12 @@ Thumbs.db
 # Virtual environment directory
 venv/
 .venv/
+.venv*/
+
+# Ignore build and dist directories
+build/
+dist/
+test_index/
 
 # Ignore .local files and folders
 .local

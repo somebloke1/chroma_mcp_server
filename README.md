@@ -45,6 +45,7 @@ The server can be configured using environment variables or a `.env` file:
 # Client Configuration
 CHROMA_CLIENT_TYPE=persistent  # Options: http, cloud, persistent, ephemeral
 CHROMA_DATA_DIR=/path/to/data  # Required for persistent client
+CHROMA_LOG_DIR=/path/to/logs   # Custom directory for log files
 CHROMA_HOST=localhost          # Required for http client
 CHROMA_PORT=8000              # Optional for http client
 
@@ -58,6 +59,27 @@ LOG_LEVEL=INFO               # Optional, default: INFO
 MCP_LOG_LEVEL=INFO          # Optional, controls MCP framework logging
 ```
 
+### Command Line Arguments
+
+The server can also be configured using command line arguments:
+
+```bash
+python run_chroma_mcp.py --client-type persistent --data-dir /path/to/data --log-dir /path/to/logs
+```
+
+Available arguments:
+
+- `--client-type`: Type of ChromaDB client to use (http, cloud, persistent, ephemeral)
+- `--data-dir`: Directory for persistent client data
+- `--log-dir`: Directory for log files
+- `--host`: Chroma host for HTTP client
+- `--port`: Chroma port for HTTP client
+- `--ssl`: Enable SSL for HTTP client (true/false)
+- `--tenant`: Chroma tenant for cloud client
+- `--database`: Chroma database for cloud client
+- `--api-key`: Chroma API key for cloud client
+- `--cpu-execution-provider`: Force CPU execution provider (auto/true/false)
+
 ### Cursor MCP Configuration
 
 Configure the MCP server in your Cursor MCP configuration file (`.cursor/mcp.json`):
@@ -68,7 +90,9 @@ Configure the MCP server in your Cursor MCP configuration file (`.cursor/mcp.jso
     "chroma_mcp_server": {
       "command": "/path/to/venv/bin/python",
       "args": [
-        "/path/to/repo/mcp/chroma_mcp_server/run_chroma_mcp.py"
+        "/path/to/repo/mcp/chroma_mcp_server/run_chroma_mcp.py",
+        "--data-dir", "/path/to/custom/data",
+        "--log-dir", "/path/to/custom/logs"
       ],
       "env": {
         "PYTHONUNBUFFERED": "1",
@@ -177,156 +201,188 @@ The server provides 15 tools across three categories:
    - Parameters:
      - `collection_name` (str): Target collection
      - `ids` (List[str]): Document IDs to update
-     - `documents` (List[str], optional): New document contents
-     - `metadatas` (List[dict], optional): New metadata
+     - `documents`
 
-5. `chroma_delete_documents` - Delete documents from a collection
-   - Parameters:
-     - `collection_name` (str): Target collection
-     - `ids` (List[str]): Document IDs to delete
-     - `where` (dict, optional): Metadata filter
-     - `where_document` (dict, optional): Document content filter
+## Quick Start with uvx
 
-### Thinking Tools
+The easiest way to use the Chroma MCP Server is with [uv](https://github.com/astral-sh/uv), a fast Python package installer and runner.
 
-1. `chroma_sequential_thinking` - Record a thought in a sequential thinking process
-   - Parameters:
-     - `thought` (str): The current thought content
-     - `thought_number` (int): Position in the thought sequence (1-based)
-     - `total_thoughts` (int): Total expected thoughts in the sequence
-     - `session_id` (str, optional): Session identifier
-     - `branch_from_thought` (int, optional): Thought number this branches from
-     - `branch_id` (str, optional): Branch identifier for parallel thought paths
-     - `next_thought_needed` (bool, optional): Whether another thought is needed
-     - `custom_data` (dict, optional): Additional metadata
-
-2. `chroma_find_similar_thoughts` - Find similar thoughts across thinking sessions
-   - Parameters:
-     - `query` (str): The thought or concept to search for
-     - `n_results` (int, optional): Number of similar thoughts to return
-     - `threshold` (float, optional): Similarity threshold (0-1)
-     - `session_id` (str, optional): Limit search to specific session
-     - `include_branches` (bool, optional): Whether to include branch paths
-
-3. `chroma_get_session_summary` - Get a summary of all thoughts in a session
-   - Parameters:
-     - `session_id` (str): The session identifier
-     - `include_branches` (bool, optional): Whether to include branch paths
-
-4. `chroma_find_similar_sessions` - Find thinking sessions with similar content
-   - Parameters:
-     - `query` (str): The concept or pattern to search for
-     - `n_results` (int, optional): Number of similar sessions to return
-     - `threshold` (float, optional): Similarity threshold (0-1)
-
-## Error Handling
-
-The server provides standardized error handling with detailed error messages:
-
-- `ValidationError`: Input validation failures
-- `CollectionNotFoundError`: Requested collection doesn't exist
-- `DocumentNotFoundError`: Requested document doesn't exist
-- `ChromaDBError`: Errors from the underlying ChromaDB
-- `McpError`: General MCP-related errors
-
-All errors include:
-
-- Error code
-- Descriptive message
-- Additional details when available
-
-## Development
-
-### Test Suite Structure
-
-The test suite is organized into several components:
-
-```shell
-tests/
-├── conftest.py                    # Shared test fixtures and configuration
-├── handlers/                      # Handler-specific tests
-│   ├── test_collection_handler.py
-│   ├── test_document_handler.py
-│   └── test_thinking_handler.py
-├── tools/                         # Tool implementation tests
-│   ├── test_collection_tools.py
-│   ├── test_document_tools.py
-│   └── test_thinking_tools.py
-├── test_server.py                 # Server endpoints and configuration tests
-└── test_chroma_ops.py            # ChromaDB operations tests
-```
-
-### Running Tests
-
-The project uses pytest for testing. You can run tests using the `run_tests.py` script.
+### Install uv
 
 ```bash
-# Run all tests
-python run_tests.py
+# On macOS and Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Run only unit tests
-python run_tests.py -t unit
+# On Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# Run with verbose output
-python run_tests.py -v
-
-# Run tests with coverage reporting
-python run_tests.py -c
-
-# Run tests with coverage and HTML report
-python run_tests.py -c --html
-
-# Combine options
-python run_tests.py -t unit -c -v
+# With pip
+pip install uv
 ```
 
-### Code Style
+### Run with uvx
 
-The project follows standard Python code style guidelines:
+To run the server directly without installation, use the `uvx` command (an alias for `uv tool run`):
 
-- PEP 8 for general code style
-- Type annotations for improved code clarity and safety
-- Docstrings for all classes and functions
+```bash
+uvx chroma-mcp-server --data-dir /path/to/data --log-dir /path/to/logs
+```
 
-## Logging
+> **Note:** The package is named `chroma_mcp_server` in Python, but when using with uvx, you need to use the hyphenated version `chroma-mcp-server`.
 
-The server uses structured logging with different log files for each component:
+This will automatically:
 
-- `chroma_mcp_server.log`: Main server logs
-- `chroma_collections.log`: Collection operations
-- `chroma_documents.log`: Document operations
-- `chroma_thinking.log`: Thinking operations
-- `chroma_errors.log`: Error tracking
-- `chroma_client.log`: ChromaDB client operations
-- `chroma_config.log`: Configuration information
+1. Download the package
+2. Create an isolated virtual environment
+3. Install dependencies
+4. Run the server
 
-Configure log levels using the `LOG_LEVEL` environment variable.
+### Configure in MCP-compatible IDEs
 
-## Documentation
+Add this to your IDE's MCP configuration file:
 
-Comprehensive documentation is available in the `docs` directory:
+#### Cursor (.cursor/mcp.json)
 
-- [Getting Started Guide](docs/getting_started.md): Setup and basic usage instructions
-- [API Reference](docs/api_reference.md): Detailed information about available tools and parameters
+```json
+{
+  "mcpServers": {
+    "chroma_mcp_server": {
+      "command": "uvx",
+      "args": [
+        "chroma-mcp-server",
+        "--data-dir", "/path/to/data",
+        "--log-dir", "/path/to/logs"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "LOG_LEVEL": "WARNING",
+        "MCP_LOG_LEVEL": "WARNING"
+      }
+    }
+  }
+}
+```
 
-## Examples
+#### JetBrains IDEs
 
-Check out the `examples` directory for sample code demonstrating how to use the Chroma MCP Server:
+Configure in Settings > AI Assistant > MCP Server Configuration:
 
-- [Simple Client](examples/simple_client.py): Basic example of connecting to the server and using key tools
+- Server ID: `chroma_mcp_server`
+- Command: `uvx`
+- Arguments: `chroma-mcp-server --data-dir /path/to/data --log-dir /path/to/logs`
 
-## Contributing
+#### Permanently Install
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+To install the server permanently:
 
-## Security
+```bash
+uv tool install chroma-mcp-server
+```
 
-For information about reporting security vulnerabilities, please see our [Security Policy](SECURITY.md).
+Then configure with:
 
-## Changelog
+```json
+{
+  "mcpServers": {
+    "chroma_mcp_server": {
+      "command": "chroma-mcp",
+      "args": [
+        "--data-dir", "/path/to/data",
+        "--log-dir", "/path/to/logs"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "LOG_LEVEL": "WARNING",
+        "MCP_LOG_LEVEL": "WARNING"
+      }
+    }
+  }
+}
+```
 
-See [CHANGELOG.md](CHANGELOG.md) for a history of changes to this project.
+## Development Guide
 
-## License
+This repository includes scripts to simplify development and testing:
 
-MIT License - see [LICENSE.md](LICENSE.md) for details
+### Development Scripts
+
+1. **Local Development Environment**
+
+   The easiest way to work with the Chroma MCP Server during development is using the `run_chromamcp_local.py` script:
+
+   ```bash
+   # Run with default settings
+   ./run_chromamcp_local.py
+   
+   # Run with custom settings
+   ./run_chromamcp_local.py --log-dir custom_logs --data-dir custom_data
+   ```
+
+   This script:
+   - Creates a dedicated virtual environment (`.venv_chromamcp`)
+   - Installs the package with development dependencies
+   - Runs the server with the specified arguments
+
+2. **UVX Integration**
+
+   For experimenting with UVX integration, use the following scripts:
+
+   ```bash
+   # Install the package and make it findable by UVX
+   ./setup_for_uvx.py
+   
+   # Run with UVX in a dedicated environment
+   ./run_with_uvx.py
+   ```
+
+   See the `docs/uvx_integration_status.md` file for detailed information about UVX integration efforts.
+
+3. **MCP Integration**
+
+   For integration with Cursor MCP, add this to your `.cursor/mcp.json`:
+
+   ```json
+   {
+     "mcpServers": {
+       "chroma_mcp_server": {
+         "command": "python",
+         "args": [
+           "-m",
+           "chroma_mcp.server",
+           "--data-dir", "data",
+           "--log-dir", "logs"
+         ],
+         "env": {
+           "PYTHONUNBUFFERED": "1",
+           "PYTHONIOENCODING": "utf-8"
+         }
+       }
+     }
+   }
+   ```
+
+   This configuration assumes the package is installed in the environment where Cursor runs. For local development, use absolute paths:
+
+   ```json
+   {
+     "mcpServers": {
+       "chroma_mcp_server": {
+         "command": "/path/to/your/.venv_chromamcp/bin/python",
+         "args": [
+           "-m",
+           "chroma_mcp.server",
+           "--data-dir", "/path/to/your/data",
+           "--log-dir", "/path/to/your/logs"
+         ],
+         "env": {
+           "PYTHONUNBUFFERED": "1",
+           "PYTHONIOENCODING": "utf-8"
+         }
+       }
+     }
+   }
+   ```
+
+For detailed information about our tested approaches and current status, see `docs/uvx_integration_status.md`.

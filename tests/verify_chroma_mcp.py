@@ -13,6 +13,10 @@ from contextlib import AsyncExitStack
 script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up one level to root
 server_script = os.path.join(script_dir, 'run_chroma_mcp.py')
 
+# Set up logs directory
+logs_dir = os.path.join(script_dir, 'logs')
+os.makedirs(logs_dir, exist_ok=True)
+
 # Use the current Python executable
 PYTHON_EXECUTABLE = sys.executable
 
@@ -36,7 +40,7 @@ async def verify_chroma_mcp_server():
         # Set up server parameters
         server_params = StdioServerParameters(
             command=PYTHON_EXECUTABLE,
-            args=[server_script],
+            args=[server_script, "--log-dir", logs_dir],
             env={
                 "PYTHONUNBUFFERED": "1",
                 "PYTHONIOENCODING": "utf-8"
