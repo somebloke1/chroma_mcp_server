@@ -9,13 +9,24 @@ from logging.handlers import RotatingFileHandler
 from typing import Optional, List, Dict, Any
 
 
-def get_logs_dir() -> str:
+def get_logs_dir(custom_log_dir: Optional[str] = None) -> str:
     """
     Get the path to the centralized logs directory.
     
+    Args:
+        custom_log_dir: Optional custom directory to use for logs
+        
     Returns:
-        str: Path to the logs directory in the coding-factory root
+        str: Path to the logs directory
     """
+    # If a custom log directory is provided, use it
+    if custom_log_dir:
+        logs_dir = custom_log_dir
+        # Create the logs directory if it doesn't exist
+        if not os.path.exists(logs_dir):
+            os.makedirs(logs_dir, exist_ok=True)
+        return logs_dir
+    
     # First check if we're running in a Docker container by checking PYTHONPATH or /.dockerenv
     if os.environ.get('PYTHONPATH') == '/app' or os.path.exists('/.dockerenv'):
         logs_dir = '/app/logs'
@@ -161,7 +172,7 @@ class LoggerSetup:
     def create_logger(cls, name: str, log_file: Optional[str] = None, agent_name: Optional[str] = None, 
                      log_level: Optional[str] = None, session_id: Optional[str] = None,
                      use_rotating_file: bool = True, append_mode: bool = True,
-                     preserve_test_format: bool = False) -> logging.Logger:
+                     preserve_test_format: bool = False, log_dir: Optional[str] = None) -> logging.Logger:
         """
         Creates and configures a logger with the given name
         
@@ -174,6 +185,7 @@ class LoggerSetup:
             use_rotating_file: Whether to use RotatingFileHandler (True) or simple FileHandler (False)
             append_mode: Whether to append to existing log file (True) or overwrite (False)
             preserve_test_format: Whether to preserve exact format of test-related messages
+            log_dir: Optional custom directory to use for logs (overrides default)
             
         Returns:
             Configured logger instance
@@ -224,20 +236,20 @@ class LoggerSetup:
         if log_file:
             # If log_file is just a filename, put it in the centralized logs directory
             if not os.path.isabs(log_file) and not os.path.dirname(log_file):
-                logs_dir = get_logs_dir()
+                logs_dir = get_logs_dir(custom_log_dir=log_dir)
                 log_file = os.path.join(logs_dir, log_file)
             else:
                 # Make sure we use the proper logs directory even for paths with directories
-                logs_dir = get_logs_dir()
+                logs_dir = get_logs_dir(custom_log_dir=log_dir)
                 
                 # If the log_file has a path but it's not in the logs directory, put it in the logs directory
                 if os.path.dirname(log_file) and not log_file.startswith(logs_dir):
                     log_file = os.path.join(logs_dir, os.path.basename(log_file))
                 
                 # If a path is provided, ensure the directory exists
-                log_dir = os.path.dirname(log_file)
-                if log_dir and not os.path.exists(log_dir):
-                    os.makedirs(log_dir, exist_ok=True)
+                log_dir_path = os.path.dirname(log_file)
+                if log_dir_path and not os.path.exists(log_dir_path):
+                    os.makedirs(log_dir_path, exist_ok=True)
             
             logger.debug(f"Logging to file: {log_file}")
             

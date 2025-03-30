@@ -37,3 +37,5 @@ __all__ = [
 ]
 
 __version__ = '0.1.0'
+__author__ = "Nold Coaching & Consulting"
+__license__ = "MIT"

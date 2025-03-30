@@ -1,26 +1,37 @@
 """
-Thinking handler module for managing sequential thinking operations.
-Provides methods for recording thoughts, managing sessions, and finding similar thoughts.
+Thinking Handler for Chroma MCP Server
+
+This module provides functionality for storing and retrieving thoughts
+for sequential thinking in AI applications using ChromaDB.
 """
 
-from typing import Dict, List, Optional, Any
+import os
+import asyncio
+import json
+from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
 import uuid
 import time
 import numpy as np
 import chromadb
 from chromadb.api import Collection
+from chromadb.config import Settings
 
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
-from src.chroma_mcp.utils.logger_setup import LoggerSetup
-from src.chroma_mcp.utils.client import get_chroma_client
-from src.chroma_mcp.utils.config import validate_collection_name
-from src.chroma_mcp.utils.errors import ValidationError, CollectionNotFoundError
-from src.chroma_mcp.types import ChromaClientConfig, ThoughtMetadata
+from ..utils.logger_setup import LoggerSetup
+from ..utils.client import get_chroma_client
+from ..utils.config import validate_collection_name
+from ..utils.errors import ValidationError, CollectionNotFoundError
+from ..types import ChromaClientConfig, ThoughtMetadata
 
-logger = LoggerSetup.create_logger("ThinkingHandler", "chroma_thinking.log")
+# Initialize logger
+logger = LoggerSetup.create_logger(
+    "ThinkingHandler",
+    log_file="thinking_handler.log", 
+    log_level=os.getenv("LOG_LEVEL", "INFO")
+)
 
 # Constants
 THOUGHTS_COLLECTION = "thoughts"
