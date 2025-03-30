@@ -1,23 +1,33 @@
 """
-Document handler module for managing documents within ChromaDB collections.
-Provides methods for adding, querying, updating, and deleting documents.
+Document Handler for Chroma MCP Server
+
+This module provides functionality for managing documents in ChromaDB collections.
 """
 
+import os
+import asyncio
+import uuid
 from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
 import numpy as np
+
 import chromadb
 from chromadb.api import Collection
-
+from chromadb.config import Settings
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
-from src.chroma_mcp.utils.logger_setup import LoggerSetup
-from src.chroma_mcp.utils.client import get_chroma_client
-from src.chroma_mcp.utils.config import validate_collection_name
-from src.chroma_mcp.utils.errors import ValidationError, CollectionNotFoundError
+from ..utils.logger_setup import LoggerSetup
+from ..utils.client import get_chroma_client
+from ..utils.config import validate_collection_name
+from ..utils.errors import ValidationError, CollectionNotFoundError
 
-logger = LoggerSetup.create_logger("DocumentHandler", "chroma_documents.log")
+# Initialize logger
+logger = LoggerSetup.create_logger(
+    "DocumentHandler",
+    log_file="document_handler.log",
+    log_level=os.getenv("LOG_LEVEL", "INFO")
+)
 
 @dataclass
 class DocumentHandler:
@@ -129,6 +139,28 @@ class DocumentHandler:
                 code=INTERNAL_ERROR,
                 message=f"Failed to query documents: {str(e)}"
             ))
+
+    # Alias for query_documents to maintain API compatibility
+    async def query_collection(
+        self,
+        collection_name: str,
+        query_texts: Optional[List[str]] = None,
+        query_embeddings: Optional[List[List[float]]] = None,
+        n_results: int = 10,
+        where: Optional[Dict[str, Any]] = None,
+        where_document: Optional[Dict[str, Any]] = None,
+        include: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Alias for query_documents to maintain API compatibility."""
+        return await self.query_documents(
+            collection_name=collection_name,
+            query_texts=query_texts,
+            query_embeddings=query_embeddings,
+            n_results=n_results,
+            where=where,
+            where_document=where_document,
+            include=include
+        )
 
     async def get_documents(
         self,

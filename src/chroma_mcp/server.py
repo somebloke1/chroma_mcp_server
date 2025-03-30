@@ -171,6 +171,9 @@ def config_server(args: argparse.Namespace) -> None:
     
     Args:
         args: Parsed command line arguments
+        
+    Raises:
+        McpError: If configuration fails
     """
     global logger
     
@@ -228,7 +231,7 @@ def config_server(args: argparse.Namespace) -> None:
             print("WARNING: FastMCP is not installed. MCP tools will not be available.")
             print("To enable full functionality, install the optional dependencies:")
             print("pip install chroma-mcp-server[full]")
-        
+            
     except Exception as e:
         # If logger isn't initialized yet, use print for critical errors
         error_msg = f"Failed to configure server: {str(e)}"
@@ -236,10 +239,12 @@ def config_server(args: argparse.Namespace) -> None:
             logger.error(error_msg)
         else:
             print(f"ERROR: {error_msg}")
+        
+        # Wrap the exception in McpError
         raise McpError(ErrorData(
             code=INTERNAL_ERROR,
             message=error_msg
-        )) from e
+        ))
 
 @app.get("/")
 async def root() -> Dict[str, str]:
@@ -410,24 +415,28 @@ async def delete_documents(
         logger.error(f"Failed to delete documents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+class QueryRequest(BaseModel):
+    """Request model for collection queries."""
+    query_texts: List[str]
+    n_results: int = 10
+    where: Optional[Dict[str, Any]] = None
+    where_document: Optional[Dict[str, Any]] = None
+    include: Optional[List[str]] = None
+
 @app.post("/collections/{name}/query")
 async def query_collection(
     name: str,
-    query_texts: List[str],
-    n_results: int = 10,
-    where: Optional[Dict[str, Any]] = None,
-    where_document: Optional[Dict[str, Any]] = None,
-    include: Optional[List[str]] = None
+    request: QueryRequest
 ) -> Dict[str, Any]:
     """Query documents in a collection."""
     try:
         result = await get_document_handler().query_collection(
             name,
-            query_texts=query_texts,
-            n_results=n_results,
-            where=where,
-            where_document=where_document,
-            include=include
+            query_texts=request.query_texts,
+            n_results=request.n_results,
+            where=request.where,
+            where_document=request.where_document,
+            include=request.include
         )
         return result
     except CollectionNotFoundError as e:

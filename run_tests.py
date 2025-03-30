@@ -9,53 +9,36 @@ from pathlib import Path
 from typing import List
 
 
-def ensure_venv() -> None:
-    """Ensure virtual environment exists and is activated.
+def ensure_hatch_env() -> None:
+    """Ensure Hatch environment exists and is activated.
     
-    Creates the virtual environment if it doesn't exist and activates it using the appropriate
-    activation script for the current platform.
+    Checks if running in a Hatch environment and if not, runs the script through Hatch.
     """
-    venv_path = Path(".venv")
+    # Check if hatch is installed
+    try:
+        subprocess.run(["hatch", "--version"], check=True, capture_output=True)
+    except (subprocess.SubprocessError, FileNotFoundError):
+        print("Hatch not found. Installing Hatch...")
+        subprocess.run([sys.executable, "-m", "pip", "install", "hatch"], check=True)
     
-    # Create venv if it doesn't exist
-    if not venv_path.exists():
-        print("Creating virtual environment...")
-        subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True)
+    # Check if we're already in a Hatch environment
+    in_hatch_env = os.environ.get("VIRTUAL_ENV") and "hatch" in os.environ.get("VIRTUAL_ENV", "").lower()
     
-    # Get the activation script path based on platform
-    if sys.platform == "win32":
-        venv_path = os.path.realpath(os.path.join(venv_path, "Scripts"))
-        activate_script = os.path.join(venv_path, "activate.bat")
-        activate_cmd = str(activate_script)
-        venv_python = os.path.join(venv_path, "python.exe")
-    else:
-        venv_path = os.path.realpath(os.path.join(venv_path, "bin"))
-        activate_script = os.path.join(venv_path, "activate")
-        activate_cmd = f"source {activate_script}"
-        venv_python = os.path.join(venv_path, "python")
-    
-    if not os.path.exists(activate_script):
-        print("Virtual environment is incomplete. Please run: python -m venv .venv")
-        sys.exit(1)
-    
-    # Check if we're already in the virtual environment
-    if not hasattr(sys, 'real_prefix') and not (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-        print(f"Activating virtual environment using {activate_cmd} ...")
+    if not in_hatch_env:
+        print("Not running in Hatch environment. Restarting with Hatch...")
         
-        # Prepare the command to run the script with activated venv
-        if sys.platform == "win32":
-            cmd = f'cmd /c "{activate_cmd} && {venv_python} {__file__} {" ".join(sys.argv[1:])}"'
-        else:
-            cmd = f'bash -c "{activate_cmd} && {venv_python} {__file__} {" ".join(sys.argv[1:])}"'
-        
-        # Execute the command in a new shell
-        sys.exit(os.system(cmd))
+        # Prepare the command to run the script with Hatch
+        cmd_args = [sys.executable] + sys.argv
+        result = subprocess.run(["hatch", "run", "--"] + cmd_args, check=False)
+        sys.exit(result.returncode)
     
+    # Ensure test dependencies are installed
     try:
         import pytest
+        import pytest_cov
     except ImportError:
         print("Installing test dependencies...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "-e", ".[dev]"], check=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "pytest", "pytest-asyncio", "pytest-cov"], check=True)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -92,6 +75,12 @@ def parse_arguments() -> argparse.Namespace:
         "--verbose",
         action="store_true",
         help="Enable verbose output"
+    )
+    
+    parser.add_argument(
+        "--xml",
+        action="store_true",
+        help="Generate XML coverage report for CI/CD"
     )
     
     return parser.parse_args()
@@ -133,11 +122,14 @@ def build_pytest_args(args: argparse.Namespace) -> List[str]:
         pytest_args.append("-v")
     
     # Add coverage options
-    if args.coverage or args.html:
-        pytest_args.extend(["--cov=src.chroma_mcp", "--cov-report=term-missing"])
+    if args.coverage or args.html or args.xml:
+        pytest_args.extend(["--cov=chroma_mcp", "--cov-report=term-missing"])
         
         if args.html:
             pytest_args.append("--cov-report=html")
+            
+        if args.xml:
+            pytest_args.append("--cov-report=xml")
     
     return pytest_args
 
@@ -152,19 +144,20 @@ def main() -> int:
     project_root = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, project_root)
     
-    # Ensure virtual environment
-    ensure_venv()
+    # Ensure Hatch environment
+    ensure_hatch_env()
     
     try:
         import pytest
     except ImportError:
-        print("Error: pytest not found. Please run: pip install -e '.[dev]'")
+        print("Error: pytest not found. Please run: pip install pytest pytest-asyncio pytest-cov")
         return 1
     
     # Parse arguments and run tests
     args = parse_arguments()
     pytest_args = build_pytest_args(args)
     
+    print(f"Running tests with args: {pytest_args}")
     return pytest.main(pytest_args)
 
 

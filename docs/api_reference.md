@@ -2,6 +2,8 @@
 
 This document provides detailed information about the tools available in the Chroma MCP Server.
 
+> **Note**: The Chroma MCP Server has been optimized with minimal dependencies. For full functionality including embedding models, install with `pip install chroma-mcp-server[full]`.
+
 ## Tool Categories
 
 The Chroma MCP Server provides 15 tools across three categories:

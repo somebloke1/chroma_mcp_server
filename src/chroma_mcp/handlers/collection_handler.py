@@ -1,22 +1,30 @@
 """
-Collection handler module for managing ChromaDB collections.
-Provides methods for creating, listing, modifying, and deleting collections.
+Collection Handler for Chroma MCP Server
+
+This module provides functionality for managing collections in ChromaDB.
 """
 
-from typing import Dict, List, Optional, Any
+import os
+import asyncio
+from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
+
 import chromadb
 from chromadb.config import Settings
-
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
-from src.chroma_mcp.utils.logger_setup import LoggerSetup
-from src.chroma_mcp.utils.client import get_chroma_client
-from src.chroma_mcp.utils.config import validate_collection_name, get_collection_settings
-from src.chroma_mcp.utils.errors import ValidationError, CollectionNotFoundError
+from ..utils.logger_setup import LoggerSetup
+from ..utils.client import get_chroma_client
+from ..utils.config import validate_collection_name, get_collection_settings
+from ..utils.errors import ValidationError, CollectionNotFoundError
 
-logger = LoggerSetup.create_logger("CollectionHandler", "chroma_collections.log")
+# Initialize logger
+logger = LoggerSetup.create_logger(
+    "CollectionHandler",
+    log_file="collection_handler.log",
+    log_level=os.getenv("LOG_LEVEL", "INFO")
+)
 
 @dataclass
 class CollectionHandler:

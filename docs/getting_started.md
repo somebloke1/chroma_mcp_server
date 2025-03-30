@@ -4,62 +4,64 @@ This guide will help you set up and start using the Chroma MCP Server.
 
 ## Prerequisites
 
-- Python 3.12 or higher
+- Python 3.10 or higher
 - Pip package manager
-- Git (optional, for cloning the repository)
+- Git (optional, for development)
 
 ## Installation
 
-### Option 1: Using the setup script (recommended)
+### Option 1: Simple Installation (Recommended)
 
 ```bash
-# Clone the repository (if not already done)
-git clone https://github.com/yourusername/chroma-mcp-server.git
-cd chroma-mcp-server
+# Install the package from PyPI
+pip install chroma-mcp-server
 
-# Run the setup script
-./setup.sh  # On Unix/macOS
+# For full functionality with embedding models
+pip install chroma-mcp-server[full]
 ```
 
-The setup script will:
-
-- Create a virtual environment
-- Install all dependencies
-- Set up the package in development mode
-- Verify the installation
-
-### Option 2: Manual setup
+### Option 2: Development Setup
 
 ```bash
 # Clone the repository (if not already done)
 git clone https://github.com/yourusername/chroma-mcp-server.git
 cd chroma-mcp-server
 
-# Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Unix/macOS
-.venv\Scripts\activate    # On Windows
+# Install Hatch if not already installed
+pip install hatch
 
-# Install the package in development mode
-pip install -e ".[dev]"
+# Create a development environment
+hatch shell
+
+# Or run the helper script
+./develop.sh
 ```
 
 ## Configuration
 
-### Setting Up Environment Variables
+### Environment Variables
 
-Create a `.env` file in the project root with the following options:
+You can configure the server using environment variables:
 
-```ini
+```bash
 # Client Configuration
-CHROMA_CLIENT_TYPE=persistent  # Options: http, cloud, persistent, ephemeral
-CHROMA_DATA_DIR=./data         # Required for persistent client
-CHROMA_HOST=localhost          # Required for http client
-CHROMA_PORT=8000              # Optional for http client
+export CHROMA_CLIENT_TYPE=persistent  # Options: http, cloud, persistent, ephemeral
+export CHROMA_DATA_DIR=./data         # Required for persistent client
+export CHROMA_LOG_DIR=./logs          # Directory for log files
+export CHROMA_HOST=localhost          # Required for http client
+export CHROMA_PORT=8000               # Optional for http client
 
 # Server Settings
-LOG_LEVEL=INFO                # Optional, default: INFO
-MCP_LOG_LEVEL=INFO           # Optional, controls MCP framework logging
+export LOG_LEVEL=INFO                 # Optional, default: INFO
+export MCP_LOG_LEVEL=INFO             # Optional, controls MCP framework logging
+```
+
+### Command-line Options
+
+Alternatively, you can use command-line options:
+
+```bash
+chroma-mcp-server --client-type persistent --data-dir ./data --log-dir ./logs
 ```
 
 ### Configure Cursor MCP Integration
@@ -69,17 +71,15 @@ If you want to use the server with Cursor AI, add this to your `.cursor/mcp.json
 ```json
 {
   "mcpServers": {
-    "chroma_mcp_server": {
-      "command": "/path/to/venv/bin/python",
-      "args": [
-        "/path/to/repo/mcp/chroma_mcp_server/run_chroma_mcp.py"
-      ],
+    "chroma": {
+      "command": "chroma-mcp-server",
+      "args": [],
       "env": {
-        "PYTHONUNBUFFERED": "1",
-        "PYTHONIOENCODING": "utf-8",
-        "PYTHONPATH": "/path/to/repo/mcp/chroma_mcp_server",
-        "LOG_LEVEL": "WARNING",
-        "MCP_LOG_LEVEL": "WARNING"
+        "CHROMA_CLIENT_TYPE": "persistent",
+        "CHROMA_DATA_DIR": "/path/to/data/dir",
+        "CHROMA_LOG_DIR": "/path/to/logs/dir",
+        "LOG_LEVEL": "INFO",
+        "MCP_LOG_LEVEL": "INFO"
       }
     }
   }
@@ -93,21 +93,23 @@ If you want to use the server with Cursor AI, add this to your `.cursor/mcp.json
 For development and testing, you can run the server directly:
 
 ```bash
-# Activate the virtual environment if not already active
-source .venv/bin/activate  # On Unix/macOS
-.venv\Scripts\activate    # On Windows
+# If installed from PyPI
+chroma-mcp-server
 
-# Run the server
-python run_chroma_mcp.py
+# If in a development environment
+hatch run python -m chroma_mcp.server
 ```
 
 ### Verifying the Server
 
-To verify the server is working:
+To verify the server is working, you can run the tests:
 
 ```bash
-# Run the verification script
-./tests/run_chroma_mcp_test.sh  # On Unix/macOS
+# Run all tests
+hatch run python -m pytest
+
+# Or use the test script
+./test.sh
 ```
 
 ## Basic Usage Example
@@ -122,9 +124,12 @@ from mcp.client.stdio import stdio_client
 async def main():
     # Set up server parameters
     server_params = StdioServerParameters(
-        command="python",
-        args=["path/to/run_chroma_mcp.py"],
-        env={"PYTHONUNBUFFERED": "1"}
+        command="chroma-mcp-server",  # Use the installed command
+        args=[],
+        env={
+            "PYTHONUNBUFFERED": "1", 
+            "CHROMA_CLIENT_TYPE": "ephemeral"  # In-memory database for testing
+        }
     )
     
     # Connect to the server
@@ -163,8 +168,30 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+## Optimized Dependencies
+
+The package has been optimized with three dependency groups:
+
+1. **Core Dependencies** (installed by default):
+   - `chromadb` - Vector database
+   - `fastmcp` - MCP framework
+   - `python-dotenv` - Environment variable management
+   - `pydantic` - Data validation
+   - `fastapi` - API framework
+   - `uvicorn` - ASGI server
+   - `numpy` - Numerical operations
+
+2. **Full Dependencies** (optional):
+   - `onnxruntime` - Optimized ML runtime
+   - `sentence-transformers` - Text embedding models
+   - `httpx` - HTTP client for remote connections
+
+3. **Development Dependencies** (for contributors):
+   - Testing tools (pytest, pytest-cov)
+   - Code quality tools (black, isort, mypy)
+
 ## Next Steps
 
 - Explore the [full documentation](../README.md)
-- Check out the [example scripts](../examples)
-- Review the [API reference](./api_reference.md)
+- Check out the [API reference](./api_reference.md)
+- Learn about [advanced configuration options](./api_reference.md)
