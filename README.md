@@ -62,13 +62,13 @@ Or use the provided scripts during development:
 
 ```bash
 # For development environment
-./develop.sh
+./scripts/develop.sh
 
 # To build the package
-./build.sh
+./scripts/build.sh
 
 # To publish to PyPI
-./publish.sh
+./scripts/publish.sh
 ```
 
 ### Configuration
@@ -110,28 +110,10 @@ To use with Cursor, add the following to your `.cursor/mcp.json`:
 {
   "mcpServers": {
     "chroma": {
-      "command": "chroma-mcp-server",
-      "args": [],
-      "env": {
-        "CHROMA_CLIENT_TYPE": "persistent",
-        "CHROMA_DATA_DIR": "/path/to/data/dir",
-        "CHROMA_LOG_DIR": "/path/to/logs/dir",
-        "LOG_LEVEL": "INFO",
-        "MCP_LOG_LEVEL": "INFO"
-      }
-    }
-  }
-}
-```
-
-For UVX integration with Cursor, use:
-
-```json
-{
-  "mcpServers": {
-    "chroma": {
       "command": "uvx",
-      "args": ["chroma-mcp-server"],
+      "args": [
+        "chroma-mcp-server"
+      ],
       "env": {
         "CHROMA_CLIENT_TYPE": "persistent",
         "CHROMA_DATA_DIR": "/path/to/data/dir",
@@ -143,6 +125,32 @@ For UVX integration with Cursor, use:
   }
 }
 ```
+
+#### Version Management
+
+We provide a script to manage your server version:
+
+```bash
+# Install and configure a specific version
+./scripts/update_mcp_version.sh -i 0.1.4
+
+# Only update configuration (if already installed)
+./scripts/update_mcp_version.sh 0.1.4
+
+# Use version from pyproject.toml
+./scripts/update_mcp_version.sh
+```
+
+The script provides:
+- One-time installation with `-i` flag
+- Clean server configuration
+- Automatic version detection from pyproject.toml
+- Clear post-update instructions
+
+After updating:
+1. Restart Cursor to apply the changes
+2. The server will start using the configured version
+3. No unnecessary reinstalls on server restart
 
 ### Smithery Integration
 
@@ -152,47 +160,77 @@ This MCP server is compatible with [Smithery](https://smithery.ai/). See the `sm
 
 This project uses [Hatch](https://hatch.pypa.io/) for development and package management.
 
+### Development Scripts
+
+The project includes several utility scripts in the `scripts/` directory to streamline development tasks:
+
+```bash
+# Start development environment
+./scripts/develop.sh
+
+# Run tests with coverage
+./scripts/test.sh
+
+# Build the package
+./scripts/build.sh
+
+# Publish to TestPyPI/PyPI
+./scripts/publish.sh [-t|-p] -v VERSION
+
+# Test UVX installation
+./scripts/test_uvx_install.sh
+
+# Update MCP version in Cursor config
+./scripts/update_mcp_version.sh [VERSION]
+```
+
 ### Setting Up Development Environment
 
 ```bash
 # Install Hatch globally
 pip install hatch
 
-# Create and activate a development environment
-hatch shell
+# Create and activate development environment using our script
+./scripts/develop.sh
 ```
 
 ### Running Tests
 
 ```bash
 # Run all tests
-hatch run python -m pytest
+hatch run test:run
 
-# Run with coverage
-hatch run python -m pytest --cov=chroma_mcp
+# Run with coverage (using our script)
+./scripts/test.sh
 
-# Using the test script (with coverage)
-./test.sh
+# Run tests for specific file/directory
+hatch run test:run tests/path/to/test.py
 ```
 
 ### Building the Package
 
 ```bash
-# Build both wheel and sdist
-hatch build
+# Build using our script (recommended)
+./scripts/build.sh
 
-# Or use the script
-./build.sh
+# Or manually with Hatch
+hatch build
 ```
 
 ### Publishing
 
 ```bash
 # Publish to TestPyPI (for testing)
-./publish.sh -t -v 0.1.x
+./scripts/publish.sh -t -v VERSION
 
 # Publish to PyPI (production)
-./publish.sh -p -v 0.1.x
+./scripts/publish.sh -p -v VERSION
+
+# Additional options:
+#  -y: Auto-confirm prompts
+#  -u: PyPI username
+#  -w: PyPI password/token
+#  -f: Fix dependencies
 ```
 
 ## Dependencies
@@ -208,6 +246,7 @@ The package has optimized dependencies organized into groups:
 ### Common Issues
 
 1. **Missing dependencies**: If you encounter module import errors, make sure to install all required dependencies:
+
    ```bash
    pip install "chroma-mcp-server[full]"
    ```
@@ -215,10 +254,11 @@ The package has optimized dependencies organized into groups:
 2. **Permission errors**: When using persistent storage, ensure the data directory is writable.
 
 3. **UVX integration**: If using UVX with Cursor, make sure UVX is installed and in your PATH:
+
    ```bash
    pip install uv uvx
    ```
 
 ## License
 
-Apache-2.0 (see [LICENSE](LICENSE))
+MIT License (see [LICENSE](LICENSE))

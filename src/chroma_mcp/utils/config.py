@@ -10,16 +10,13 @@ from dotenv import load_dotenv
 
 from chromadb.config import Settings
 from mcp.shared.exceptions import McpError
-from mcp.types import ErrorData, INVALID_PARAMS
+from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
 from .errors import ValidationError, CollectionNotFoundError
 from .logger_setup import LoggerSetup
 
 # Initialize logger
-logger = LoggerSetup.create_logger(
-    "ChromaConfig",
-    log_file="chroma_config.log"
-)
+logger = LoggerSetup.create_logger("Config")
 
 @dataclass
 class ServerConfig:
@@ -38,17 +35,38 @@ def load_config(env_file: Optional[str] = None) -> ServerConfig:
         
     Returns:
         ServerConfig instance with loaded settings
+        
+    Raises:
+        McpError: If configuration loading fails
     """
-    # Load environment variables if env_file is provided
-    if env_file:
-        load_dotenv(env_file)
-    
-    return ServerConfig(
-        log_level=os.getenv("CHROMA_LOG_LEVEL", "INFO"),
-        max_batch_size=int(os.getenv("CHROMA_MAX_BATCH_SIZE", "100")),
-        default_collection=os.getenv("CHROMA_DEFAULT_COLLECTION"),
-        enable_telemetry=os.getenv("CHROMA_ENABLE_TELEMETRY", "false").lower() in ["true", "1", "yes"]
-    )
+    try:
+        # Load environment variables if env_file is provided
+        if env_file:
+            logger.debug(f"Loading environment variables from: {env_file}")
+            load_dotenv(env_file)
+        
+        config = ServerConfig(
+            log_level=os.getenv("CHROMA_LOG_LEVEL", "INFO"),
+            max_batch_size=int(os.getenv("CHROMA_MAX_BATCH_SIZE", "100")),
+            default_collection=os.getenv("CHROMA_DEFAULT_COLLECTION"),
+            enable_telemetry=os.getenv("CHROMA_ENABLE_TELEMETRY", "false").lower() in ["true", "1", "yes"]
+        )
+        
+        logger.debug(f"Loaded configuration: {config}")
+        return config
+        
+    except ValueError as e:
+        logger.error(f"Invalid configuration value: {str(e)}")
+        raise McpError(ErrorData(
+            code=INVALID_PARAMS,
+            message=f"Invalid configuration value: {str(e)}"
+        ))
+    except Exception as e:
+        logger.error(f"Failed to load configuration: {str(e)}")
+        raise McpError(ErrorData(
+            code=INTERNAL_ERROR,
+            message=f"Failed to load configuration: {str(e)}"
+        ))
 
 def get_collection_settings(
     collection_name: Optional[str] = None,
@@ -119,15 +137,27 @@ def validate_collection_name(name: str) -> None:
         name: Collection name to validate
         
     Raises:
-        ValidationError: If the collection name is invalid
+        McpError: If the collection name is invalid
     """
     if not name:
-        raise ValidationError("Collection name cannot be empty")
+        logger.warning("Empty collection name provided")
+        raise McpError(ErrorData(
+            code=INVALID_PARAMS,
+            message="Collection name cannot be empty"
+        ))
     
     # Check length
     if len(name) > 64:
-        raise ValidationError("Collection name cannot be longer than 64 characters")
+        logger.warning(f"Collection name too long: {name}")
+        raise McpError(ErrorData(
+            code=INVALID_PARAMS,
+            message="Collection name cannot be longer than 64 characters"
+        ))
     
     # Check characters
     if not re.match(r'^[a-zA-Z0-9_-]+$', name):
-        raise ValidationError("Collection name can only contain letters, numbers, underscores, and hyphens")
+        logger.warning(f"Invalid characters in collection name: {name}")
+        raise McpError(ErrorData(
+            code=INVALID_PARAMS,
+            message="Collection name can only contain letters, numbers, underscores, and hyphens"
+        ))

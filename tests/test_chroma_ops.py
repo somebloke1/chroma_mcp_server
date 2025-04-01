@@ -211,21 +211,21 @@ class TestConfiguration:
 
     def test_validate_collection_name_empty(self):
         """Test validation of empty collection name."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(McpError) as exc_info:
             validate_collection_name("")
-        assert "cannot be empty" in str(exc_info.value)
+        assert "Collection name cannot be empty" in str(exc_info.value)
 
     def test_validate_collection_name_too_long(self):
         """Test validation of too long collection name."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(McpError) as exc_info:
             validate_collection_name("a" * 65)
-        assert "cannot be longer than 64 characters" in str(exc_info.value)
+        assert "Collection name cannot be longer than 64 characters" in str(exc_info.value)
 
     def test_validate_collection_name_invalid_chars(self):
         """Test validation of collection name with invalid characters."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(McpError) as exc_info:
             validate_collection_name("invalid@collection")
-        assert "can only contain letters, numbers, underscores, and hyphens" in str(exc_info.value)
+        assert "Collection name can only contain letters, numbers, underscores, and hyphens" in str(exc_info.value)
 
 # CPU Provider Detection Tests
 class TestCpuProviderDetection:

@@ -8,7 +8,7 @@ from src.chroma_mcp import (
     CollectionHandler,
     ChromaClientConfig
 )
-from src.chroma_mcp.utils.errors import ValidationError, CollectionNotFoundError
+from src.chroma_mcp.utils.errors import ValidationError, CollectionNotFoundError, McpError
 
 @pytest.fixture
 def mock_collection():
@@ -62,7 +62,7 @@ class TestCollectionHandler:
         """Test collection creation with invalid name."""
         with patch("src.chroma_mcp.handlers.collection_handler.get_chroma_client", return_value=mock_chroma_client):
             handler = CollectionHandler(config=mock_config)
-            with pytest.raises(ValidationError):
+            with pytest.raises(McpError, match="Collection name cannot be empty"):
                 await handler.create_collection("", new_name="invalid name with spaces")
 
     async def test_list_collections_success(self, mock_chroma_client, mock_collection, mock_config):
@@ -101,7 +101,7 @@ class TestCollectionHandler:
         """Test collection modification with invalid name."""
         with patch("src.chroma_mcp.handlers.collection_handler.get_chroma_client", return_value=mock_chroma_client):
             handler = CollectionHandler(config=mock_config)
-            with pytest.raises(ValidationError):
+            with pytest.raises(McpError, match="Collection name can only contain letters, numbers, underscores, and hyphens"):
                 await handler.modify_collection("", new_name="invalid name with spaces")
 
     async def test_delete_collection_success(self, mock_chroma_client, mock_collection, mock_config):

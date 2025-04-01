@@ -7,13 +7,8 @@ integrating ChromaDB with the Model Context Protocol (MCP).
 
 import os
 import argparse
-import ssl
-
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Body
-from pydantic import BaseModel
-from contextlib import asynccontextmanager
 
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 from mcp.server.fastmcp import FastMCP
@@ -27,7 +22,7 @@ from .utils.config import load_config
 from .tools.collection_tools import register_collection_tools
 from .tools.document_tools import register_document_tools
 from .tools.thinking_tools import register_thinking_tools
-from .utils.errors import handle_chroma_error, validate_input, raise_validation_error, ValidationError, CollectionNotFoundError
+from .utils.errors import handle_chroma_error, validate_input, raise_validation_error
 
 # Add this near the top of the file, after imports but before any other code
 CHROMA_AVAILABLE = False
@@ -47,26 +42,6 @@ except ImportError:
 # Initialize logger - will be properly configured in config_server
 logger = None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifespan context manager for the FastAPI app."""
-    # Startup
-    get_mcp()
-    if logger:
-        logger.info("MCP instance initialized on server startup")
-    yield
-    # Shutdown (if needed in the future)
-    if logger:
-        logger.info("Server shutting down")
-
-# Replace app declaration with lifespan parameter
-app = FastAPI(
-    title="ChromaMCP Server",
-    description="FastAPI server for ChromaMCP operations",
-    version="0.1.0",
-    lifespan=lifespan
-)
-
 # Initialize handlers lazily
 _collection_handler = None
 _document_handler = None
@@ -77,13 +52,22 @@ def get_mcp() -> FastMCP:
     """Get or create the FastMCP instance."""
     global _mcp
     if _mcp is None:
-        _mcp = FastMCP("chroma")
-        # Register tools after MCP instance is created
-        register_collection_tools(_mcp)
-        register_document_tools(_mcp)
-        register_thinking_tools(_mcp)
-        if logger:
-            logger.info("Successfully registered MCP tools")
+        try:
+            _mcp = FastMCP("chroma")
+            # Register tools after MCP instance is created
+            register_collection_tools(_mcp)
+            register_document_tools(_mcp)
+            register_thinking_tools(_mcp)
+            if logger:
+                logger.debug("Successfully registered MCP tools")
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to initialize MCP: {str(e)}")
+            _mcp = None  # Reset the instance on failure
+            raise McpError(ErrorData(
+                code=INTERNAL_ERROR,
+                message=f"Failed to initialize MCP: {str(e)}"
+            ))
     return _mcp
 
 def get_collection_handler():
@@ -167,7 +151,7 @@ def create_parser() -> argparse.ArgumentParser:
 
 def config_server(args: argparse.Namespace) -> None:
     """
-    Configure the server with the provided configuration without using async.
+    Configure the server with the provided configuration.
     
     Args:
         args: Parsed command line arguments
@@ -246,245 +230,6 @@ def config_server(args: argparse.Namespace) -> None:
             message=error_msg
         ))
 
-@app.get("/")
-async def root() -> Dict[str, str]:
-    """Root endpoint."""
-    return {"message": "ChromaMCP Server is running"}
-
-@app.post("/collections")
-async def create_collection(
-    name: str,
-    metadata: Optional[Dict[str, Any]] = None,
-    config: Optional[ChromaClientConfig] = None
-) -> Dict[str, Any]:
-    """Create a new collection."""
-    try:
-        result = await get_collection_handler().create_collection(name, metadata=metadata)
-        return result
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=e.message)
-    except Exception as e:
-        logger.error(f"Failed to create collection: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/collections")
-async def list_collections() -> Dict[str, Any]:
-    """List all collections."""
-    try:
-        result = await get_collection_handler().list_collections()
-        return result
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to list collections: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/collections/{name}")
-async def get_collection(name: str) -> Dict[str, Any]:
-    """Get a specific collection."""
-    try:
-        result = await get_collection_handler().get_collection(name)
-        return result
-    except CollectionNotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.message)
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to get collection: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/collections/{name}")
-async def delete_collection(
-    name: str,
-    config: Optional[ChromaClientConfig] = None
-) -> Dict[str, Any]:
-    """Delete a collection by name."""
-    try:
-        return await get_collection_handler().delete_collection(name, config)
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to delete collection: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/collections/{name}/documents")
-async def add_documents(
-    name: str,
-    documents: List[str],
-    metadatas: Optional[List[Dict[str, Any]]] = None,
-    ids: Optional[List[str]] = None
-) -> Dict[str, Any]:
-    """Add documents to a collection."""
-    try:
-        result = await get_document_handler().add_documents(
-            name,
-            documents=documents,
-            metadatas=metadatas,
-            ids=ids
-        )
-        return result
-    except CollectionNotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.message)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=e.message)
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to add documents: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/collections/{name}/documents")
-async def get_documents(
-    name: str,
-    ids: Optional[List[str]] = None,
-    where: Optional[Dict[str, Any]] = None,
-    limit: Optional[int] = None,
-    offset: Optional[int] = None,
-    include: Optional[List[str]] = None
-) -> Dict[str, Any]:
-    """Get documents from a collection."""
-    try:
-        result = await get_document_handler().get_documents(
-            name,
-            ids=ids,
-            where=where,
-            limit=limit,
-            offset=offset,
-            include=include
-        )
-        return result
-    except CollectionNotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.message)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=e.message)
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to get documents: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.put("/collections/{name}/documents")
-async def update_documents(
-    name: str,
-    documents: List[str],
-    ids: List[str],
-    metadatas: Optional[List[Dict[str, Any]]] = None
-) -> Dict[str, Any]:
-    """Update documents in a collection."""
-    try:
-        result = await get_document_handler().update_documents(
-            name,
-            documents=documents,
-            ids=ids,
-            metadatas=metadatas
-        )
-        return result
-    except CollectionNotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.message)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=e.message)
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to update documents: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/collections/{name}/documents")
-async def delete_documents(
-    name: str,
-    ids: List[str],
-    where: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
-    """Delete documents from a collection."""
-    try:
-        result = await get_document_handler().delete_documents(
-            name,
-            ids=ids,
-            where=where
-        )
-        return result
-    except CollectionNotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.message)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=e.message)
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to delete documents: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-class QueryRequest(BaseModel):
-    """Request model for collection queries."""
-    query_texts: List[str]
-    n_results: int = 10
-    where: Optional[Dict[str, Any]] = None
-    where_document: Optional[Dict[str, Any]] = None
-    include: Optional[List[str]] = None
-
-@app.post("/collections/{name}/query")
-async def query_collection(
-    name: str,
-    request: QueryRequest
-) -> Dict[str, Any]:
-    """Query documents in a collection."""
-    try:
-        result = await get_document_handler().query_collection(
-            name,
-            query_texts=request.query_texts,
-            n_results=request.n_results,
-            where=request.where,
-            where_document=request.where_document,
-            include=request.include
-        )
-        return result
-    except CollectionNotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.message)
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to query collection: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-class ThoughtRequest(BaseModel):
-    """Request model for recording a thought."""
-    thought: str
-    thought_number: int
-    session_id: str
-    branch_id: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-
-@app.post("/thoughts")
-async def record_thought(request: ThoughtRequest) -> Dict[str, Any]:
-    """Record a thought."""
-    try:
-        result = await get_thinking_handler().add_thought(
-            thought=request.thought,
-            thought_number=request.thought_number,
-            session_id=request.session_id,
-            branch_id=request.branch_id,
-            metadata=request.metadata
-        )
-        return result
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to record thought: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/thoughts/sessions/{session_id}")
-async def get_session_summary(session_id: str) -> Dict[str, Any]:
-    """Get a summary of thoughts for a session."""
-    try:
-        result = await get_thinking_handler().get_thoughts(session_id=session_id)
-        return result
-    except McpError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to get session summary: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 def main() -> None:
     """Entry point for the Chroma MCP server."""
     try:
@@ -492,26 +237,27 @@ def main() -> None:
         parser = create_parser()
         args = parser.parse_args()
         
-        # Initialize server (but don't await the coroutine since we don't need the result)
-        # Just call it synchronously to configure the environment
+        # Initialize server
         config_server(args)
         
-        # Start server
-        logger.info("Starting Chroma MCP server")
+        if logger:
+            logger.debug("Starting Chroma MCP server with stdio transport")
+        
+        # Start server with stdio transport
         get_mcp().run(transport='stdio')
         
-    except Exception as e:
-        # Handle logging even if logger initialization failed
-        error_msg = f"Critical error running MCP server: {e}"
+    except McpError as e:
         if logger:
-            logger.critical(error_msg)
-            import traceback
-            logger.critical(f"Traceback: {traceback.format_exc()}")
-        else:
-            import traceback
-            print(f"CRITICAL ERROR: {error_msg}")
-            print(f"Traceback: {traceback.format_exc()}")
+            logger.error(f"MCP Error: {str(e)}")
         raise
+    except Exception as e:
+        error_msg = f"Critical error running MCP server: {str(e)}"
+        if logger:
+            logger.error(error_msg)
+        raise McpError(ErrorData(
+            code=INTERNAL_ERROR,
+            message=error_msg
+        ))
 
 if __name__ == "__main__":
     main() 
