@@ -142,12 +142,14 @@ We provide a script to manage your server version:
 ```
 
 The script provides:
+
 - One-time installation with `-i` flag
 - Clean server configuration
 - Automatic version detection from pyproject.toml
 - Clear post-update instructions
 
 After updating:
+
 1. Restart Cursor to apply the changes
 2. The server will start using the configured version
 3. No unnecessary reinstalls on server restart

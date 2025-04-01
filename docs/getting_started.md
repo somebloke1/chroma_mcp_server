@@ -149,6 +149,7 @@ After updating:
 If you encounter any issues:
 
 1. **First Time Setup**:
+
    ```bash
    # Install UVX if not present
    pip install uv uvx
@@ -158,6 +159,7 @@ If you encounter any issues:
    ```
 
 2. **Version Mismatch**:
+
    ```bash
    # Check current configuration
    cat .cursor/mcp.json
