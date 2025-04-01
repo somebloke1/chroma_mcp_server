@@ -120,6 +120,9 @@ warn_unreachable = true
 [tool.pytest.ini_options]
 minversion = "8.3.5"
 addopts = "-ra -q"
+pythonpath = [
+    "src"
+]
 testpaths = [
     "tests",
 ]
