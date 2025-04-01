@@ -175,7 +175,7 @@ Based on the status documented in `uvx_integration_status.md`, we have:
 
 ### Phase 5: Create Simplified Development Scripts
 
-1. [x] Create a simple `develop.sh` script for local development:
+1. [x] Create a simple `scripts/develop.sh` script for local development:
 
    ```bash
    #!/bin/bash
@@ -184,7 +184,7 @@ Based on the status documented in `uvx_integration_status.md`, we have:
    hatch shell
    ```
 
-2. [x] Create a `build.sh` script for building the package:
+2. [x] Create a `scripts/build.sh` script for building the package:
 
    ```bash
    #!/bin/bash
@@ -193,7 +193,7 @@ Based on the status documented in `uvx_integration_status.md`, we have:
    hatch build
    ```
 
-3. [x] Create a `publish.sh` script for publishing to PyPI:
+3. [x] Create a `scripts/publish.sh` script for publishing to PyPI:
 
    ```bash
    #!/bin/bash
@@ -229,12 +229,8 @@ Based on the status documented in `uvx_integration_status.md`, we have:
 3. [x] Use the Hatch-integrated test runner for convenience:
 
    ```bash
-   # Run all tests with coverage (uses Hatch environment automatically)
-   ./test.sh
-
-   # Or use run_tests.py directly with more options
-   python run_tests.py --coverage --verbose
-   python run_tests.py --test-type unit --coverage --html --xml
+   # Run tests with coverage
+   ./scripts/test.sh
    ```
 
    The updated Python test runner (`run_tests.py`) provides several advantages:

@@ -14,17 +14,10 @@ from chromadb.config import Settings
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
-from ..utils.logger_setup import LoggerSetup
 from ..utils.client import get_chroma_client
 from ..utils.config import validate_collection_name, get_collection_settings
 from ..utils.errors import ValidationError, CollectionNotFoundError
-
-# Initialize logger
-logger = LoggerSetup.create_logger(
-    "CollectionHandler",
-    log_file="collection_handler.log",
-    log_level=os.getenv("LOG_LEVEL", "INFO")
-)
+from ..utils.logger_setup import LoggerSetup
 
 @dataclass
 class CollectionHandler:
@@ -33,7 +26,7 @@ class CollectionHandler:
     def __init__(self, config=None):
         """Initialize the collection handler."""
         self._client = get_chroma_client(config)
-        logger.info("Collection handler initialized")
+        self.logger = LoggerSetup.create_logger("CollectionHandler")
 
     async def create_collection(
         self,
@@ -48,6 +41,8 @@ class CollectionHandler:
         try:
             # Validate collection name
             validate_collection_name(collection_name)
+
+            self.logger.debug(f"Creating collection: {collection_name}")
 
             # Get collection settings
             settings = get_collection_settings(
@@ -67,7 +62,7 @@ class CollectionHandler:
                 **settings
             )
 
-            logger.info(f"Created collection: {collection_name}")
+            self.logger.debug(f"Successfully created collection: {collection_name}")
             return {
                 "name": collection_name,
                 "id": collection.id,
@@ -75,16 +70,19 @@ class CollectionHandler:
             }
 
         except ValidationError as e:
-            logger.error(f"Invalid collection parameters: {str(e)}")
-            raise
+            self.logger.warning(f"Invalid collection parameters for {collection_name}: {str(e)}")
+            raise McpError(ErrorData(
+                code=INVALID_PARAMS,
+                message=f"Invalid collection parameters: {str(e)}"
+            ))
         except chromadb.errors.InvalidDimensionException as e:
-            logger.error(f"Invalid dimensions for collection {collection_name}: {str(e)}")
+            self.logger.error(f"Invalid dimensions for collection {collection_name}: {str(e)}")
             raise McpError(ErrorData(
                 code=INVALID_PARAMS,
                 message=f"Invalid dimensions: {str(e)}"
             ))
         except Exception as e:
-            logger.error(f"Error creating collection {collection_name}: {str(e)}")
+            self.logger.error(f"Failed to create collection {collection_name}: {str(e)}")
             raise McpError(ErrorData(
                 code=INTERNAL_ERROR,
                 message=f"Failed to create collection: {str(e)}"
@@ -97,6 +95,7 @@ class CollectionHandler:
     ) -> Dict[str, Any]:
         """List all collections with optional pagination."""
         try:
+            self.logger.debug("Listing collections")
             collections = self._client.list_collections()
             
             # Apply pagination if provided
@@ -117,7 +116,7 @@ class CollectionHandler:
             }
 
         except Exception as e:
-            logger.error(f"Error listing collections: {str(e)}")
+            self.logger.error(f"Failed to list collections: {str(e)}")
             raise McpError(ErrorData(
                 code=INTERNAL_ERROR,
                 message=f"Failed to list collections: {str(e)}"
@@ -138,10 +137,8 @@ class CollectionHandler:
             }
 
         except chromadb.errors.InvalidCollectionException:
-            logger.error(f"Collection not found: {collection_name}")
             raise CollectionNotFoundError(f"Collection not found: {collection_name}")
         except Exception as e:
-            logger.error(f"Error getting collection {collection_name}: {str(e)}")
             raise McpError(ErrorData(
                 code=INTERNAL_ERROR,
                 message=f"Failed to get collection: {str(e)}"
@@ -162,7 +159,6 @@ class CollectionHandler:
                 # Rename collection
                 self._client.rename_collection(collection_name, new_name)
                 collection_name = new_name
-                logger.info(f"Renamed collection to: {new_name}")
 
             if new_metadata:
                 # Update metadata
@@ -170,7 +166,6 @@ class CollectionHandler:
                 current_metadata = collection.metadata or {}
                 updated_metadata = {**current_metadata, **new_metadata}
                 collection.modify(metadata=updated_metadata)
-                logger.info(f"Updated metadata for collection: {collection_name}")
 
             # Get updated collection info
             collection = self._client.get_collection(collection_name)
@@ -181,13 +176,10 @@ class CollectionHandler:
             }
 
         except ValidationError as e:
-            logger.error(f"Invalid collection parameters: {str(e)}")
             raise
         except chromadb.errors.InvalidCollectionException:
-            logger.error(f"Collection not found: {collection_name}")
             raise CollectionNotFoundError(f"Collection not found: {collection_name}")
         except Exception as e:
-            logger.error(f"Error modifying collection {collection_name}: {str(e)}")
             raise McpError(ErrorData(
                 code=INTERNAL_ERROR,
                 message=f"Failed to modify collection: {str(e)}"
@@ -209,7 +201,6 @@ class CollectionHandler:
 
             # Delete the collection
             self._client.delete_collection(collection_name)
-            logger.info(f"Deleted collection: {collection_name}")
 
             return {
                 "success": True,
@@ -217,10 +208,8 @@ class CollectionHandler:
             }
 
         except chromadb.errors.InvalidCollectionException:
-            logger.error(f"Collection not found: {collection_name}")
             raise CollectionNotFoundError(f"Collection not found: {collection_name}")
         except Exception as e:
-            logger.error(f"Error deleting collection {collection_name}: {str(e)}")
             raise McpError(ErrorData(
                 code=INTERNAL_ERROR,
                 message=f"Failed to delete collection: {str(e)}"
@@ -264,10 +253,8 @@ class CollectionHandler:
             }
 
         except chromadb.errors.InvalidCollectionException:
-            logger.error(f"Collection not found: {collection_name}")
             raise CollectionNotFoundError(f"Collection not found: {collection_name}")
         except Exception as e:
-            logger.error(f"Error peeking collection {collection_name}: {str(e)}")
             raise McpError(ErrorData(
                 code=INTERNAL_ERROR,
                 message=f"Failed to peek collection: {str(e)}"

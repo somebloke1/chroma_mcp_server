@@ -30,11 +30,29 @@ cd chroma-mcp-server
 # Install Hatch if not already installed
 pip install hatch
 
-# Create a development environment
-hatch shell
+# Create a development environment using our script
+./scripts/develop.sh
+```
 
-# Or run the helper script
-./develop.sh
+## Development Scripts
+
+The project includes several utility scripts in the `scripts/` directory:
+
+```bash
+# Start development environment
+./scripts/develop.sh
+
+# Build the package
+./scripts/build.sh
+
+# Run tests with coverage
+./scripts/test.sh
+
+# Publish to PyPI/TestPyPI
+./scripts/publish.sh [-t|-p] -v VERSION
+
+# Test UVX installation
+./scripts/test_uvx_install.sh
 ```
 
 ## Configuration
@@ -72,8 +90,10 @@ If you want to use the server with Cursor AI, add this to your `.cursor/mcp.json
 {
   "mcpServers": {
     "chroma": {
-      "command": "chroma-mcp-server",
-      "args": [],
+      "command": "uvx",
+      "args": [
+        "chroma-mcp-server"
+      ],
       "env": {
         "CHROMA_CLIENT_TYPE": "persistent",
         "CHROMA_DATA_DIR": "/path/to/data/dir",
@@ -85,6 +105,73 @@ If you want to use the server with Cursor AI, add this to your `.cursor/mcp.json
   }
 }
 ```
+
+#### Managing Server Versions
+
+We provide a script to help manage the server version in your Cursor configuration:
+
+```bash
+# First time installation or version upgrade
+./scripts/update_mcp_version.sh -i 0.1.4
+
+# Update configuration only (if already installed)
+./scripts/update_mcp_version.sh 0.1.4
+
+# Use version from pyproject.toml
+./scripts/update_mcp_version.sh
+```
+
+The script handles:
+
+1. **Installation** (with `-i` flag):
+   - Installs the specified version using UVX
+   - Updates Cursor configuration
+   - Provides clear next steps
+
+2. **Configuration** (without `-i` flag):
+   - Updates Cursor configuration only
+   - No package reinstallation
+   - Preserves environment settings
+
+3. **Version Detection**:
+   - Can use version from pyproject.toml
+   - Supports manual version specification
+   - Validates version before applying changes
+
+After updating:
+
+1. Restart Cursor to apply the changes
+2. The server will start cleanly using UVX
+3. No unnecessary reinstalls on subsequent starts
+
+#### Troubleshooting Version Management
+
+If you encounter any issues:
+
+1. **First Time Setup**:
+
+   ```bash
+   # Install UVX if not present
+   pip install uv uvx
+   
+   # Install and configure the server
+   ./scripts/update_mcp_version.sh -i VERSION
+   ```
+
+2. **Version Mismatch**:
+
+   ```bash
+   # Check current configuration
+   cat .cursor/mcp.json
+   
+   # Reinstall if needed
+   ./scripts/update_mcp_version.sh -i VERSION
+   ```
+
+3. **Server Not Starting**:
+   - Ensure UVX is in your PATH
+   - Verify the package is installed: `uvx pip list | grep chroma-mcp-server`
+   - Check logs in your configured log directory
 
 ## Running the Server
 
@@ -109,7 +196,7 @@ To verify the server is working, you can run the tests:
 hatch run python -m pytest
 
 # Or use the test script
-./test.sh
+./scripts/test.sh
 ```
 
 ## Basic Usage Example

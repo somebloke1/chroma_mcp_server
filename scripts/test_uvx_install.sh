@@ -4,7 +4,7 @@
 set -e  # Exit on error
 
 # Initialize variables
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # Changed to point to project root
 TEMP_DIR=$(mktemp -d)
 PACKAGE_NAME="chroma-mcp-server"
 
@@ -23,7 +23,7 @@ echo "Testing installation of $PACKAGE_NAME version $VERSION"
 # Check if the dist directory exists
 if [ ! -d "$SCRIPT_DIR/dist" ]; then
     echo "No dist directory found. Building package first..."
-    cd "$SCRIPT_DIR" && ./build.sh
+    cd "$SCRIPT_DIR" && ./scripts/build.sh  # Updated path to build.sh
     if [ $? -ne 0 ]; then
         echo "Error: Failed to build package"
         rm -rf "$TEMP_DIR"
@@ -120,7 +120,7 @@ deactivate
 echo ""
 echo "Installation tests completed. You can now publish to PyPI using:"
 echo ""
-echo "  ./publish.sh -p -v $VERSION"
+echo "  ./scripts/publish.sh -p -v $VERSION"  # Updated path to publish.sh
 echo ""
 echo "The local wheel tests are passing, which indicates the package should"
 echo "install correctly from PyPI as well." 
