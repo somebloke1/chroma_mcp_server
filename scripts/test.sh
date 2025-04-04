@@ -11,6 +11,7 @@ fi
 COVERAGE=false
 VERBOSE=false
 HTML=false
+CLEAN_ENV=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -26,13 +27,24 @@ while [[ $# -gt 0 ]]; do
             HTML=true
             shift
             ;;
+        --clean)
+            CLEAN_ENV=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--coverage|-c] [--verbose|-v] [--html]"
+            echo "Usage: $0 [--coverage|-c] [--verbose|-v] [--html] [--clean]"
             exit 1
             ;;
     esac
 done
+
+# Remove environment if clean flag is set
+if [ "$CLEAN_ENV" = true ]; then
+    echo "Removing existing test environment..."
+    hatch env remove test
+    echo "Test environment removed."
+fi
 
 # Run tests based on options
 echo "Running tests with Hatch..."

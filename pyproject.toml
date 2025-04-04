@@ -120,6 +120,9 @@ warn_unreachable = true
 [tool.pytest.ini_options]
 minversion = "8.3.5"
 addopts = "-ra -q"
+pythonpath = [
+    "src"
+]
 testpaths = [
     "tests",
 ]
@@ -156,11 +159,11 @@ dependencies = [
 [tool.hatch.envs.test.scripts]
 run = "pytest {args:tests}"
 cov = [
-  "pytest --cov-report=term-missing --cov-report=xml --cov=chroma_mcp {args:tests}",
+  "pytest --cov-report=term-missing --cov-report=xml --cov=src/chroma_mcp {args:tests}",
   "coverage report",
 ]
 html = [
-  "pytest --cov-report=html --cov=chroma_mcp {args:tests}",
+  "pytest --cov-report=html --cov=src/chroma_mcp {args:tests}",
   "coverage report",
 ]
 
@@ -170,7 +173,15 @@ python = ["3.10", "3.11", "3.12"]
 [tool.coverage.run]
 branch = true
 parallel = true
-source = ["chroma_mcp"]
+source = ["src/chroma_mcp"]
+relative_files = true
+dynamic_context = "test_function"
+
+[tool.coverage.paths]
+source = [
+    "src/",
+    "*/site-packages/"
+]
 
 [tool.coverage.report]
 exclude_lines = [

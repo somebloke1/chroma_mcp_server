@@ -1,5 +1,9 @@
 # Chroma MCP Server
 
+[![CI](https://github.com/djm81/chroma_mcp_server/actions/workflows/tests.yml/badge.svg)](https://github.com/djm81/chroma_mcp_server/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/djm81/chroma_mcp_server/branch/main/graph/badge.svg)](https://codecov.io/gh/djm81/chroma_mcp_server)
+![PyPI - Version](https://img.shields.io/pypi/v/chroma-mcp-server?color=blue)
+
 A Model Context Protocol (MCP) server integration for [Chroma](https://www.trychroma.com/), the open-source embedding database.
 
 ## Overview
