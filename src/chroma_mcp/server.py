@@ -7,6 +7,7 @@ integrating ChromaDB with the Model Context Protocol (MCP).
 
 import os
 import argparse
+import importlib.metadata
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
 
@@ -46,29 +47,57 @@ logger = None
 _collection_handler = None
 _document_handler = None
 _thinking_handler = None
-_mcp = None
+_mcp_instance = None
+
+def _initialize_mcp_instance():
+    """Helper to initialize MCP and register tools."""
+    global _mcp_instance
+    if _mcp_instance is not None:
+        return _mcp_instance
+        
+    try:
+        mcp = FastMCP("chroma")
+        
+        # Register main tool categories
+        register_collection_tools(mcp)
+        register_document_tools(mcp)
+        register_thinking_tools(mcp)
+        
+        # Register server utility tools
+        @mcp.tool(name="chroma_get_server_version")
+        def get_version_tool() -> Dict[str, str]:
+             """Return the installed version of the chroma-mcp-server package."""
+             try:
+                 version = importlib.metadata.version('chroma-mcp-server')
+                 return {"package": "chroma-mcp-server", "version": version}
+             except importlib.metadata.PackageNotFoundError:
+                 return {"package": "chroma-mcp-server", "version": "unknown (not installed)"}
+             except Exception as e:
+                 if logger:
+                      logger.error(f"Error getting server version: {str(e)}")
+                 return {"package": "chroma-mcp-server", "version": f"error ({str(e)})"}
+
+        if logger:
+            logger.debug("Successfully initialized and registered MCP tools")
+        _mcp_instance = mcp
+        return mcp
+        
+    except Exception as e:
+        if logger:
+            logger.error(f"Failed to initialize MCP: {str(e)}")
+        raise McpError(ErrorData(
+            code=INTERNAL_ERROR,
+            message=f"Failed to initialize MCP: {str(e)}"
+        ))
 
 def get_mcp() -> FastMCP:
-    """Get or create the FastMCP instance."""
-    global _mcp
-    if _mcp is None:
-        try:
-            _mcp = FastMCP("chroma")
-            # Register tools after MCP instance is created
-            register_collection_tools(_mcp)
-            register_document_tools(_mcp)
-            register_thinking_tools(_mcp)
-            if logger:
-                logger.debug("Successfully registered MCP tools")
-        except Exception as e:
-            if logger:
-                logger.error(f"Failed to initialize MCP: {str(e)}")
-            _mcp = None  # Reset the instance on failure
-            raise McpError(ErrorData(
-                code=INTERNAL_ERROR,
-                message=f"Failed to initialize MCP: {str(e)}"
-            ))
-    return _mcp
+    """Get the initialized FastMCP instance."""
+    if _mcp_instance is None:
+        _initialize_mcp_instance()
+    if _mcp_instance is None:
+        # Should not happen if _initialize_mcp_instance raises correctly
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message="MCP instance is None after initialization attempt"))
+    return _mcp_instance
 
 def get_collection_handler():
     """Get or create the collection handler."""
@@ -93,7 +122,25 @@ def get_thinking_handler():
 
 def create_parser() -> argparse.ArgumentParser:
     """Create and return the argument parser for server configuration."""
-    parser = argparse.ArgumentParser(description='Chroma MCP Server')
+    
+    # Try to get the package version
+    try:
+        package_version = importlib.metadata.version('chroma-mcp-server')
+    except importlib.metadata.PackageNotFoundError:
+        package_version = "unknown (not installed?)"
+        
+    parser = argparse.ArgumentParser(
+        description='Chroma MCP Server',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter # Show defaults
+    )
+    
+    # Add version argument
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=f'%(prog)s {package_version}', # Display package name and version
+        help="Show program's version number and exit"
+    )
     
     # Client configuration
     parser.add_argument('--client-type',
@@ -237,14 +284,17 @@ def main() -> None:
         parser = create_parser()
         args = parser.parse_args()
         
-        # Initialize server
+        # Initialize server configuration (logging etc.)
         config_server(args)
+        
+        # Initialize MCP instance and register ALL tools *before* running
+        mcp_instance = _initialize_mcp_instance()
         
         if logger:
             logger.debug("Starting Chroma MCP server with stdio transport")
         
-        # Start server with stdio transport
-        get_mcp().run(transport='stdio')
+        # Start server with stdio transport using the initialized instance
+        mcp_instance.run(transport='stdio')
         
     except McpError as e:
         if logger:

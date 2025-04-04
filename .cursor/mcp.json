@@ -1,9 +1,12 @@
 {
   "mcpServers": {
-    "chroma": {
+    "chroma_test": {
       "command": "uvx",
       "args": [
-        "chroma-mcp-server"
+        "--default-index", "https://test.pypi.org/simple/",
+        "--index", "https://pypi.org/simple/",
+        "--index-strategy", "unsafe-best-match",
+        "chroma-mcp-server@latest"
       ],
       "env": {
         "CHROMA_CLIENT_TYPE": "persistent",
@@ -12,6 +15,12 @@
         "LOG_LEVEL": "DEBUG",
         "MCP_LOG_LEVEL": "DEBUG"
       }
+    },
+    "chroma": {
+      "command": "uvx",
+      "args": [
+        "chroma-mcp-server"
+      ]
     }
   }
 }

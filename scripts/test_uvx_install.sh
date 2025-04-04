@@ -4,26 +4,33 @@
 set -e  # Exit on error
 
 # Initialize variables
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # Changed to point to project root
+# SCRIPT_DIR should be the directory containing this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)" # Project root is one level up
 TEMP_DIR=$(mktemp -d)
 PACKAGE_NAME="chroma-mcp-server"
 
 # Required dependencies (explicitly defined rather than fetched from pyproject.toml)
 REQUIRED_DEPS="pydantic>=2.0.0 fastapi>=0.100.0 uvicorn>=0.20.0 chromadb>=0.4.18 python-dotenv>=1.0.0 fastmcp>=0.4.1"
 
-# Get package version from pyproject.toml
-VERSION=$(grep -E "^version = " "$SCRIPT_DIR/pyproject.toml" | cut -d '"' -f 2)
+# Get package version from pyproject.toml in project root
+PYPROJECT_FILE="$PROJECT_ROOT/pyproject.toml"
+VERSION=$(grep -E "^version = " "$PYPROJECT_FILE" | cut -d '"' -f 2)
 if [ -z "$VERSION" ]; then
-    echo "Error: Could not determine package version from pyproject.toml"
+    echo "Error: Could not determine package version from $PYPROJECT_FILE"
     exit 1
 fi
 
 echo "Testing installation of $PACKAGE_NAME version $VERSION"
 
+# Define dist directory path
+DIST_DIR="$PROJECT_ROOT/dist"
+
 # Check if the dist directory exists
-if [ ! -d "$SCRIPT_DIR/dist" ]; then
+if [ ! -d "$DIST_DIR" ]; then
     echo "No dist directory found. Building package first..."
-    cd "$SCRIPT_DIR" && ./scripts/build.sh  # Updated path to build.sh
+    # Run build script from its location
+    "${SCRIPT_DIR}/build.sh"
     if [ $? -ne 0 ]; then
         echo "Error: Failed to build package"
         rm -rf "$TEMP_DIR"
@@ -31,13 +38,13 @@ if [ ! -d "$SCRIPT_DIR/dist" ]; then
     fi
 fi
 
-# Find wheel file - Fix: using proper parameter expansion with double dash
-WHEEL_FILE=$(find "$SCRIPT_DIR/dist" -name "${PACKAGE_NAME//-/_}-${VERSION}-*.whl" | head -1)
+# Find wheel file in the dist directory
+WHEEL_FILE=$(find "$DIST_DIR" -name "${PACKAGE_NAME//-/_}-${VERSION}-*.whl" | head -1)
 if [ -z "$WHEEL_FILE" ]; then
-    echo "Error: No wheel file found for $PACKAGE_NAME version $VERSION"
+    echo "Error: No wheel file found for $PACKAGE_NAME version $VERSION in $DIST_DIR"
     echo "Debug: Looking for wheel matching pattern: ${PACKAGE_NAME//-/_}-${VERSION}-*.whl"
     echo "Available files in dist directory:"
-    ls -la "$SCRIPT_DIR/dist"
+    ls -la "$DIST_DIR"
     rm -rf "$TEMP_DIR"
     exit 1
 fi
@@ -120,7 +127,7 @@ deactivate
 echo ""
 echo "Installation tests completed. You can now publish to PyPI using:"
 echo ""
-echo "  ./scripts/publish.sh -p -v $VERSION"  # Updated path to publish.sh
+echo "  "${SCRIPT_DIR}/publish.sh" -p -v $VERSION" # Use script dir variable
 echo ""
 echo "The local wheel tests are passing, which indicates the package should"
 echo "install correctly from PyPI as well." 

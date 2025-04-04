@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.4"
+version = "0.1.12"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,7 +28,7 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "pydantic>=2.10.6",
     # Use a URL reference to avoid TestPyPI conflicts
-    "fastapi>=0.115.11",
+    "fastapi==0.115.12",
     "uvicorn>=0.34.0",
     "chromadb>=0.6.3",
     "fastmcp>=0.4.1",
