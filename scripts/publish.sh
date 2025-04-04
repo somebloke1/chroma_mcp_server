@@ -120,36 +120,42 @@ if ! command -v hatch &> /dev/null; then
     pip install hatch
 fi
 
+# Define project root relative to script location
+PROJECT_ROOT=".."
+PYPROJECT_FILE="$PROJECT_ROOT/pyproject.toml"
+DIST_DIR="$PROJECT_ROOT/dist"
+BUILD_DIR="$PROJECT_ROOT/build"
+EGG_INFO_DIR="$PROJECT_ROOT/*.egg-info"
+
 # Update version if specified
 if [ ! -z "$VERSION" ]; then
-    echo "Updating version to $VERSION..."
+    echo "Updating version to $VERSION in $PYPROJECT_FILE..."
     # Replace version in pyproject.toml
-    sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
-    rm -f pyproject.toml.bak
+    sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" "$PYPROJECT_FILE"
+    rm -f "${PYPROJECT_FILE}.bak"
 fi
 
 # Fix dependencies for TestPyPI if requested
 if [ "$FIX_DEPS" = true ] && [ "$USE_TEST_PYPI" = true ]; then
-    echo "Fixing dependencies for TestPyPI publication..."
+    echo "Fixing dependencies for TestPyPI publication in $PYPROJECT_FILE..."
     # Make a backup of original pyproject.toml
-    cp pyproject.toml pyproject.toml.original
+    cp "$PYPROJECT_FILE" "${PYPROJECT_FILE}.original"
     
     # Much simpler approach - find the dependencies section and replace it with an empty array
-    # This is more reliable than trying to parse and modify TOML
-    START_LINE=$(grep -n "^dependencies = \[" pyproject.toml | cut -d: -f1)
-    END_LINE=$(tail -n +$START_LINE pyproject.toml | grep -n "^]" | head -1 | cut -d: -f1)
+    START_LINE=$(grep -n "^dependencies = \[" "$PYPROJECT_FILE" | cut -d: -f1)
+    END_LINE=$(tail -n +$START_LINE "$PYPROJECT_FILE" | grep -n "^]" | head -1 | cut -d: -f1)
     END_LINE=$((START_LINE + END_LINE - 1))
     
     # Check if we found both lines
     if [ ! -z "$START_LINE" ] && [ ! -z "$END_LINE" ]; then
         # Create new file with empty dependencies
-        head -n $((START_LINE - 1)) pyproject.toml > pyproject.toml.new
-        echo "dependencies = []  # Dependencies removed for TestPyPI publishing" >> pyproject.toml.new
-        tail -n +$((END_LINE + 1)) pyproject.toml >> pyproject.toml.new
-        mv pyproject.toml.new pyproject.toml
+        head -n $((START_LINE - 1)) "$PYPROJECT_FILE" > "${PYPROJECT_FILE}.new"
+        echo "dependencies = []  # Dependencies removed for TestPyPI publishing" >> "${PYPROJECT_FILE}.new"
+        tail -n +$((END_LINE + 1)) "$PYPROJECT_FILE" >> "${PYPROJECT_FILE}.new"
+        mv "${PYPROJECT_FILE}.new" "$PYPROJECT_FILE"
         echo "Successfully removed dependencies for TestPyPI publishing."
     else
-        echo "Warning: Could not locate dependencies section in pyproject.toml"
+        echo "Warning: Could not locate dependencies section in $PYPROJECT_FILE"
         echo "Continuing with original file..."
     fi
     
@@ -160,26 +166,26 @@ fi
 
 # Clean previous builds
 echo "Cleaning previous builds..."
-rm -rf dist/ build/ *.egg-info
+rm -rf "$DIST_DIR" "$BUILD_DIR" $EGG_INFO_DIR 
 
-# Build the package
-echo "Building package with Hatch..."
-hatch build
+# Build the package using project root context
+echo "Building package with Hatch (from project root)..."
+(cd "$PROJECT_ROOT" && hatch build)
 
 # Check if build was successful
-if [ ! -d "dist" ]; then
-    echo "Error: Build failed! No dist directory found."
+if [ ! -d "$DIST_DIR" ]; then
+    echo "Error: Build failed! No dist directory found at $DIST_DIR."
     # Restore original pyproject.toml if modified
-    if [ -f "pyproject.toml.original" ]; then
-        mv pyproject.toml.original pyproject.toml
-        echo "Restored original pyproject.toml."
+    if [ -f "${PYPROJECT_FILE}.original" ]; then
+        mv "${PYPROJECT_FILE}.original" "$PYPROJECT_FILE"
+        echo "Restored original $PYPROJECT_FILE."
     fi
     exit 1
 fi
 
 # Show built files
 echo "Package built successfully. Files in dist directory:"
-ls -la dist/
+ls -la "$DIST_DIR"
 echo ""
 
 # Confirm before publishing if in interactive mode
@@ -193,22 +199,22 @@ if [ "$INTERACTIVE" = true ]; then
             rm -f "$PYPIRC_FILE.temp"
         fi
         # Restore original pyproject.toml if modified
-        if [ -f "pyproject.toml.original" ]; then
-            mv pyproject.toml.original pyproject.toml
-            echo "Restored original pyproject.toml."
+        if [ -f "${PYPROJECT_FILE}.original" ]; then
+            mv "${PYPROJECT_FILE}.original" "$PYPROJECT_FILE"
+            echo "Restored original $PYPROJECT_FILE."
         fi
         exit 0
     fi
 fi
 
-# Publish the package
+# Publish the package using project root context
 echo "Publishing to $REPO_NAME..."
 if [ ! -z "$PYPI_USERNAME" ] && [ ! -z "$PYPI_PASSWORD" ]; then
     # Use environment variables for auth if available
-    TWINE_USERNAME="$PYPI_USERNAME" TWINE_PASSWORD="$PYPI_PASSWORD" hatch publish $REPO_ARG
+    (cd "$PROJECT_ROOT" && TWINE_USERNAME="$PYPI_USERNAME" TWINE_PASSWORD="$PYPI_PASSWORD" hatch publish $REPO_ARG)
 else
     # Otherwise use standard hatch publish which will use .pypirc or prompt
-    hatch publish $REPO_ARG
+    (cd "$PROJECT_ROOT" && hatch publish $REPO_ARG)
 fi
 
 # Notify user of completion and clean up
@@ -220,9 +226,9 @@ if [ -f "$PYPIRC_FILE.temp" ]; then
 fi
 
 # Restore original pyproject.toml if it was modified
-if [ -f "pyproject.toml.original" ]; then
-    mv pyproject.toml.original pyproject.toml
-    echo "Restored original pyproject.toml."
+if [ -f "${PYPROJECT_FILE}.original" ]; then
+    mv "${PYPROJECT_FILE}.original" "$PYPROJECT_FILE"
+    echo "Restored original $PYPROJECT_FILE."
 fi
 
 if [ $STATUS -eq 0 ]; then
@@ -240,8 +246,8 @@ if [ $STATUS -eq 0 ]; then
         echo ""
     fi
     
-    echo "To verify installation from a wheel file, run:"
-    echo "./test_uvx_install.sh"
+    echo "To verify installation from a wheel file, run from project root:"
+    echo "./scripts/test_uvx_install.sh"
 else
     echo "Error publishing to $REPO_NAME. Check the output above for details."
     exit 1

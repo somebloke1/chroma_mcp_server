@@ -22,17 +22,30 @@ pip install chroma-mcp-server[full]
 
 ### Option 2: Development Setup
 
-```bash
-# Clone the repository (if not already done)
-git clone https://github.com/yourusername/chroma-mcp-server.git
-cd chroma-mcp-server
+1. **Clone the Repository:**
 
-# Install Hatch if not already installed
-pip install hatch
+    ```bash
+    git clone https://github.com/djm81/chroma_mcp_server.git # Use your repo URL
+    cd chroma_mcp_server
+    ```
 
-# Create a development environment using our script
-./scripts/develop.sh
-```
+2. **Install Hatch:** If you don't have it, install Hatch globally:
+
+    ```bash
+    pip install hatch
+    ```
+
+3. **Activate Environment:** Use the `develop.sh` script or `hatch shell`:
+
+    ```bash
+    # Using the script
+    ./scripts/develop.sh 
+    
+    # Or directly with Hatch
+    hatch shell
+    ```
+
+    This sets up the environment with all necessary development dependencies.
 
 ## Development Scripts
 
@@ -49,236 +62,117 @@ The project includes several utility scripts in the `scripts/` directory:
 ./scripts/test.sh
 
 # Publish to PyPI/TestPyPI
-./scripts/publish.sh [-t|-p] -v VERSION
+./scripts/publish.sh [-t|-p] [-v VERSION]
 
-# Test UVX installation
+# Test UVX installation from local wheel
 ./scripts/test_uvx_install.sh
+
+# Automate the full release process (includes installing Prod/Test version locally)
+./scripts/release.sh [--update-target <prod|test>] <VERSION>
 ```
 
 ## Configuration
 
-### Environment Variables
+The server primarily uses environment variables for configuration. A `.env` file in the project root is loaded automatically. Key variables include:
 
-You can configure the server using environment variables:
+- `CHROMA_CLIENT_TYPE`: `persistent` or `ephemeral` (default)
+- `CHROMA_DATA_DIR`: Path for persistent storage (required if `persistent`)
+- `CHROMA_LOG_DIR`: Directory for logs.
+- `LOG_LEVEL`: Standard Python log level (e.g., `DEBUG`, `INFO`).
 
-```bash
-# Client Configuration
-export CHROMA_CLIENT_TYPE=persistent  # Options: http, cloud, persistent, ephemeral
-export CHROMA_DATA_DIR=./data         # Required for persistent client
-export CHROMA_LOG_DIR=./logs          # Directory for log files
-export CHROMA_HOST=localhost          # Required for http client
-export CHROMA_PORT=8000               # Optional for http client
-
-# Server Settings
-export LOG_LEVEL=INFO                 # Optional, default: INFO
-export MCP_LOG_LEVEL=INFO             # Optional, controls MCP framework logging
-```
-
-### Command-line Options
-
-Alternatively, you can use command-line options:
-
-```bash
-chroma-mcp-server --client-type persistent --data-dir ./data --log-dir ./logs
-```
-
-### Configure Cursor MCP Integration
-
-If you want to use the server with Cursor AI, add this to your `.cursor/mcp.json` file:
+Cursor uses `.cursor/mcp.json` to configure server launch commands:
 
 ```json
 {
   "mcpServers": {
-    "chroma": {
+    "chroma": { // Runs the version last installed via uvx (typically Prod)
+      "command": "uvx",
+      "args": ["chroma-mcp-server"],
+      "env": { ... }
+    },
+    "chroma_test": { // Runs the latest version from TestPyPI
       "command": "uvx",
       "args": [
-        "chroma-mcp-server"
+        "--default-index", "https://test.pypi.org/simple/",
+        "--index", "https://pypi.org/simple/",
+        "--index-strategy", "unsafe-best-match",
+        "chroma-mcp-server@latest"
       ],
-      "env": {
-        "CHROMA_CLIENT_TYPE": "persistent",
-        "CHROMA_DATA_DIR": "/path/to/data/dir",
-        "CHROMA_LOG_DIR": "/path/to/logs/dir",
-        "LOG_LEVEL": "INFO",
-        "MCP_LOG_LEVEL": "INFO"
-      }
+      "env": { ... }
     }
   }
 }
 ```
 
-#### Managing Server Versions
+### Running Specific Versions
 
-We provide a script to help manage the server version in your Cursor configuration:
+- The `chroma_test` entry automatically runs the latest from TestPyPI.
+- The `chroma` entry runs the version last installed by `uvx`. The `release.sh` script handles installing the released version (from PyPI or TestPyPI via `--update-target`) for this entry.
+- To manually run a specific version with the `chroma` entry, install it directly:
+
+  ```bash
+  # Install prod version 0.1.11
+  uvx --default-index https://pypi.org/simple/ chroma-mcp-server@0.1.11
+  
+  # Install test version 0.1.11
+  uvx --default-index https://test.pypi.org/simple/ --index https://pypi.org/simple/ --index-strategy unsafe-best-match chroma-mcp-server@0.1.11
+  ```
+
+After installing, restart the `chroma` server in Cursor.
+
+## Development
+
+### Development Prerequisites
+
+- Python 3.10+
+- Poetry
+- `just` (optional, for `justfile`)
+- `curl`, `jq` (for `release.sh`)
+
+### Setup
 
 ```bash
-# First time installation or version upgrade
-./scripts/update_mcp_version.sh -i 0.1.4
-
-# Update configuration only (if already installed)
-./scripts/update_mcp_version.sh 0.1.4
-
-# Use version from pyproject.toml
-./scripts/update_mcp_version.sh
+poetry install --with dev
+cp .cursor/mcp.example.json .cursor/mcp.json
+# Edit .cursor/mcp.json and/or .env as needed
 ```
 
-The script handles:
+### Testing
 
-1. **Installation** (with `-i` flag):
-   - Installs the specified version using UVX
-   - Updates Cursor configuration
-   - Provides clear next steps
+```bash
+./scripts/test.sh # Run unit/integration tests
+./scripts/test.sh --coverage # Run with coverage
 
-2. **Configuration** (without `-i` flag):
-   - Updates Cursor configuration only
-   - No package reinstallation
-   - Preserves environment settings
+# Build and test local install via uvx
+./scripts/test_uvx_install.sh
+```
 
-3. **Version Detection**:
-   - Can use version from pyproject.toml
-   - Supports manual version specification
-   - Validates version before applying changes
+### Releasing
 
-After updating:
+Use the `release.sh` script:
 
-1. Restart Cursor to apply the changes
-2. The server will start cleanly using UVX
-3. No unnecessary reinstalls on subsequent starts
+```bash
+# Release 0.2.0, install Prod version for local 'uvx chroma-mcp-server' command
+./scripts/release.sh 0.2.0
 
-#### Troubleshooting Version Management
+# Release 0.2.1, install Test version for local 'uvx chroma-mcp-server' command
+./scripts/release.sh --update-target test 0.2.1
+```
 
-If you encounter any issues:
+## Troubleshooting
 
-1. **First Time Setup**:
-
-   ```bash
-   # Install UVX if not present
-   pip install uv uvx
-   
-   # Install and configure the server
-   ./scripts/update_mcp_version.sh -i VERSION
-   ```
-
-2. **Version Mismatch**:
-
-   ```bash
-   # Check current configuration
-   cat .cursor/mcp.json
-   
-   # Reinstall if needed
-   ./scripts/update_mcp_version.sh -i VERSION
-   ```
-
-3. **Server Not Starting**:
-   - Ensure UVX is in your PATH
-   - Verify the package is installed: `uvx pip list | grep chroma-mcp-server`
-   - Check logs in your configured log directory
+- **UVX Cache Issues:** If `uvx` seems stuck on an old version, try refreshing its cache: `uvx --refresh chroma-mcp-server --version`
+- **Dependency Conflicts:** Ensure your environment matches the required Python version and dependencies in `pyproject.toml`.
 
 ## Running the Server
 
 ### Standalone Mode
 
-For development and testing, you can run the server directly:
-
 ```bash
-# If installed from PyPI
-chroma-mcp-server
+# If installed globally or via standard pip/uvx
+# Ensure CHROMA_... env vars are set or use command-line args
+chroma-mcp-server --client-type persistent --data-dir ./data --log-dir ./logs
 
-# If in a development environment
-hatch run python -m chroma_mcp.server
+# If running from within the development environment (Poetry shell)
+poetry run python src/chroma_mcp/server.py --client-type persistent --data-dir ./data --log-dir ./logs
 ```
-
-### Verifying the Server
-
-To verify the server is working, you can run the tests:
-
-```bash
-# Run all tests
-hatch run python -m pytest
-
-# Or use the test script
-./scripts/test.sh
-```
-
-## Basic Usage Example
-
-This example shows how to use the server from a Python client:
-
-```python
-import asyncio
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-
-async def main():
-    # Set up server parameters
-    server_params = StdioServerParameters(
-        command="chroma-mcp-server",  # Use the installed command
-        args=[],
-        env={
-            "PYTHONUNBUFFERED": "1", 
-            "CHROMA_CLIENT_TYPE": "ephemeral"  # In-memory database for testing
-        }
-    )
-    
-    # Connect to the server
-    async with stdio_client(server_params) as (stdio, write):
-        async with ClientSession(stdio, write) as session:
-            # Initialize the session
-            await session.initialize()
-            
-            # List available tools
-            response = await session.list_tools()
-            print(f"Available tools: {[tool.name for tool in response.tools]}")
-            
-            # Create a collection
-            create_result = await session.call_tool("chroma_create_collection", {
-                "collection_name": "my_collection",
-                "description": "A test collection"
-            })
-            print(f"Created collection: {create_result.content[0].text}")
-            
-            # Add documents
-            add_result = await session.call_tool("chroma_add_documents", {
-                "collection_name": "my_collection",
-                "documents": ["This is a test document", "Another test document"]
-            })
-            print(f"Added documents: {add_result.content[0].text}")
-            
-            # Query documents
-            query_result = await session.call_tool("chroma_query_documents", {
-                "collection_name": "my_collection",
-                "query_texts": ["test document"],
-                "n_results": 2
-            })
-            print(f"Query results: {query_result.content[0].text}")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-## Optimized Dependencies
-
-The package has been optimized with three dependency groups:
-
-1. **Core Dependencies** (installed by default):
-   - `chromadb` - Vector database
-   - `fastmcp` - MCP framework
-   - `python-dotenv` - Environment variable management
-   - `pydantic` - Data validation
-   - `fastapi` - API framework
-   - `uvicorn` - ASGI server
-   - `numpy` - Numerical operations
-
-2. **Full Dependencies** (optional):
-   - `onnxruntime` - Optimized ML runtime
-   - `sentence-transformers` - Text embedding models
-   - `httpx` - HTTP client for remote connections
-
-3. **Development Dependencies** (for contributors):
-   - Testing tools (pytest, pytest-cov)
-   - Code quality tools (black, isort, mypy)
-
-## Next Steps
-
-- Explore the [full documentation](../README.md)
-- Check out the [API reference](./api_reference.md)
-- Learn about [advanced configuration options](./api_reference.md)

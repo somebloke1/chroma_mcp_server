@@ -9,11 +9,11 @@ fi
 
 # Clean previous builds
 echo "Cleaning previous builds..."
-rm -rf dist/ build/ *.egg-info
+rm -rf ../dist/ ../build/ ../*.egg-info
 
 # Build the package
 echo "Building package with Hatch..."
 hatch build
 
 echo "Build complete. Distribution files are in the 'dist' directory."
-ls -la dist/ 
+ls -la ../dist/ 

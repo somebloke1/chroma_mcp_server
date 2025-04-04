@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.4"
+version = "0.1.13"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,7 +28,7 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "pydantic>=2.10.6",
     # Use a URL reference to avoid TestPyPI conflicts
-    "fastapi>=0.115.11",
+    "fastapi==0.115.12",
     "uvicorn>=0.34.0",
     "chromadb>=0.6.3",
     "fastmcp>=0.4.1",
@@ -159,11 +159,11 @@ dependencies = [
 [tool.hatch.envs.test.scripts]
 run = "pytest {args:tests}"
 cov = [
-  "pytest --cov-report=term-missing --cov-report=xml --cov=chroma_mcp {args:tests}",
+  "pytest --cov-report=term-missing --cov-report=xml --cov=src/chroma_mcp {args:tests}",
   "coverage report",
 ]
 html = [
-  "pytest --cov-report=html --cov=chroma_mcp {args:tests}",
+  "pytest --cov-report=html --cov=src/chroma_mcp {args:tests}",
   "coverage report",
 ]
 
@@ -173,7 +173,15 @@ python = ["3.10", "3.11", "3.12"]
 [tool.coverage.run]
 branch = true
 parallel = true
-source = ["chroma_mcp"]
+source = ["src/chroma_mcp"]
+relative_files = true
+dynamic_context = "test_function"
+
+[tool.coverage.paths]
+source = [
+    "src/",
+    "*/site-packages/"
+]
 
 [tool.coverage.report]
 exclude_lines = [

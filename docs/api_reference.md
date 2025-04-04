@@ -18,39 +18,27 @@ The Chroma MCP Server provides 15 tools across three categories:
 
 ### `chroma_create_collection`
 
-Creates a new ChromaDB collection with specified parameters.
+Creates a new ChromaDB collection with default settings. Use other tools like `chroma_set_collection_description` or `chroma_set_collection_settings` to modify it after creation.
 
 #### Parameters for chroma_create_collection
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection to create |
-| `description` | string | No | Optional description of the collection |
-| `metadata` | object | No | Additional metadata for the collection |
-| `hnsw_space` | string | No | Distance function for HNSW index (e.g., 'cosine', 'l2', 'ip') |
-| `hnsw_construction_ef` | integer | No | HNSW construction parameter |
-| `hnsw_search_ef` | integer | No | HNSW search parameter |
-| `hnsw_M` | integer | No | HNSW M parameter |
 
 #### Returns from chroma_create_collection
 
-A JSON object containing:
+A JSON object containing basic collection information:
 
-- `id`: Collection ID
 - `name`: Collection name
-- `metadata`: Collection metadata
-- `created_at`: Creation timestamp
+- `id`: Collection ID
+- `metadata`: Initial collection metadata (containing default settings)
 
 #### Example for chroma_create_collection
 
 ```json
 {
-  "collection_name": "my_documents",
-  "description": "Collection for storing document embeddings",
-  "metadata": {
-    "project": "semantic_search",
-    "version": "1.0.0"
-  }
+  "collection_name": "my_documents"
 }
 ```
 
@@ -99,11 +87,11 @@ Gets detailed information about a specific collection.
 
 A JSON object containing collection details:
 
-- `id`: Collection ID
 - `name`: Collection name
-- `metadata`: Collection metadata
+- `id`: Collection ID
+- `metadata`: Current collection metadata (including description, settings, and custom keys)
 - `count`: Number of documents in the collection
-- `created_at`: Creation timestamp
+- `sample_entries`: Sample documents from the collection (result of `peek()`)
 
 #### Example for chroma_get_collection
 
@@ -113,32 +101,106 @@ A JSON object containing collection details:
 }
 ```
 
-### `chroma_modify_collection`
+### `chroma_set_collection_description`
 
-Updates a collection's name or metadata.
+Sets or updates the description of a collection. The description is stored within the collection's metadata under the `description` key.
 
-#### Parameters for chroma_modify_collection
+#### Parameters for chroma_set_collection_description
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `collection_name` | string | Yes | Current collection name |
-| `new_name` | string | No | New name for the collection |
-| `new_metadata` | object | No | Updated metadata (will be merged with existing) |
+| `collection_name` | string | Yes | Name of the collection to modify |
+| `description` | string | Yes | The new description string |
 
-#### Returns from chroma_modify_collection
+#### Returns from chroma_set_collection_description
 
-A JSON object containing the updated collection details.
+A JSON object containing the updated collection information (same as `chroma_get_collection` result).
 
-#### Example for chroma_modify_collection
+#### Example for chroma_set_collection_description
 
 ```json
 {
   "collection_name": "my_documents",
-  "new_name": "important_documents",
-  "new_metadata": {
-    "status": "active",
-    "last_updated": "2025-03-29"
+  "description": "Documents related to project Alpha."
+}
+```
+
+### `chroma_set_collection_settings`
+
+Sets or updates the settings (e.g., HNSW parameters) of a collection. The settings are stored within the collection's metadata under the `settings` key. **Warning:** This replaces the entire existing `settings` sub-dictionary.
+
+#### Parameters for chroma_set_collection_settings
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection to modify |
+| `settings` | object | Yes | Dictionary containing the new settings (e.g., `{"hnsw:space": "cosine"}`) |
+
+#### Returns from chroma_set_collection_settings
+
+A JSON object containing the updated collection information (same as `chroma_get_collection` result).
+
+#### Example for chroma_set_collection_settings
+
+```json
+{
+  "collection_name": "my_documents",
+  "settings": {
+    "hnsw:space": "cosine",
+    "hnsw:construction_ef": 128,
+    "hnsw:search_ef": 64
   }
+}
+```
+
+### `chroma_update_collection_metadata`
+
+Updates or adds custom key-value pairs to a collection's metadata. This performs a merge, preserving existing keys unless overwritten. It does **not** affect the reserved `description` or `settings` keys directly; use the dedicated tools for those.
+
+#### Parameters for chroma_update_collection_metadata
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection to modify |
+| `metadata_update` | object | Yes | Dictionary containing key-value pairs to update or add |
+
+#### Returns from chroma_update_collection_metadata
+
+A JSON object containing the updated collection information (same as `chroma_get_collection` result).
+
+#### Example for chroma_update_collection_metadata
+
+```json
+{
+  "collection_name": "my_documents",
+  "metadata_update": {
+    "project": "Beta",
+    "status": "active"
+  }
+}
+```
+
+### `chroma_rename_collection`
+
+Renames an existing collection.
+
+#### Parameters for chroma_rename_collection
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Current name of the collection |
+| `new_name` | string | Yes | New name for the collection |
+
+#### Returns from chroma_rename_collection
+
+A JSON object containing the updated collection information (same as `chroma_get_collection` result, but under the new name).
+
+#### Example for chroma_rename_collection
+
+```json
+{
+  "collection_name": "my_documents",
+  "new_name": "project_alpha_docs"
 }
 ```
 
@@ -177,7 +239,9 @@ Gets a sample of documents from a collection.
 
 #### Returns from chroma_peek_collection
 
-A JSON object containing sample documents and their metadata.
+A JSON object containing the peek results:
+
+- `peek_result`: The direct result from ChromaDB's `peek()` method (structure may vary).
 
 #### Example for chroma_peek_collection
 

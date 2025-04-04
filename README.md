@@ -1,5 +1,9 @@
 # Chroma MCP Server
 
+[![CI](https://github.com/djm81/chroma_mcp_server/actions/workflows/tests.yml/badge.svg)](https://github.com/djm81/chroma_mcp_server/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/djm81/chroma_mcp_server/branch/main/graph/badge.svg)](https://codecov.io/gh/djm81/chroma_mcp_server)
+![PyPI - Version](https://img.shields.io/pypi/v/chroma-mcp-server?color=blue)
+
 A Model Context Protocol (MCP) server integration for [Chroma](https://www.trychroma.com/), the open-source embedding database.
 
 ## Overview
@@ -37,14 +41,7 @@ uv pip install "chroma-mcp-server[full]"
 
 ### Development Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/djm81/chroma_mcp_server.git
-cd chroma_mcp_server
-
-# Install in development mode
-pip install -e .
-```
+This project uses [Hatch](https://hatch.pypa.io/) for development and package management. See the **Development** section below for setup instructions.
 
 ## Usage
 
@@ -69,6 +66,14 @@ Or use the provided scripts during development:
 
 # To publish to PyPI
 ./scripts/publish.sh
+```
+
+### Checking the Version
+
+To check the installed version of the package, use:
+
+```bash
+chroma-mcp-server --version
 ```
 
 ### Configuration
@@ -126,34 +131,6 @@ To use with Cursor, add the following to your `.cursor/mcp.json`:
 }
 ```
 
-#### Version Management
-
-We provide a script to manage your server version:
-
-```bash
-# Install and configure a specific version
-./scripts/update_mcp_version.sh -i 0.1.4
-
-# Only update configuration (if already installed)
-./scripts/update_mcp_version.sh 0.1.4
-
-# Use version from pyproject.toml
-./scripts/update_mcp_version.sh
-```
-
-The script provides:
-
-- One-time installation with `-i` flag
-- Clean server configuration
-- Automatic version detection from pyproject.toml
-- Clear post-update instructions
-
-After updating:
-
-1. Restart Cursor to apply the changes
-2. The server will start using the configured version
-3. No unnecessary reinstalls on server restart
-
 ### Smithery Integration
 
 This MCP server is compatible with [Smithery](https://smithery.ai/). See the `smithery.yaml` file for configuration details.
@@ -167,46 +144,65 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
 The project includes several utility scripts in the `scripts/` directory to streamline development tasks:
 
 ```bash
-# Start development environment
+# Start development environment (activates Hatch shell)
 ./scripts/develop.sh
 
 # Run tests with coverage
-./scripts/test.sh
+./scripts/test.sh [--coverage] [--clean]
 
 # Build the package
 ./scripts/build.sh
 
 # Publish to TestPyPI/PyPI
-./scripts/publish.sh [-t|-p] -v VERSION
+./scripts/publish.sh [-t|-p] [-v VERSION]
 
-# Test UVX installation
+# Test UVX installation from local wheel
 ./scripts/test_uvx_install.sh
 
-# Update MCP version in Cursor config
-./scripts/update_mcp_version.sh [VERSION]
+# Update MCP version in Cursor config (optionally installing from PyPI/TestPyPI)
+./scripts/update_mcp_version.sh [-i] [-t] [VERSION]
+
+# Run the full release process (TestPyPI -> Prod PyPI -> Update Config)
+./scripts/release.sh [--update-target <prod|test>] <VERSION>
 ```
 
 ### Setting Up Development Environment
 
-```bash
-# Install Hatch globally
-pip install hatch
+1. **Install Hatch:** If you don't have it, install Hatch globally:
 
-# Create and activate development environment using our script
-./scripts/develop.sh
-```
+    ```bash
+    pip install hatch
+    ```
+
+2. **Activate Environment:** Use the `develop.sh` script or run `hatch shell` directly in the project root directory:
+
+    ```bash
+    # Using the script
+    ./scripts/develop.sh 
+    
+    # Or directly with Hatch
+    hatch shell
+    ```
+
+    This creates (if needed) and activates a virtual environment managed by Hatch with all development dependencies installed.
 
 ### Running Tests
 
-```bash
-# Run all tests
-hatch run test:run
+Once inside the Hatch environment (activated via `hatch shell` or `./scripts/develop.sh`):
 
-# Run with coverage (using our script)
+```bash
+# Run all tests using pytest directly
+pytest
+
+# Or use the test script (which runs pytest via hatch)
+# Exit the hatch shell first if you are inside one
 ./scripts/test.sh
 
-# Run tests for specific file/directory
-hatch run test:run tests/path/to/test.py
+# Run with coverage report
+./scripts/test.sh --coverage
+
+# Run specific tests
+pytest tests/path/to/test_file.py::test_function
 ```
 
 ### Building the Package
@@ -235,31 +231,97 @@ hatch build
 #  -f: Fix dependencies
 ```
 
+### Releasing a New Version (Recommended)
+
+For a streamlined release process that includes publishing to TestPyPI, testing the local install, publishing to production PyPI, and installing the final version locally for the `chroma` server entry, use the `release.sh` script:
+
+```bash
+# Example: Release version 0.2.0, install Prod version locally
+./scripts/release.sh 0.2.0
+
+# Example: Release version 0.2.1, install Test version locally
+./scripts/release.sh --update-target test 0.2.1
+
+# See script help for more options (--skip-testpypi, --test-only, -y)
+./scripts/release.sh --help
+```
+
+This script automates the steps previously done manually using `publish.sh` and handles the installation for the main `uvx chroma-mcp-server` command.
+
+**Note:** The `release.sh` script requires `curl` and `jq` to be installed to check if a version already exists on PyPI/TestPyPI before attempting to publish.
+
+## Scripts Overview
+
+- **build.sh**: Cleans and builds the package wheel.
+- **publish.sh**: Publishes the package to PyPI or TestPyPI.
+- **test.sh**: Runs tests using pytest.
+- **test_uvx_install.sh**: Builds locally and tests installation via `uvx`.
+- **release.sh**: Automates the full release process (TestPyPI -> Prod PyPI -> Install Prod/Test version locally).
+
+## Development Setup
+
+1. **Prerequisites:** Python 3.10+, Poetry, `just` (optional, for `justfile` commands), `curl`, `jq`.
+2. **Install Dependencies:** `poetry install --with dev`
+3. **Configure MCP Server:** Copy `.cursor/mcp.example.json` to `.cursor/mcp.json` and adjust environment variables (e.g., `CHROMA_DATA_DIR`).
+
+## Running the MCP Server
+
+You can run the server directly using Poetry or via `uvx` (recommended for Cursor integration):
+
+```bash
+# Using Poetry (for direct testing)
+poetry run python src/chroma_mcp/server.py
+
+# Using uvx (installs/runs isolated version)
+# This implicitly uses the latest version from PyPI unless 
+# a specific version was installed via "uvx <flags> chroma-mcp-server@<version>"
+# (The release.sh script handles this installation)
+ uvx chroma-mcp-server
+```
+
+Cursor uses the configurations in `.cursor/mcp.json` to launch servers:
+
+- **`chroma`**: Runs `uvx chroma-mcp-server`, typically using the version last installed from PyPI (e.g., by `release.sh --update-target prod`).
+- **`chroma_test`**: Runs `uvx <test-index-flags> chroma-mcp-server@latest`, actively fetching the latest version from TestPyPI on startup.
+
+## Workflow & Scripts
+
+### Local Development
+
+1. Make code changes.
+2. Run tests: `./scripts/test.sh` or `just test`
+3. Optionally build and test local install: `just test-install` (uses `./scripts/test_uvx_install.sh`)
+
+### Releasing a New Version after local tests (Recommended)
+
+For a streamlined release process that includes publishing to TestPyPI, testing the local install, publishing to production PyPI, and installing the final version locally for the `chroma` server entry, use the `release.sh` script:
+
+```bash
+# Example: Release version 0.2.0, install Prod version locally
+./scripts/release.sh 0.2.0
+
+# Example: Release version 0.2.1, install Test version locally
+./scripts/release.sh --update-target test 0.2.1
+
+# See script help for more options (--skip-testpypi, --test-only, -y)
+./scripts/release.sh --help
+```
+
+This script automates the steps previously done manually using `publish.sh` and handles the installation for the main `uvx chroma-mcp-server` command.
+
+**Note:** The `release.sh` script requires `curl` and `jq` to be installed to check if a version already exists on PyPI/TestPyPI before attempting to publish.
+
 ## Dependencies
 
-The package has optimized dependencies organized into groups:
+- **Core:** `fastapi`, `uvicorn`, `chromadb`, `fastmcp`, `python-dotenv`, `pydantic`
+- **Development:** `pytest`, `pytest-asyncio`, `pytest-cov`, `ruff`
 
-- **Core**: Required for basic functionality (`python-dotenv`, `pydantic`, `fastapi`, `chromadb`, etc.)
-- **Full**: Optional for extended functionality (`sentence-transformers`, `onnxruntime`, etc.)
-- **Dev**: Only needed for development and testing
+See `pyproject.toml` for specific version constraints.
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Missing dependencies**: If you encounter module import errors, make sure to install all required dependencies:
-
-   ```bash
-   pip install "chroma-mcp-server[full]"
-   ```
-
-2. **Permission errors**: When using persistent storage, ensure the data directory is writable.
-
-3. **UVX integration**: If using UVX with Cursor, make sure UVX is installed and in your PATH:
-
-   ```bash
-   pip install uv uvx
-   ```
+- **UVX Cache Issues:** If `uvx` seems stuck on an old version, try refreshing its cache: `uvx --refresh chroma-mcp-server --version`
+- **Dependency Conflicts:** Ensure your environment matches the required Python version and dependencies in `pyproject.toml`.
 
 ## License
 
