@@ -14,12 +14,9 @@ from mcp.shared.exceptions import McpError
 # Local application imports
 # Import the module itself to allow monkeypatching its attributes
 from chroma_mcp import server
-from chroma_mcp.handlers import (
-    CollectionHandler, DocumentHandler, ThinkingHandler
-)
 from chroma_mcp.server import (
     _initialize_mcp_instance, config_server, create_parser,
-    get_collection_handler, get_document_handler, get_mcp, get_thinking_handler
+    get_mcp
 )
 from chroma_mcp.utils.errors import (
     CollectionNotFoundError, ValidationError
@@ -46,13 +43,9 @@ def mock_dependencies():
 def reset_globals():
     """Reset global handlers and MCP instance before each test."""
     server._mcp_instance = None
-    server._collection_handler = None
-    server._document_handler = None
     server._thinking_handler = None
     yield
     server._mcp_instance = None
-    server._collection_handler = None
-    server._document_handler = None
     server._thinking_handler = None
 
 @pytest.fixture
@@ -189,41 +182,3 @@ def test_get_mcp_initialization_error(mock_mcp, monkeypatch):
 
     assert "Failed to initialize MCP" in str(exc_info.value)
     mock_mcp.assert_called_once_with("chroma")
-
-@pytest.fixture
-def mock_chroma_client_for_handlers():
-    """Mock the Chroma client where it is looked up by handlers."""
-    # Patch get_chroma_client in each handler module where it's likely imported/used
-    with patch("chroma_mcp.handlers.collection_handler.get_chroma_client") as mock_ch, \
-         patch("chroma_mcp.handlers.document_handler.get_chroma_client") as mock_dh, \
-         patch("chroma_mcp.handlers.thinking_handler.get_chroma_client") as mock_th:
-        
-        mock_collection = MagicMock()
-        mock_client = MagicMock()
-        mock_client.get_collection.return_value = mock_collection
-        mock_client.create_collection.return_value = mock_collection
-        
-        # Make all patched mocks return the same mock client instance
-        mock_ch.return_value = mock_client
-        mock_dh.return_value = mock_client
-        mock_th.return_value = mock_client
-        
-        yield mock_client # Yield the single mock client instance
-
-def test_get_handlers(mock_chroma_client_for_handlers):
-    """Test handler initialization."""
-    server._collection_handler = None
-    server._document_handler = None
-    server._thinking_handler = None
-    
-    collection_handler = get_collection_handler()
-    assert isinstance(collection_handler, CollectionHandler)
-    assert collection_handler is get_collection_handler()
-
-    document_handler = get_document_handler()
-    assert isinstance(document_handler, DocumentHandler)
-    assert document_handler is get_document_handler()
-
-    thinking_handler = get_thinking_handler()
-    assert isinstance(thinking_handler, ThinkingHandler)
-    assert thinking_handler is get_thinking_handler()

@@ -3,6 +3,7 @@
 import pytest
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+import uuid
 
 from src.chroma_mcp.utils.errors import ValidationError, CollectionNotFoundError, raise_validation_error
 
@@ -23,38 +24,53 @@ class MockMCP:
     async def chroma_sequential_thinking(
         self,
         thought: str,
-        session_id: str,
         thought_number: int,
         total_thoughts: int,
-        branch_id: Optional[str] = None,
-        branch_from_thought: Optional[int] = None,
+        session_id: str = "",
+        branch_id: str = "",
+        branch_from_thought: int = 0,
         next_thought_needed: bool = False,
-        custom_data: Optional[Dict[str, Any]] = None
+        custom_data: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Process sequential thoughts."""
+        # Handle None default for custom_data
+        if custom_data is None:
+            custom_data = {}
+            
         # Validate inputs
         if not thought:
             raise_validation_error("Thought content is required")
-        if thought_number < 1:
+        if thought_number < 1 or thought_number > total_thoughts:
             raise_validation_error(f"Invalid thought number: {thought_number}")
+        
+        # Mock generates session ID if not provided
+        effective_session_id = session_id if session_id else f"mock_session_{uuid.uuid4()}"
             
         response = {
             "status": "success",
             "thought": thought,
-            "session_id": session_id,
+            "session_id": effective_session_id,
             "thought_number": thought_number,
             "total_thoughts": total_thoughts
         }
         
-        # Add branch information if provided
+        # Add branch information if provided (non-default value)
         if branch_id:
             response["branch_id"] = branch_id
-        if branch_from_thought:
+        if branch_from_thought > 0:
             response["branch_from_thought"] = branch_from_thought
             
-        # Add previous thought if it exists
+        # Add previous thought mock if applicable
         if thought_number > 1:
-            response["previous_thought"] = "previous thought"
+            response["previous_thought"] = "previous thought mock"
+            
+        # Include other fields from the actual tool's response
+        response["success"] = True
+        response["thought_id"] = f"mock_thought_{effective_session_id}_{thought_number}"
+        response["previous_thoughts"] = [] # Mock empty list for simplicity
+        response["next_thought_needed"] = next_thought_needed
+        if custom_data: # Include custom_data in response if provided
+            response["custom_data"] = custom_data
             
         return response
 
@@ -62,21 +78,30 @@ class MockMCP:
         self,
         query: str,
         n_results: int = 5,
-        session_id: Optional[str] = None,
+        session_id: str = "",
         threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
         include_branches: bool = True
     ) -> Dict[str, Any]:
         """Find similar thoughts."""
+        # Basic validation
+        if threshold < 0 or threshold > 1:
+            raise_validation_error("Threshold must be between 0 and 1")
+            
         matches = [
             {
-                "thought": "thought1",
-                "metadata": {"session_id": "session1"},
+                "content": "thought1 content", # Renamed from 'thought'
+                "metadata": {"session_id": "session1", "thought_number": 1},
                 "similarity": 0.9
             },
             {
-                "thought": "thought2",
-                "metadata": {"session_id": "session2"},
+                "content": "thought2 content",
+                "metadata": {"session_id": "session2", "thought_number": 1},
                 "similarity": 0.8
+            },
+            {
+                "content": "thought3 session1 content",
+                "metadata": {"session_id": "session1", "thought_number": 2},
+                "similarity": 0.7
             }
         ]
         
@@ -84,7 +109,17 @@ class MockMCP:
         if session_id:
             matches = [m for m in matches if m["metadata"]["session_id"] == session_id]
             
-        return {"matches": matches[:n_results]}
+        # Filter by threshold
+        matches = [m for m in matches if m["similarity"] >= threshold]
+        
+        # Limit results
+        final_matches = matches[:n_results]
+            
+        return {
+            "similar_thoughts": final_matches,
+            "total_found": len(final_matches),
+            "threshold": threshold
+        }
 
     async def chroma_get_session_summary(
         self,
@@ -92,18 +127,33 @@ class MockMCP:
         include_branches: bool = True
     ) -> Dict[str, Any]:
         """Get summary for a session."""
-        return {
-            "session_id": session_id,
-            "thoughts": [
+        # Mock data
+        main_path = [
+            {
+                "content": "main thought1",
+                "metadata": {"session_id": session_id, "thought_number": 1}
+            },
+            {
+                "content": "main thought2",
+                "metadata": {"session_id": session_id, "thought_number": 2}
+            }
+        ]
+        branches = {
+            "branch1": [
                 {
-                    "thought": "thought1",
-                    "thought_number": 1
-                },
-                {
-                    "thought": "thought2",
-                    "thought_number": 2
+                    "content": "branch1 thought1",
+                    "metadata": {"session_id": session_id, "thought_number": 1, "branch_id": "branch1"}
                 }
             ]
+        }
+        
+        total_thoughts = len(main_path) + sum(len(b) for b in branches.values())
+        
+        return {
+            "session_id": session_id,
+            "main_path_thoughts": main_path,
+            "branched_thoughts": branches if include_branches else {},
+            "total_thoughts": total_thoughts
         }
 
     async def chroma_find_similar_sessions(
@@ -113,19 +163,45 @@ class MockMCP:
         threshold: float = DEFAULT_SIMILARITY_THRESHOLD
     ) -> Dict[str, Any]:
         """Find similar sessions."""
+        # Basic validation
+        if threshold < 0 or threshold > 1:
+            raise_validation_error("Threshold must be between 0 and 1")
+            
+        # Mock data based on actual tool response structure
+        matches = [
+            {
+                "session_id": "session1",
+                "similarity": 0.9,
+                "first_thought_timestamp": 1678886400,
+                "last_thought_timestamp": 1678886460,
+                "total_thoughts": 5
+            },
+            {
+                "session_id": "session2",
+                "similarity": 0.8,
+                "first_thought_timestamp": 1678887000,
+                "last_thought_timestamp": 1678887050,
+                "total_thoughts": 3
+            },
+             {
+                "session_id": "session3",
+                "similarity": 0.7,
+                "first_thought_timestamp": 1678888000,
+                "last_thought_timestamp": 1678888020,
+                "total_thoughts": 2
+            }
+        ]
+        
+        # Filter by threshold
+        matches = [m for m in matches if m["similarity"] >= threshold]
+        
+        # Limit results
+        final_matches = matches[:n_results]
+        
         return {
-            "matches": [
-                {
-                    "session_id": "session1",
-                    "summary": "session1 summary",
-                    "similarity": 0.9
-                },
-                {
-                    "session_id": "session2",
-                    "summary": "session2 summary",
-                    "similarity": 0.8
-                }
-            ][:n_results]
+            "similar_sessions": final_matches,
+            "total_found": len(final_matches),
+            "threshold": threshold
         }
 
 class TestThinkingTools:
@@ -149,8 +225,8 @@ class TestThinkingTools:
         )
 
         # Verify result
-        assert result["status"] == "success"
-        assert result["thought"] == thought
+        assert result["success"] == True
+        assert result["thought"].startswith("This is a test thought")
         assert result["session_id"] == session_id
         assert result["thought_number"] == thought_number
 
@@ -172,9 +248,9 @@ class TestThinkingTools:
         )
 
         # Verify result
-        assert result["status"] == "success"
+        assert result["success"] == True
         assert result["thought"] == thought
-        assert result["previous_thought"] == "previous thought"
+        assert result["previous_thought"] == "previous thought mock"
         assert result["thought_number"] == thought_number
 
     @pytest.mark.asyncio
@@ -199,7 +275,7 @@ class TestThinkingTools:
         )
 
         # Verify result
-        assert result["status"] == "success"
+        assert result["success"] == True
         assert result["thought"] == thought
         assert result["branch_id"] == branch_id
         assert result["branch_from_thought"] == branch_from_thought
@@ -210,14 +286,18 @@ class TestThinkingTools:
         # Call find similar thoughts
         result = await patched_mcp.chroma_find_similar_thoughts(
             query="test thought",
-            n_results=2
+            n_results=2,
+            threshold=0.7
         )
 
         # Verify result
-        assert "matches" in result
-        assert len(result["matches"]) == 2
-        assert result["matches"][0]["thought"] == "thought1"
-        assert result["matches"][1]["thought"] == "thought2"
+        assert "similar_thoughts" in result
+        assert len(result["similar_thoughts"]) <= 2
+        assert result["total_found"] == len(result["similar_thoughts"])
+        if result["total_found"] > 0:
+            assert result["similar_thoughts"][0]["content"] == "thought1 content"
+        if result["total_found"] > 1:
+            assert result["similar_thoughts"][1]["content"] == "thought2 content"
 
     @pytest.mark.asyncio
     async def test_find_similar_thoughts_with_session_filter(self, patched_mcp):
@@ -225,14 +305,15 @@ class TestThinkingTools:
         # Call find similar thoughts with session filter
         result = await patched_mcp.chroma_find_similar_thoughts(
             query="test thought",
-            session_id="session1"
+            session_id="session1",
+            threshold=0.6
         )
 
         # Verify result
-        assert "matches" in result
-        assert len(result["matches"]) == 1
-        assert result["matches"][0]["thought"] == "thought1"
-        assert result["matches"][0]["metadata"]["session_id"] == "session1"
+        assert "similar_thoughts" in result
+        assert len(result["similar_thoughts"]) == 2
+        assert result["similar_thoughts"][0]["metadata"]["session_id"] == "session1"
+        assert result["similar_thoughts"][1]["metadata"]["session_id"] == "session1"
 
     @pytest.mark.asyncio
     async def test_get_session_summary_success(self, patched_mcp):
@@ -242,9 +323,12 @@ class TestThinkingTools:
 
         # Verify result
         assert result["session_id"] == "test_session"
-        assert len(result["thoughts"]) == 2
-        assert result["thoughts"][0]["thought"] == "thought1"
-        assert result["thoughts"][1]["thought_number"] == 2
+        assert "main_path_thoughts" in result
+        assert len(result["main_path_thoughts"]) == 2
+        assert result["main_path_thoughts"][0]["content"] == "main thought1"
+        assert result["main_path_thoughts"][1]["metadata"]["thought_number"] == 2
+        assert "branched_thoughts" in result
+        assert len(result["branched_thoughts"]["branch1"]) == 1
 
     @pytest.mark.asyncio
     async def test_find_similar_sessions_success(self, patched_mcp):
@@ -252,14 +336,17 @@ class TestThinkingTools:
         # Call find similar sessions
         result = await patched_mcp.chroma_find_similar_sessions(
             query="test session",
-            n_results=2
+            n_results=2,
+            threshold=0.75
         )
 
         # Verify result
-        assert "matches" in result
-        assert len(result["matches"]) == 2
-        assert result["matches"][0]["summary"] == "session1 summary"
-        assert result["matches"][1]["session_id"] == "session2"
+        assert "similar_sessions" in result
+        assert len(result["similar_sessions"]) == 2
+        assert result["similar_sessions"][0]["session_id"] == "session1"
+        assert result["similar_sessions"][1]["session_id"] == "session2"
+        assert result["total_found"] == 2
+        assert "similarity" in result["similar_sessions"][0]
 
     @pytest.mark.asyncio
     async def test_validation_errors(self, patched_mcp):

@@ -16,7 +16,6 @@ from mcp.server.fastmcp import FastMCP
 from mcp.shared.exceptions import McpError
 
 from .types import ChromaClientConfig, ThoughtMetadata
-from .handlers import CollectionHandler, DocumentHandler, ThinkingHandler
 from .utils.logger_setup import LoggerSetup
 from .utils.client import get_chroma_client, get_embedding_function
 from .utils.config import load_config
@@ -43,10 +42,10 @@ except ImportError:
 # Initialize logger - will be properly configured in config_server
 logger = None
 
-# Initialize handlers lazily
-_collection_handler = None
-_document_handler = None
-_thinking_handler = None
+# Remove handler initializations and related global variables
+# _collection_handler = None
+# _document_handler = None
+# _thinking_handler = None
 _mcp_instance = None
 
 def _initialize_mcp_instance():
@@ -98,27 +97,6 @@ def get_mcp() -> FastMCP:
         # Should not happen if _initialize_mcp_instance raises correctly
         raise McpError(ErrorData(code=INTERNAL_ERROR, message="MCP instance is None after initialization attempt"))
     return _mcp_instance
-
-def get_collection_handler():
-    """Get or create the collection handler."""
-    global _collection_handler
-    if _collection_handler is None:
-        _collection_handler = CollectionHandler()
-    return _collection_handler
-
-def get_document_handler():
-    """Get or create the document handler."""
-    global _document_handler
-    if _document_handler is None:
-        _document_handler = DocumentHandler()
-    return _document_handler
-
-def get_thinking_handler():
-    """Get or create the thinking handler."""
-    global _thinking_handler
-    if _thinking_handler is None:
-        _thinking_handler = ThinkingHandler()
-    return _thinking_handler
 
 def create_parser() -> argparse.ArgumentParser:
     """Create and return the argument parser for server configuration."""
@@ -291,7 +269,10 @@ def main() -> None:
         mcp_instance = _initialize_mcp_instance()
         
         if logger:
-            logger.debug("Starting Chroma MCP server with stdio transport")
+            logger.debug(
+                "Starting Chroma MCP server (version: %s) with stdio transport", 
+                importlib.metadata.version('chroma-mcp-server')
+            )
         
         # Start server with stdio transport using the initialized instance
         mcp_instance.run(transport='stdio')
