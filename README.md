@@ -6,6 +6,18 @@
 
 A Model Context Protocol (MCP) server integration for [Chroma](https://www.trychroma.com/), the open-source embedding database.
 
+## Motivation: AI Development Working Memory
+
+In AI-assisted development workflows, particularly when using tools like Cursor or GitHub Copilot over multiple sessions, maintaining context from previous interactions is crucial but often manual. Developers frequently resort to creating temporary markdown files or other artifacts simply to capture and reload context into a new chat session.
+
+The Chroma MCP Server aims to streamline this process by providing a persistent, searchable "working memory":
+
+- **Automated Context Recall:** Instead of manual context loading, AI assistants (guided by specific rules or instructions) can query this MCP server to retrieve relevant information from past sessions based on the current development task.
+- **Developer-Managed Persistence:** Developers can actively summarize key decisions, code snippets, or insights from the current session and store them in ChromaDB via the MCP interface. This allows building a rich, task-relevant knowledge base over time.
+- **Separation of Concerns:** This "working memory" is distinct from final user-facing documentation or committed code artifacts, focusing specifically on capturing the transient but valuable context of the development process itself.
+
+By integrating ChromaDB through MCP, this server facilitates more seamless and context-aware AI-assisted development, reducing manual overhead and improving the continuity of complex tasks across multiple sessions.
+
 ## Overview
 
 The Chroma MCP Server allows you to connect AI applications with Chroma through the Model Context Protocol. This enables AI models to:
@@ -14,6 +26,8 @@ The Chroma MCP Server allows you to connect AI applications with Chroma through 
 - Perform semantic search on vector data
 - Manage collections of embeddings
 - Support RAG (Retrieval Augmented Generation) workflows
+
+See the [API Reference](docs/api_reference.md) for a detailed list of available tools and their parameters.
 
 ## Installation
 
@@ -39,10 +53,6 @@ pip install chroma-mcp-server[full]
 uv pip install "chroma-mcp-server[full]"
 ```
 
-### Development Installation
-
-This project uses [Hatch](https://hatch.pypa.io/) for development and package management. See the **Development** section below for setup instructions.
-
 ## Usage
 
 ### Starting the server
@@ -55,22 +65,7 @@ chroma-mcp-server
 python -m chroma_mcp.server
 ```
 
-Or use the provided scripts during development:
-
-```bash
-# For development environment
-./scripts/develop.sh
-
-# To build the package
-./scripts/build.sh
-
-# To publish to PyPI
-./scripts/publish.sh
-```
-
 ### Checking the Version
-
-To check the installed version of the package, use:
 
 ```bash
 chroma-mcp-server --version
@@ -83,7 +78,7 @@ The server can be configured with command-line options or environment variables:
 #### Command-line Options
 
 ```bash
-chroma-mcp-server --client-type persistent --data-dir ./my_data
+chroma-mcp-server --client-type persistent --data-dir ./my_data --log-dir ./logs
 ```
 
 #### Environment Variables
@@ -91,6 +86,7 @@ chroma-mcp-server --client-type persistent --data-dir ./my_data
 ```bash
 export CHROMA_CLIENT_TYPE=persistent
 export CHROMA_DATA_DIR=./my_data
+export CHROMA_LOG_DIR=./logs
 chroma-mcp-server
 ```
 
@@ -106,6 +102,8 @@ chroma-mcp-server
 - `--database`: Database name for Cloud client
 - `--api-key`: API key for Cloud client
 - `--cpu-execution-provider`: Force CPU execution provider for embedding functions (`auto`, `true`, `false`)
+
+See [Getting Started](docs/getting_started.md) for more setup details.
 
 ### Cursor Integration
 
@@ -131,197 +129,15 @@ To use with Cursor, add the following to your `.cursor/mcp.json`:
 }
 ```
 
-### Smithery Integration
-
-This MCP server is compatible with [Smithery](https://smithery.ai/). See the `smithery.yaml` file for configuration details.
+See [Cursor Integration](docs/cursor_integration.md) for more details.
 
 ## Development
 
-This project uses [Hatch](https://hatch.pypa.io/) for development and package management.
+For instructions on how to set up the development environment, run tests, build the package, and contribute, please see the **[Developer Guide](docs/developer_guide.md)**.
 
-### Development Scripts
+## Testing the Tools
 
-The project includes several utility scripts in the `scripts/` directory to streamline development tasks:
-
-```bash
-# Start development environment (activates Hatch shell)
-./scripts/develop.sh
-
-# Run tests with coverage
-./scripts/test.sh [--coverage] [--clean]
-
-# Build the package
-./scripts/build.sh
-
-# Publish to TestPyPI/PyPI
-./scripts/publish.sh [-t|-p] [-v VERSION]
-
-# Test UVX installation from local wheel
-./scripts/test_uvx_install.sh
-
-# Update MCP version in Cursor config (optionally installing from PyPI/TestPyPI)
-./scripts/update_mcp_version.sh [-i] [-t] [VERSION]
-
-# Run the full release process (TestPyPI -> Prod PyPI -> Update Config)
-./scripts/release.sh [--update-target <prod|test>] <VERSION>
-```
-
-### Setting Up Development Environment
-
-1. **Install Hatch:** If you don't have it, install Hatch globally:
-
-    ```bash
-    pip install hatch
-    ```
-
-2. **Activate Environment:** Use the `develop.sh` script or run `hatch shell` directly in the project root directory:
-
-    ```bash
-    # Using the script
-    ./scripts/develop.sh 
-    
-    # Or directly with Hatch
-    hatch shell
-    ```
-
-    This creates (if needed) and activates a virtual environment managed by Hatch with all development dependencies installed.
-
-### Running Tests
-
-Once inside the Hatch environment (activated via `hatch shell` or `./scripts/develop.sh`):
-
-```bash
-# Run all tests using pytest directly
-pytest
-
-# Or use the test script (which runs pytest via hatch)
-# Exit the hatch shell first if you are inside one
-./scripts/test.sh
-
-# Run with coverage report
-./scripts/test.sh --coverage
-
-# Run specific tests
-pytest tests/path/to/test_file.py::test_function
-```
-
-### Building the Package
-
-```bash
-# Build using our script (recommended)
-./scripts/build.sh
-
-# Or manually with Hatch
-hatch build
-```
-
-### Publishing
-
-```bash
-# Publish to TestPyPI (for testing)
-./scripts/publish.sh -t -v VERSION
-
-# Publish to PyPI (production)
-./scripts/publish.sh -p -v VERSION
-
-# Additional options:
-#  -y: Auto-confirm prompts
-#  -u: PyPI username
-#  -w: PyPI password/token
-#  -f: Fix dependencies
-```
-
-### Releasing a New Version (Recommended)
-
-For a streamlined release process that includes publishing to TestPyPI, testing the local install, publishing to production PyPI, and installing the final version locally for the `chroma` server entry, use the `release.sh` script:
-
-```bash
-# Example: Release version 0.2.0, install Prod version locally
-./scripts/release.sh 0.2.0
-
-# Example: Release version 0.2.1, install Test version locally
-./scripts/release.sh --update-target test 0.2.1
-
-# See script help for more options (--skip-testpypi, --test-only, -y)
-./scripts/release.sh --help
-```
-
-This script automates the steps previously done manually using `publish.sh` and handles the installation for the main `uvx chroma-mcp-server` command.
-
-**Note:** The `release.sh` script requires `curl` and `jq` to be installed to check if a version already exists on PyPI/TestPyPI before attempting to publish.
-
-## Scripts Overview
-
-- **build.sh**: Cleans and builds the package wheel.
-- **publish.sh**: Publishes the package to PyPI or TestPyPI.
-- **test.sh**: Runs tests using pytest.
-- **test_uvx_install.sh**: Builds locally and tests installation via `uvx`.
-- **release.sh**: Automates the full release process (TestPyPI -> Prod PyPI -> Install Prod/Test version locally).
-
-## Development Setup
-
-1. **Prerequisites:** Python 3.10+, Poetry, `just` (optional, for `justfile` commands), `curl`, `jq`.
-2. **Install Dependencies:** `poetry install --with dev`
-3. **Configure MCP Server:** Copy `.cursor/mcp.example.json` to `.cursor/mcp.json` and adjust environment variables (e.g., `CHROMA_DATA_DIR`).
-
-## Running the MCP Server
-
-You can run the server directly using Poetry or via `uvx` (recommended for Cursor integration):
-
-```bash
-# Using Poetry (for direct testing)
-poetry run python src/chroma_mcp/server.py
-
-# Using uvx (installs/runs isolated version)
-# This implicitly uses the latest version from PyPI unless 
-# a specific version was installed via "uvx <flags> chroma-mcp-server@<version>"
-# (The release.sh script handles this installation)
- uvx chroma-mcp-server
-```
-
-Cursor uses the configurations in `.cursor/mcp.json` to launch servers:
-
-- **`chroma`**: Runs `uvx chroma-mcp-server`, typically using the version last installed from PyPI (e.g., by `release.sh --update-target prod`).
-- **`chroma_test`**: Runs `uvx <test-index-flags> chroma-mcp-server@latest`, actively fetching the latest version from TestPyPI on startup.
-
-## Workflow & Scripts
-
-### Local Development
-
-1. Make code changes.
-2. Run tests: `./scripts/test.sh` or `just test`
-3. Optionally build and test local install: `just test-install` (uses `./scripts/test_uvx_install.sh`)
-
-### Releasing a New Version after local tests (Recommended)
-
-For a streamlined release process that includes publishing to TestPyPI, testing the local install, publishing to production PyPI, and installing the final version locally for the `chroma` server entry, use the `release.sh` script:
-
-```bash
-# Example: Release version 0.2.0, install Prod version locally
-./scripts/release.sh 0.2.0
-
-# Example: Release version 0.2.1, install Test version locally
-./scripts/release.sh --update-target test 0.2.1
-
-# See script help for more options (--skip-testpypi, --test-only, -y)
-./scripts/release.sh --help
-```
-
-This script automates the steps previously done manually using `publish.sh` and handles the installation for the main `uvx chroma-mcp-server` command.
-
-**Note:** The `release.sh` script requires `curl` and `jq` to be installed to check if a version already exists on PyPI/TestPyPI before attempting to publish.
-
-## Dependencies
-
-- **Core:** `fastapi`, `uvicorn`, `chromadb`, `fastmcp`, `python-dotenv`, `pydantic`
-- **Development:** `pytest`, `pytest-asyncio`, `pytest-cov`, `ruff`
-
-See `pyproject.toml` for specific version constraints.
-
-## Troubleshooting
-
-- **UVX Cache Issues:** If `uvx` seems stuck on an old version, try refreshing its cache: `uvx --refresh chroma-mcp-server --version`
-- **Dependency Conflicts:** Ensure your environment matches the required Python version and dependencies in `pyproject.toml`.
+A simulated workflow using the MCP tools is available in the **[MCP Test Flow](docs/mcp_test_flow.md)** document.
 
 ## License
 

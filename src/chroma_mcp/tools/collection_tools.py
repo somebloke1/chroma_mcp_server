@@ -98,22 +98,29 @@ def register_collection_tools(mcp: FastMCP) -> None:
     
     @mcp.tool()
     async def chroma_list_collections(
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        name_contains: Optional[str] = None
+        # Use non-Optional types with defaults
+        limit: int = 0, # Use 0 for no limit/default
+        offset: int = 0, # Use 0 for no offset
+        name_contains: str = "" # Use empty string for no filter
     ) -> Dict[str, Any]:
         """
         List all collections with optional filtering and pagination.
         
         Args:
-            limit: Maximum number of collections to return
-            offset: Number of collections to skip
-            name_contains: Filter collections by name substring
+            limit: Maximum number of collections to return (0 for no limit)
+            offset: Number of collections to skip (0 for no offset)
+            name_contains: Filter collections by name substring (empty string for no filter)
             
         Returns:
             Dictionary containing list of collection names and total count
         """
         try:
+            # Validate inputs
+            if limit < 0:
+                raise_validation_error("limit cannot be negative")
+            if offset < 0:
+                raise_validation_error("offset cannot be negative")
+                
             client = get_chroma_client()
             # Chroma v0.6.0+ might return only names strings directly
             collection_names = client.list_collections() # Assume list of strings
@@ -123,7 +130,7 @@ def register_collection_tools(mcp: FastMCP) -> None:
                  logger.warning(f"client.list_collections() returned unexpected type: {type(collection_names)}")
                  collection_names = []
             
-            # Filter by name if specified
+            # Filter by name if specified (non-empty string)
             if name_contains:
                 filtered_names = [name for name in collection_names if name_contains.lower() in name.lower()]
             else:
@@ -132,9 +139,9 @@ def register_collection_tools(mcp: FastMCP) -> None:
             # Get total count before pagination
             total_count = len(filtered_names)
             
-            # Apply pagination
-            start_index = offset if offset else 0
-            end_index = (start_index + limit) if limit else None
+            # Apply pagination (handle limit=0 as no limit)
+            start_index = offset # Already validated >= 0
+            end_index = (start_index + limit) if limit > 0 else None
             
             paginated_names = filtered_names[start_index:end_index]
             
@@ -142,8 +149,8 @@ def register_collection_tools(mcp: FastMCP) -> None:
             return {
                 "collection_names": paginated_names,
                 "total_count": total_count,
-                "limit": limit,
-                "offset": offset
+                "limit": limit, # Return original parameter
+                "offset": offset # Return original parameter
             }
             
         except Exception as e:

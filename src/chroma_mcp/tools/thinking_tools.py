@@ -47,11 +47,11 @@ def register_thinking_tools(mcp: FastMCP) -> None:
         thought: str,
         thought_number: int,
         total_thoughts: int,
-        session_id: Optional[str] = None,
-        branch_from_thought: Optional[int] = None,
-        branch_id: Optional[str] = None,
+        session_id: str = "",
+        branch_from_thought: int = 0,
+        branch_id: str = "",
         next_thought_needed: bool = False,
-        custom_data: Optional[Dict[str, Any]] = None
+        custom_data: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
         Record a thought in a sequential thinking process.
@@ -60,9 +60,9 @@ def register_thinking_tools(mcp: FastMCP) -> None:
             thought: The current thought content
             thought_number: Position in the thought sequence (1-based)
             total_thoughts: Total expected thoughts in the sequence
-            session_id: Optional session identifier (generated if not provided)
-            branch_from_thought: Optional thought number this branches from
-            branch_id: Optional branch identifier for parallel thought paths
+            session_id: Optional session identifier (generated if empty string provided)
+            branch_from_thought: Optional thought number this branches from (use 0 if none)
+            branch_id: Optional branch identifier for parallel thought paths (use empty string if none)
             next_thought_needed: Whether another thought is needed after this
             custom_data: Optional additional metadata
             
@@ -70,6 +70,10 @@ def register_thinking_tools(mcp: FastMCP) -> None:
             Dictionary containing thought information and context
         """
         try:
+            # Handle default custom_data
+            if custom_data is None:
+                custom_data = {}
+                
             # Input validation
             if not thought:
                 raise_validation_error("Thought content is required")
@@ -77,20 +81,19 @@ def register_thinking_tools(mcp: FastMCP) -> None:
                 raise_validation_error(f"Invalid thought number: {thought_number}")
             
             # Generate or validate session ID
-            if not session_id:
-                session_id = str(uuid.uuid4())
+            effective_session_id = session_id if session_id else str(uuid.uuid4())
             
-            # Create metadata
+            # Create metadata - use effective values, handle 0 for branch_from_thought
             timestamp = int(time.time())
             metadata = ThoughtMetadata(
-                session_id=session_id,
+                session_id=effective_session_id,
                 thought_number=thought_number,
                 total_thoughts=total_thoughts,
                 timestamp=timestamp,
-                branch_from_thought=branch_from_thought,
-                branch_id=branch_id,
+                branch_from_thought=branch_from_thought if branch_from_thought > 0 else None,
+                branch_id=branch_id if branch_id else None,
                 next_thought_needed=next_thought_needed,
-                custom_data=custom_data
+                custom_data=custom_data if custom_data else None # Store None if empty
             )
             
             # Get or create thoughts collection
@@ -101,14 +104,25 @@ def register_thinking_tools(mcp: FastMCP) -> None:
             )
             
             # Generate unique ID for the thought
-            thought_id = f"thought_{session_id}_{thought_number}"
+            thought_id = f"thought_{effective_session_id}_{thought_number}"
             if branch_id:
                 thought_id += f"_branch_{branch_id}"
             
             # Add thought to collection
+            # Convert metadata dataclass to dict for Chroma
+            metadata_dict = metadata.__dict__
+            # Filter out None values before sending to Chroma
+            metadata_dict = {k: v for k, v in metadata_dict.items() if v is not None}
+            # Special handling for custom_data - flatten if present
+            if 'custom_data' in metadata_dict and metadata_dict['custom_data']:
+                custom = metadata_dict.pop('custom_data')
+                for ck, cv in custom.items():
+                    # Prefix custom keys to avoid collision
+                    metadata_dict[f"custom:{ck}"] = cv 
+            
             collection.add(
                 documents=[thought],
-                metadatas=[metadata.__dict__],
+                metadatas=[metadata_dict], # Use the cleaned dict
                 ids=[thought_id]
             )
             
@@ -116,7 +130,7 @@ def register_thinking_tools(mcp: FastMCP) -> None:
             previous_thoughts = []
             if thought_number > 1:
                 where_clause = {
-                    "session_id": session_id,
+                    "session_id": effective_session_id,
                     "thought_number": {"$lt": thought_number}
                 }
                 if branch_id:
@@ -127,17 +141,26 @@ def register_thinking_tools(mcp: FastMCP) -> None:
                     include=["documents", "metadatas"]
                 )
                 
+                # Reconstruct metadata from flat structure if needed for previous thoughts
                 for i in range(len(results["ids"])):
+                    raw_meta = results["metadatas"][i] or {}
+                    # Reconstruct custom data if prefixed keys exist
+                    reconstructed_custom = {k[len('custom:'):]: v for k, v in raw_meta.items() if k.startswith('custom:')}
+                    # Filter out prefixed custom keys from main metadata
+                    base_meta = {k: v for k, v in raw_meta.items() if not k.startswith('custom:')}
+                    if reconstructed_custom:
+                        base_meta['custom_data'] = reconstructed_custom
+                        
                     previous_thoughts.append({
                         "content": results["documents"][i],
-                        "metadata": results["metadatas"][i]
+                        "metadata": base_meta
                     })
             
-            logger.info(f"Recorded thought {thought_number}/{total_thoughts} for session {session_id}")
+            logger.info(f"Recorded thought {thought_number}/{total_thoughts} for session {effective_session_id}")
             return {
                 "success": True,
                 "thought_id": thought_id,
-                "session_id": session_id,
+                "session_id": effective_session_id,
                 "thought_number": thought_number,
                 "total_thoughts": total_thoughts,
                 "previous_thoughts": previous_thoughts,
@@ -152,7 +175,7 @@ def register_thinking_tools(mcp: FastMCP) -> None:
         query: str,
         n_results: int = 5,
         threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
-        session_id: Optional[str] = None,
+        session_id: str = "",
         include_branches: bool = True
     ) -> Dict[str, Any]:
         """
@@ -162,7 +185,7 @@ def register_thinking_tools(mcp: FastMCP) -> None:
             query: The thought or concept to search for
             n_results: Number of similar thoughts to return
             threshold: Similarity threshold (0-1)
-            session_id: Optional session ID to limit search scope
+            session_id: Optional session ID to limit search scope (use empty string for all)
             include_branches: Whether to include thoughts from branch paths
             
         Returns:
@@ -175,7 +198,7 @@ def register_thinking_tools(mcp: FastMCP) -> None:
                 embedding_function=get_embedding_function()
             )
             
-            # Prepare where clause for filtering
+            # Prepare where clause for filtering only if session_id is provided
             where = None
             if session_id:
                 where = {"session_id": session_id}
@@ -190,17 +213,26 @@ def register_thinking_tools(mcp: FastMCP) -> None:
             
             # Filter by similarity threshold and format results
             similar_thoughts = []
-            for i in range(len(results["ids"][0])):
-                distance = results["distances"][0][i]
-                similarity = 1 - distance  # Convert distance to similarity
-                
-                if similarity >= threshold:
-                    thought = {
-                        "content": results["documents"][0][i],
-                        "metadata": results["metadatas"][0][i],
-                        "similarity": similarity
-                    }
-                    similar_thoughts.append(thought)
+            if results and results.get("ids") and results["ids"][0]: # Check if results exist
+                for i in range(len(results["ids"][0])):
+                    distance = results["distances"][0][i]
+                    similarity = 1 - distance  # Convert distance to similarity
+                    
+                    if similarity >= threshold:
+                        raw_meta = results["metadatas"][0][i] or {}
+                        # Reconstruct custom data if prefixed keys exist
+                        reconstructed_custom = {k[len('custom:'):]: v for k, v in raw_meta.items() if k.startswith('custom:')}
+                        # Filter out prefixed custom keys from main metadata
+                        base_meta = {k: v for k, v in raw_meta.items() if not k.startswith('custom:')}
+                        if reconstructed_custom:
+                            base_meta['custom_data'] = reconstructed_custom
+                            
+                        thought = {
+                            "content": results["documents"][0][i],
+                            "metadata": base_meta, # Use reconstructed metadata
+                            "similarity": similarity
+                        }
+                        similar_thoughts.append(thought)
             
             return {
                 "similar_thoughts": similar_thoughts,
@@ -209,6 +241,10 @@ def register_thinking_tools(mcp: FastMCP) -> None:
             }
             
         except Exception as e:
+            # Handle collection not found specifically
+            if "does not exist" in str(e):
+                 logger.warning(f"Collection '{THOUGHTS_COLLECTION}' not found during similar thought search.")
+                 return {"similar_thoughts": [], "total_found": 0, "threshold": threshold, "message": f"Collection '{THOUGHTS_COLLECTION}' not found."}
             raise handle_chroma_error(e, "find_similar_thoughts")
     
     @mcp.tool()
@@ -244,35 +280,47 @@ def register_thinking_tools(mcp: FastMCP) -> None:
             main_path = []
             branches = {}
             
-            for i in range(len(results["ids"])):
-                thought = {
-                    "content": results["documents"][i],
-                    "metadata": results["metadatas"][i]
-                }
-                
-                metadata = results["metadatas"][i]
-                if metadata.get("branch_id"):
-                    if include_branches:
-                        branch_id = metadata["branch_id"]
+            if results and results.get("ids"): # Check if results exist
+                for i in range(len(results["ids"])):
+                    raw_meta = results["metadatas"][i] or {}
+                    # Reconstruct custom data if prefixed keys exist
+                    reconstructed_custom = {k[len('custom:'):]: v for k, v in raw_meta.items() if k.startswith('custom:')}
+                    # Filter out prefixed custom keys from main metadata
+                    base_meta = {k: v for k, v in raw_meta.items() if not k.startswith('custom:')}
+                    if reconstructed_custom:
+                        base_meta['custom_data'] = reconstructed_custom
+                        
+                    thought = {
+                        "content": results["documents"][i],
+                        "metadata": base_meta # Use reconstructed metadata
+                    }
+                    
+                    # Check if thought belongs to a branch
+                    branch_id = base_meta.get("branch_id")
+                    if branch_id and include_branches:
                         if branch_id not in branches:
                             branches[branch_id] = []
                         branches[branch_id].append(thought)
-                else:
-                    main_path.append(thought)
+                    elif not branch_id: # Add to main path if not branched
+                        main_path.append(thought)
             
-            # Sort thoughts by number
-            main_path.sort(key=lambda x: x["metadata"]["thought_number"])
-            for branch in branches.values():
-                branch.sort(key=lambda x: x["metadata"]["thought_number"])
+            # Sort main path and branches by thought number
+            main_path.sort(key=lambda x: x["metadata"].get("thought_number", 0))
+            for branch_id in branches:
+                branches[branch_id].sort(key=lambda x: x["metadata"].get("thought_number", 0))
             
             return {
                 "session_id": session_id,
-                "main_path": main_path,
-                "branches": branches if include_branches else None,
+                "main_path_thoughts": main_path,
+                "branched_thoughts": branches if include_branches else {},
                 "total_thoughts": len(main_path) + sum(len(b) for b in branches.values())
             }
             
         except Exception as e:
+            # Handle collection not found specifically
+            if "does not exist" in str(e):
+                 logger.warning(f"Collection '{THOUGHTS_COLLECTION}' not found during session summary.")
+                 return {"session_id": session_id, "main_path_thoughts": [], "branched_thoughts": {}, "total_thoughts": 0, "message": f"Collection '{THOUGHTS_COLLECTION}' not found."}
             raise handle_chroma_error(e, "get_session_summary")
     
     @mcp.tool()
@@ -293,61 +341,46 @@ def register_thinking_tools(mcp: FastMCP) -> None:
             Dictionary containing similar sessions and their summaries
         """
         try:
-            # First, find similar thoughts
-            similar_thoughts = await chroma_find_similar_thoughts(
-                query=query,
-                n_results=n_results * 3,  # Get more thoughts to ensure coverage
-                threshold=threshold,
-                include_branches=True
+            client = get_chroma_client()
+            
+            # 1. Get or create the session summary collection
+            try:
+                 session_summary_collection = client.get_collection(
+                     name=SESSIONS_COLLECTION,
+                     embedding_function=get_embedding_function()
+                 )
+            except Exception as e:
+                 # Collection might not exist yet, which is okay for querying
+                 logger.warning(f"Session summary collection '{SESSIONS_COLLECTION}' not found. Returning empty results.")
+                 return {"similar_sessions": [], "total_found": 0, "threshold": threshold}
+
+            # 2. Query the session summary collection
+            results = session_summary_collection.query(
+                query_texts=[query],
+                n_results=n_results,
+                include=["metadatas", "distances"] # Only need metadata (session_id) and distance
             )
             
-            # Group thoughts by session and calculate session similarity
-            session_similarities = {}
-            for thought in similar_thoughts["similar_thoughts"]:
-                session_id = thought["metadata"]["session_id"]
-                similarity = thought["similarity"]
-                
-                if session_id not in session_similarities:
-                    session_similarities[session_id] = {
-                        "max_similarity": similarity,
-                        "total_similarity": similarity,
-                        "thought_count": 1
-                    }
-                else:
-                    stats = session_similarities[session_id]
-                    stats["max_similarity"] = max(stats["max_similarity"], similarity)
-                    stats["total_similarity"] += similarity
-                    stats["thought_count"] += 1
-            
-            # Calculate average similarity and sort sessions
-            session_scores = []
-            for session_id, stats in session_similarities.items():
-                avg_similarity = stats["total_similarity"] / stats["thought_count"]
-                combined_score = (stats["max_similarity"] + avg_similarity) / 2
-                
-                if combined_score >= threshold:
-                    session_scores.append({
-                        "session_id": session_id,
-                        "similarity_score": combined_score,
-                        "max_similarity": stats["max_similarity"],
-                        "avg_similarity": avg_similarity
-                    })
-            
-            # Sort by combined score and limit results
-            session_scores.sort(key=lambda x: x["similarity_score"], reverse=True)
-            session_scores = session_scores[:n_results]
-            
-            # Get full summaries for top sessions
+            # 3. Filter by threshold and format
             similar_sessions = []
-            for score in session_scores:
-                summary = await chroma_get_session_summary(
-                    session_id=score["session_id"],
-                    include_branches=True
-                )
-                similar_sessions.append({
-                    "session_summary": summary,
-                    "similarity_metrics": score
-                })
+            if results and results.get("ids") and results["ids"][0]: # Check if results exist
+                for i in range(len(results["ids"][0])):
+                    distance = results["distances"][0][i]
+                    similarity = 1 - distance
+                    
+                    if similarity >= threshold:
+                        session_id = results["ids"][0][i] # Session ID is the document ID
+                        session_metadata = results["metadatas"][0][i] or {}
+                        
+                        session_info = {
+                            "session_id": session_id,
+                            "similarity": similarity,
+                            # Add any other relevant metadata stored during summary creation
+                            "first_thought_timestamp": session_metadata.get("first_thought_timestamp"),
+                            "last_thought_timestamp": session_metadata.get("last_thought_timestamp"),
+                            "total_thoughts": session_metadata.get("total_thoughts"),
+                        }
+                        similar_sessions.append(session_info)
             
             return {
                 "similar_sessions": similar_sessions,
@@ -356,6 +389,7 @@ def register_thinking_tools(mcp: FastMCP) -> None:
             }
             
         except Exception as e:
+            # We already handled collection not found above
             raise handle_chroma_error(e, "find_similar_sessions")
 
 async def record_thought(

@@ -121,11 +121,18 @@ if ! command -v hatch &> /dev/null; then
 fi
 
 # Define project root relative to script location
-PROJECT_ROOT=".."
-PYPROJECT_FILE="$PROJECT_ROOT/pyproject.toml"
-DIST_DIR="$PROJECT_ROOT/dist"
-BUILD_DIR="$PROJECT_ROOT/build"
-EGG_INFO_DIR="$PROJECT_ROOT/*.egg-info"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# --- Change to Project Root ---
+cd "$PROJECT_ROOT"
+echo "ℹ️ Changed working directory to project root: $PROJECT_ROOT"
+
+# Now paths can be relative to project root
+PYPROJECT_FILE="pyproject.toml"
+DIST_DIR="dist"
+BUILD_DIR="build"
+EGG_INFO_DIR="*.egg-info"
 
 # Update version if specified
 if [ ! -z "$VERSION" ]; then

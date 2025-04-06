@@ -50,28 +50,37 @@ class MockMCP:
     
     async def chroma_list_collections(
         self,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        name_contains: Optional[str] = None
+        # Use non-Optional types with defaults
+        limit: int = 0,
+        offset: int = 0,
+        name_contains: str = ""
     ) -> Dict[str, Any]:
         """Mock list available collections."""
+        # Basic validation
+        if limit < 0:
+            raise ValidationError("limit cannot be negative")
+        if offset < 0:
+            raise ValidationError("offset cannot be negative")
+            
         filtered_collections = []
-        for name, data in self.collections.items():
-            if name_contains and name_contains.lower() not in name.lower():
-                continue
-            filtered_collections.append({
-                "name": name,
-                "id": data["id"],
-                "metadata": data["metadata"], # Return raw internal metadata
-            })
+        collection_names = list(self.collections.keys())
+        
+        # Filter by name if specified
+        if name_contains:
+            filtered_names = [name for name in collection_names if name_contains.lower() in name.lower()]
+        else:
+            filtered_names = collection_names
             
-        total_count = len(filtered_collections)
-        start = offset or 0
-        end = (start + limit) if limit else None
-        paginated = filtered_collections[start:end]
+        total_count = len(filtered_names)
+        
+        # Apply pagination (limit=0 means no limit for mock)
+        start = offset
+        end = (start + limit) if limit > 0 else None
+        paginated_names = filtered_names[start:end]
             
+        # Return structure matching actual tool (just names)
         return {
-            "collections": paginated,
+            "collection_names": paginated_names,
             "total_count": total_count,
             "limit": limit,
             "offset": offset
@@ -238,7 +247,7 @@ class TestCollectionTools:
         await mcp.chroma_create_collection(collection_name="list_test1")
         await mcp.chroma_create_collection(collection_name="list_test2")
         result = await mcp.chroma_list_collections()
-        assert len(result["collections"]) == 2
+        assert len(result["collection_names"]) == 2
         assert result["total_count"] == 2
 
     @pytest.mark.asyncio
@@ -247,8 +256,8 @@ class TestCollectionTools:
         await mcp.chroma_create_collection(collection_name="filter_test1")
         await mcp.chroma_create_collection(collection_name="filter_other2")
         result = await mcp.chroma_list_collections(name_contains="test")
-        assert len(result["collections"]) == 1
-        assert result["collections"][0]["name"] == "filter_test1"
+        assert len(result["collection_names"]) == 1
+        assert result["collection_names"][0] == "filter_test1"
         assert result["total_count"] == 1
 
     @pytest.mark.asyncio

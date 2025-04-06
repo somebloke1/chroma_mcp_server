@@ -19,18 +19,30 @@ class MockMCP:
         self,
         collection_name: str,
         documents: List[str],
-        metadatas: Optional[List[Dict[str, Any]]] = None,
-        ids: Optional[List[str]] = None
+        metadatas: List[Dict[str, Any]] = None,
+        ids: List[str] = None,
+        increment_index: bool = True
     ) -> Dict[str, Any]:
         """Add documents to a collection."""
+        # Handle None defaults
+        if metadatas is None:
+            metadatas = []
+        if ids is None:
+            ids = []
+            
         # Validate inputs
         if not documents:
             raise_validation_error("No documents provided")
+        if ids and len(ids) != len(documents):
+            raise_validation_error("Number of IDs must match number of documents")
+        if metadatas and len(metadatas) != len(documents):
+            raise_validation_error("Number of metadatas must match number of documents")
             
         return {
             "status": "success",
             "collection_name": collection_name,
-            "count": len(documents)
+            "added_count": len(documents),
+            "document_ids": ids if ids else [f"gen_{i}" for i in range(len(documents))]
         }
         
     async def chroma_query_documents(
@@ -38,79 +50,163 @@ class MockMCP:
         collection_name: str,
         query_texts: List[str],
         n_results: int = 10,
-        where: Optional[Dict[str, Any]] = None,
-        where_document: Optional[Dict[str, Any]] = None
+        where: Dict[str, Any] = None,
+        where_document: Dict[str, Any] = None,
+        include: List[str] = None
     ) -> Dict[str, Any]:
         """Query documents from a collection."""
+        # Handle None defaults
+        if where is None:
+            where = {}
+        if where_document is None:
+            where_document = {}
+        if include is None:
+            # Default include from actual tool implementation
+            include = ["documents", "metadatas", "distances"]
+            
         # Generate mock results
         results = []
         for query in query_texts:
             matches = []
-            for i in range(n_results):
-                matches.append({
-                    "id": f"{i+1}",
-                    "document": f"doc{i+1}",
-                    "metadata": {"key": f"value{i+1}"},
-                    "distance": 0.1 * (i+1)
-                })
+            # Use actual n_results for mock generation
+            num_mock_results = min(n_results, 5) # Limit mock results for simplicity
+            for i in range(num_mock_results):
+                match = {
+                    "id": f"{i+1}"
+                }
+                # Add included fields
+                if "documents" in include:
+                    match["document"] = f"doc{i+1}"
+                if "metadatas" in include:
+                    match["metadata"] = {"key": f"value{i+1}"}
+                if "distances" in include:
+                    match["distance"] = 0.1 * (i+1)
+                if "embeddings" in include:
+                    # Mock embeddings are complex, return None or placeholder
+                    match["embedding"] = None
+                matches.append(match)
             results.append({"query": query, "matches": matches})
             
-        return {"results": results}
+        return {
+            "results": results,
+            "total_queries": len(query_texts) # Added for consistency
+        }
     
     async def chroma_get_documents(
         self,
         collection_name: str,
-        ids: Optional[List[str]] = None,
-        where: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None
+        ids: List[str] = None,
+        where: Dict[str, Any] = None,
+        where_document: Dict[str, Any] = None,
+        include: List[str] = None,
+        limit: int = 0,
+        offset: int = 0
     ) -> Dict[str, Any]:
         """Get documents from a collection."""
+        # Handle None defaults
+        if ids is None:
+            ids = []
+        if where is None:
+            where = {}
+        if where_document is None:
+            where_document = {}
+        if include is None:
+            # Default include from actual tool implementation
+            include = ["documents", "metadatas"]
+            
         # Generate mock results
         documents = []
+        effective_limit = limit if limit > 0 else 10 # Default mock limit if 0
+        
         if ids:
-            for id in ids:
-                documents.append({
-                    "id": id,
-                    "document": f"doc-{id}",
-                    "metadata": {"key": f"value-{id}"}
-                })
+            for doc_id in ids:
+                # Only generate mocks up to the limit if ids are provided
+                if len(documents) >= effective_limit:
+                    break
+                doc = { "id": doc_id }
+                if "documents" in include:
+                    doc["content"] = f"doc-{doc_id}"
+                if "metadatas" in include:
+                    doc["metadata"] = {"key": f"value-{doc_id}"}
+                if "embeddings" in include:
+                    doc["embedding"] = None
+                documents.append(doc)
         else:
-            for i in range(1, (limit or 10) + 1):
-                documents.append({
-                    "id": f"{i}",
-                    "document": f"doc{i}",
-                    "metadata": {"key": f"value{i}"}
-                })
+            # Apply offset and limit for non-ID based retrieval
+            start_index = offset
+            end_index = offset + effective_limit
+            for i in range(start_index, end_index):
+                doc_id = f"{i+1}"
+                doc = { "id": doc_id }
+                if "documents" in include:
+                    doc["content"] = f"doc{i+1}"
+                if "metadatas" in include:
+                    doc["metadata"] = {"key": f"value{i+1}"}
+                if "embeddings" in include:
+                    doc["embedding"] = None
+                documents.append(doc)
                 
-        return {"documents": documents}
+        return {
+            "documents": documents,
+            "total_found": len(documents),
+            "limit": limit,
+            "offset": offset
+        }
     
     async def chroma_update_documents(
         self,
         collection_name: str,
         ids: List[str],
-        documents: Optional[List[str]] = None,
-        metadatas: Optional[List[Dict[str, Any]]] = None
+        documents: List[str] = None,
+        metadatas: List[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Update documents in a collection."""
+        # Handle None defaults
+        if documents is None:
+            documents = []
+        if metadatas is None:
+            metadatas = []
+            
+        # Basic validation
+        if not ids:
+            raise_validation_error("List of IDs is required for update")
+        if documents and len(documents) != len(ids):
+            raise_validation_error("Number of documents must match number of IDs")
+        if metadatas and len(metadatas) != len(ids):
+            raise_validation_error("Number of metadatas must match number of IDs")
+            
         return {
             "status": "success",
             "collection_name": collection_name,
-            "count": len(ids)
+            "updated_count": len(ids)
         }
     
     async def chroma_delete_documents(
         self,
         collection_name: str,
-        ids: Optional[List[str]] = None,
-        where: Optional[Dict[str, Any]] = None
+        ids: List[str] = None,
+        where: Dict[str, Any] = None,
+        where_document: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Delete documents from a collection."""
-        count = len(ids) if ids else 1
+        # Handle None defaults
+        if ids is None:
+            ids = []
+        if where is None:
+            where = {}
+        if where_document is None:
+            where_document = {}
+            
+        # Need at least one condition for deletion in mock
+        if not ids and not where and not where_document:
+            raise_validation_error("Either ids, where, or where_document must be provided for deletion")
+            
+        # Mock count based on input
+        count = len(ids) if ids else 1 # Assume filter matches 1 if no IDs
         return {
             "status": "success",
             "collection_name": collection_name,
-            "count": count
+            "deleted_count": count
         }
 
 @pytest.fixture
@@ -139,7 +235,7 @@ class TestDocumentTools:
 
         # Verify result
         assert result["status"] == "success"
-        assert result["count"] == 2
+        assert result["added_count"] == 2
 
     @pytest.mark.asyncio
     async def test_add_documents_with_ids(self, patched_mcp):
@@ -157,7 +253,7 @@ class TestDocumentTools:
 
         # Verify result
         assert result["status"] == "success"
-        assert result["count"] == 2
+        assert result["added_count"] == 2
 
     @pytest.mark.asyncio
     async def test_add_documents_no_documents(self, patched_mcp):
@@ -183,6 +279,10 @@ class TestDocumentTools:
         assert "results" in result
         assert len(result["results"]) > 0  # One query
         assert len(result["results"][0]["matches"]) > 0  # At least one match
+        assert len(result["results"][0]["matches"]) == 2 # Check against n_results
+        assert "document" in result["results"][0]["matches"][0] # Check included fields
+        assert "metadata" in result["results"][0]["matches"][0]
+        assert "distance" in result["results"][0]["matches"][0]
 
     @pytest.mark.asyncio
     async def test_query_documents_with_filters(self, patched_mcp):
@@ -202,6 +302,7 @@ class TestDocumentTools:
         # Verify result
         assert "results" in result
         assert len(result["results"]) > 0
+        assert len(result["results"][0]["matches"]) > 0 # Mock returns some matches even with filters
 
     @pytest.mark.asyncio
     async def test_get_documents_success(self, patched_mcp):
@@ -215,6 +316,10 @@ class TestDocumentTools:
         # Verify result
         assert "documents" in result
         assert len(result["documents"]) > 0
+        assert result["documents"][0]["id"] == "1"
+        assert result["documents"][1]["id"] == "2"
+        assert "content" in result["documents"][0]
+        assert "metadata" in result["documents"][0]
 
     @pytest.mark.asyncio
     async def test_update_documents_success(self, patched_mcp):
@@ -234,7 +339,7 @@ class TestDocumentTools:
 
         # Verify result
         assert result["status"] == "success"
-        assert result["count"] == 2
+        assert result["updated_count"] == 2
 
     @pytest.mark.asyncio
     async def test_delete_documents_success(self, patched_mcp):
@@ -247,7 +352,7 @@ class TestDocumentTools:
 
         # Verify result
         assert result["status"] == "success"
-        assert "count" in result
+        assert result["deleted_count"] == 2
 
     @pytest.mark.asyncio
     async def test_delete_documents_with_filters(self, patched_mcp):
@@ -263,6 +368,7 @@ class TestDocumentTools:
 
         # Verify result
         assert result["status"] == "success"
+        assert result["deleted_count"] == 1 # Mock deletes 1 if using filters
 
     @pytest.mark.asyncio
     async def test_error_handling(self, patched_mcp):

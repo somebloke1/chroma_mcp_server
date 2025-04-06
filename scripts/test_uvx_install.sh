@@ -14,7 +14,12 @@ PACKAGE_NAME="chroma-mcp-server"
 REQUIRED_DEPS="pydantic>=2.0.0 fastapi>=0.100.0 uvicorn>=0.20.0 chromadb>=0.4.18 python-dotenv>=1.0.0 fastmcp>=0.4.1"
 
 # Get package version from pyproject.toml in project root
-PYPROJECT_FILE="$PROJECT_ROOT/pyproject.toml"
+PYPROJECT_FILE="pyproject.toml" # Path relative to PROJECT_ROOT
+
+# --- Change to Project Root ---
+cd "$PROJECT_ROOT"
+echo "ℹ️ Changed working directory to project root: $PROJECT_ROOT"
+
 VERSION=$(grep -E "^version = " "$PYPROJECT_FILE" | cut -d '"' -f 2)
 if [ -z "$VERSION" ]; then
     echo "Error: Could not determine package version from $PYPROJECT_FILE"
@@ -23,14 +28,14 @@ fi
 
 echo "Testing installation of $PACKAGE_NAME version $VERSION"
 
-# Define dist directory path
-DIST_DIR="$PROJECT_ROOT/dist"
+# Define dist directory path (now relative to PROJECT_ROOT)
+DIST_DIR="dist"
 
 # Check if the dist directory exists
 if [ ! -d "$DIST_DIR" ]; then
     echo "No dist directory found. Building package first..."
-    # Run build script from its location
-    "${SCRIPT_DIR}/build.sh"
+    # Run build script using its relative path from PROJECT_ROOT
+    "$SCRIPT_DIR/build.sh"
     if [ $? -ne 0 ]; then
         echo "Error: Failed to build package"
         rm -rf "$TEMP_DIR"
@@ -39,8 +44,8 @@ if [ ! -d "$DIST_DIR" ]; then
 fi
 
 # Find wheel file in the dist directory
-WHEEL_FILE=$(find "$DIST_DIR" -name "${PACKAGE_NAME//-/_}-${VERSION}-*.whl" | head -1)
-if [ -z "$WHEEL_FILE" ]; then
+WHEEL_FILE_RELATIVE=$(find "$DIST_DIR" -name "${PACKAGE_NAME//-/_}-${VERSION}-*.whl" | head -1)
+if [ -z "$WHEEL_FILE_RELATIVE" ]; then
     echo "Error: No wheel file found for $PACKAGE_NAME version $VERSION in $DIST_DIR"
     echo "Debug: Looking for wheel matching pattern: ${PACKAGE_NAME//-/_}-${VERSION}-*.whl"
     echo "Available files in dist directory:"
@@ -49,16 +54,22 @@ if [ -z "$WHEEL_FILE" ]; then
     exit 1
 fi
 
-echo "Found wheel file: $WHEEL_FILE"
+# Store the absolute path before changing directory
+WHEEL_FILE_ABSOLUTE="$PROJECT_ROOT/$WHEEL_FILE_RELATIVE"
+
+echo "Found wheel file: $WHEEL_FILE_ABSOLUTE"
 echo "Using temporary directory: $TEMP_DIR"
 
 # Function to clean up on exit
 cleanup() {
     echo "Cleaning up temporary directory..."
     rm -rf "$TEMP_DIR"
+    # Optionally, change back to original directory if needed
+    # cd - > /dev/null 
 }
 trap cleanup EXIT
 
+# Change to TEMP_DIR for isolated environment creation
 cd "$TEMP_DIR"
 
 # Test UV Installation 
@@ -73,8 +84,8 @@ if command -v uv > /dev/null 2>&1; then
     source .venv/bin/activate
     
     # Install from local wheel first (more reliable) along with required dependencies
-    echo "Installing from local wheel file: $WHEEL_FILE with dependencies"
-    if uv pip install "$WHEEL_FILE" $REQUIRED_DEPS; then
+    echo "Installing from local wheel file: $WHEEL_FILE_ABSOLUTE with dependencies"
+    if uv pip install "$WHEEL_FILE_ABSOLUTE" $REQUIRED_DEPS; then
         echo "UV installation from local wheel successful!"
         echo "Testing execution..."
         if chroma-mcp-server --help > /dev/null; then
@@ -99,8 +110,8 @@ echo "------------------------------------------------------------"
 python -m venv .venv-pip
 source .venv-pip/bin/activate
 
-echo "Installing from local wheel: $WHEEL_FILE with dependencies"
-if pip install "$WHEEL_FILE" $REQUIRED_DEPS; then
+echo "Installing from local wheel: $WHEEL_FILE_ABSOLUTE with dependencies"
+if pip install "$WHEEL_FILE_ABSOLUTE" $REQUIRED_DEPS; then
     echo "Installation from local wheel successful!"
     
     # Test import
