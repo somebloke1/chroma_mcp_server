@@ -3,8 +3,22 @@
 import pytest
 import uuid
 from typing import Dict, Any, List, Optional
+from unittest.mock import patch, AsyncMock
 
-from src.chroma_mcp.utils.errors import ValidationError, CollectionNotFoundError, raise_validation_error
+from mcp.shared.exceptions import McpError
+from src.chroma_mcp.utils.errors import ValidationError, CollectionNotFoundError, handle_chroma_error, raise_validation_error
+from mcp.types import INVALID_PARAMS
+
+from src.chroma_mcp.tools import document_tools
+
+# Import the implementation functions directly
+from src.chroma_mcp.tools.document_tools import (
+    _add_documents_impl, 
+    _query_documents_impl, 
+    _get_documents_impl, 
+    _update_documents_impl, 
+    _delete_documents_impl
+)
 
 DEFAULT_SIMILARITY_THRESHOLD = 0.7
 
@@ -201,12 +215,19 @@ class MockMCP:
         if not ids and not where and not where_document:
             raise_validation_error("Either ids, where, or where_document must be provided for deletion")
             
-        # Mock count based on input
-        count = len(ids) if ids else 1 # Assume filter matches 1 if no IDs
+        # Mock response based on deletion method
+        deleted_count = -1
+        deleted_ids_response = []
+        if ids:
+            deleted_count = len(ids) # Mock assumes all requested IDs were deleted
+            deleted_ids_response = ids
+        # else: If deletion was by filter, count remains -1 and ids remain []
+            
         return {
-            "status": "success",
+            "success": True, # Changed from 'status'
             "collection_name": collection_name,
-            "deleted_count": count
+            "deleted_count": deleted_count, # Renamed from 'count', adjusted logic
+            "deleted_ids": deleted_ids_response # New field, adjusted logic
         }
 
 @pytest.fixture
@@ -216,180 +237,487 @@ def patched_mcp():
     """
     return MockMCP()
 
+@pytest.fixture
+def mock_chroma_client():
+    """Fixture to mock the Chroma client and its methods."""
+    with patch("src.chroma_mcp.tools.document_tools.get_chroma_client") as mock_get_client:
+        mock_client_instance = AsyncMock()
+        mock_collection_instance = AsyncMock()
+        
+        # Configure mock methods for collection
+        mock_collection_instance.add = AsyncMock()
+        mock_collection_instance.query = AsyncMock()
+        mock_collection_instance.get = AsyncMock()
+        mock_collection_instance.update = AsyncMock()
+        mock_collection_instance.delete = AsyncMock()
+        mock_collection_instance.count = AsyncMock(return_value=0) # Default count
+        
+        # Configure mock methods for client
+        mock_client_instance.get_collection = AsyncMock(return_value=mock_collection_instance)
+        mock_client_instance.get_or_create_collection = AsyncMock(return_value=mock_collection_instance)
+        
+        mock_get_client.return_value = mock_client_instance
+        yield mock_client_instance, mock_collection_instance
+
 class TestDocumentTools:
-    """Test cases for document management tools."""
+    """Test cases for document management implementation functions."""
 
+    # --- _add_documents_impl Tests ---
     @pytest.mark.asyncio
-    async def test_add_documents_success(self, patched_mcp):
+    async def test_add_documents_success(self, mock_chroma_client):
         """Test successful document addition."""
-        # Test data
-        documents = ["doc1", "doc2"]
-        metadatas = [{"key": "value1"}, {"key": "value2"}]
-
-        # Call add documents
-        result = await patched_mcp.chroma_add_documents(
-            collection_name="test_collection",
-            documents=documents,
-            metadatas=metadatas
-        )
-
-        # Verify result
-        assert result["status"] == "success"
-        assert result["added_count"] == 2
-
-    @pytest.mark.asyncio
-    async def test_add_documents_with_ids(self, patched_mcp):
-        """Test document addition with custom IDs."""
-        # Test data
-        documents = ["doc1", "doc2"]
+        mock_client, mock_collection = mock_chroma_client
+        mock_collection.count = AsyncMock(return_value=5) # Set initial count
+        
+        docs = ["doc1", "doc2"]
         ids = ["id1", "id2"]
-
-        # Call add documents
-        result = await patched_mcp.chroma_add_documents(
-            collection_name="test_collection",
-            documents=documents,
-            ids=ids
+        metas = [{"k": "v1"}, {"k": "v2"}]
+        
+        result = await _add_documents_impl(
+            collection_name="test_add",
+            documents=docs,
+            ids=ids,
+            metadatas=metas
         )
-
-        # Verify result
-        assert result["status"] == "success"
+        
+        mock_collection.add.assert_called_once_with(
+            documents=docs, 
+            ids=ids, 
+            metadatas=metas
+        )
+        assert result["success"] is True
         assert result["added_count"] == 2
+        assert result["document_ids"] == ids
+        assert result["ids_generated"] is False
 
     @pytest.mark.asyncio
-    async def test_add_documents_no_documents(self, patched_mcp):
-        """Test document addition with empty document list."""
-        with pytest.raises(ValidationError) as exc_info:
-            await patched_mcp.chroma_add_documents(
-                collection_name="test_collection",
-                documents=[]
+    async def test_add_documents_generate_ids(self, mock_chroma_client):
+        """Test document addition with auto-generated IDs."""
+        mock_client, mock_collection = mock_chroma_client
+        mock_collection.count = AsyncMock(return_value=3)
+        
+        docs = ["docA", "docB"]
+        
+        result = await _add_documents_impl(
+            collection_name="test_add_gen",
+            documents=docs,
+            metadatas=None, 
+            ids=None 
+        )
+        
+        # Check that add was called with generated IDs (format depends on time)
+        mock_collection.add.assert_called_once()
+        call_args = mock_collection.add.call_args
+        assert call_args.kwargs["documents"] == docs
+        assert len(call_args.kwargs["ids"]) == 2
+        assert call_args.kwargs["ids"][0].startswith("doc_")
+        assert call_args.kwargs["metadatas"] is None # Ensure None was passed correctly
+        
+        assert result["success"] is True
+        assert result["added_count"] == 2
+        assert result["ids_generated"] is True
+        assert len(result["document_ids"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_add_documents_validation_no_docs(self, mock_chroma_client):
+        """Test validation failure when no documents are provided."""
+        # Expect McpError because handle_chroma_error wraps the ValidationError
+        with pytest.raises(McpError) as exc_info:
+            await _add_documents_impl(
+                collection_name="test_valid",
+                documents=[] 
             )
+        # Assert original validation message is in the McpError message
         assert "No documents provided" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_query_documents_success(self, patched_mcp):
-        """Test successful document query."""
-        # Call query documents
-        result = await patched_mcp.chroma_query_documents(
-            collection_name="test_collection",
-            query_texts=["test query"],
+    async def test_add_documents_validation_mismatch_ids(self, mock_chroma_client):
+        """Test validation failure with mismatched IDs."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _add_documents_impl(
+                collection_name="test_valid",
+                documents=["d1", "d2"],
+                ids=["id1"] 
+            )
+        # Assert original validation message is in the McpError message
+        assert "Number of IDs must match" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_add_documents_validation_mismatch_metas(self, mock_chroma_client):
+        """Test validation failure with mismatched metadatas."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _add_documents_impl(
+                collection_name="test_valid",
+                documents=["d1", "d2"],
+                metadatas=[{"k": "v"}] 
+            )
+        # Assert original validation message is in the McpError message
+        assert "Number of metadatas must match" in str(exc_info.value)
+
+    # --- _query_documents_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_query_documents_success(self, mock_chroma_client):
+        """Test successful document query with default include."""
+        mock_client, mock_collection = mock_chroma_client
+        # Mock the return value of collection.query
+        mock_collection.query.return_value = {
+            "ids": [["id1", "id2"]],
+            "distances": [[0.1, 0.2]],
+            "metadatas": [[{"m": "v1"}, {"m": "v2"}]],
+            "documents": [["doc text 1", "doc text 2"]],
+            "embeddings": None # Assume embeddings not included by default
+        }
+        
+        result = await _query_documents_impl(
+            collection_name="test_query",
+            query_texts=["find me stuff"],
             n_results=2
         )
-
-        # Verify result
-        assert "results" in result
-        assert len(result["results"]) > 0  # One query
-        assert len(result["results"][0]["matches"]) > 0  # At least one match
-        assert len(result["results"][0]["matches"]) == 2 # Check against n_results
-        assert "document" in result["results"][0]["matches"][0] # Check included fields
-        assert "metadata" in result["results"][0]["matches"][0]
-        assert "distance" in result["results"][0]["matches"][0]
-
-    @pytest.mark.asyncio
-    async def test_query_documents_with_filters(self, patched_mcp):
-        """Test document query with filters."""
-        # Test filters
-        where = {"key": "value"}
-        where_document = {"$contains": "test"}
-
-        # Call query documents
-        result = await patched_mcp.chroma_query_documents(
-            collection_name="test_collection",
-            query_texts=["test query"],
-            where=where,
-            where_document=where_document
-        )
-
-        # Verify result
-        assert "results" in result
-        assert len(result["results"]) > 0
-        assert len(result["results"][0]["matches"]) > 0 # Mock returns some matches even with filters
-
-    @pytest.mark.asyncio
-    async def test_get_documents_success(self, patched_mcp):
-        """Test successful document retrieval."""
-        # Call get documents
-        result = await patched_mcp.chroma_get_documents(
-            collection_name="test_collection",
-            ids=["1", "2"]
-        )
-
-        # Verify result
-        assert "documents" in result
-        assert len(result["documents"]) > 0
-        assert result["documents"][0]["id"] == "1"
-        assert result["documents"][1]["id"] == "2"
-        assert "content" in result["documents"][0]
-        assert "metadata" in result["documents"][0]
-
-    @pytest.mark.asyncio
-    async def test_update_documents_success(self, patched_mcp):
-        """Test successful document update."""
-        # Test data
-        documents = ["updated1", "updated2"]
-        ids = ["1", "2"]
-        metadatas = [{"key": "new1"}, {"key": "new2"}]
-
-        # Call update documents
-        result = await patched_mcp.chroma_update_documents(
-            collection_name="test_collection",
-            documents=documents,
-            ids=ids,
-            metadatas=metadatas
-        )
-
-        # Verify result
-        assert result["status"] == "success"
-        assert result["updated_count"] == 2
-
-    @pytest.mark.asyncio
-    async def test_delete_documents_success(self, patched_mcp):
-        """Test successful document deletion."""
-        # Call delete documents
-        result = await patched_mcp.chroma_delete_documents(
-            collection_name="test_collection",
-            ids=["1", "2"]
-        )
-
-        # Verify result
-        assert result["status"] == "success"
-        assert result["deleted_count"] == 2
-
-    @pytest.mark.asyncio
-    async def test_delete_documents_with_filters(self, patched_mcp):
-        """Test document deletion with filters."""
-        # Test filter
-        where = {"key": "value"}
-
-        # Call delete documents
-        result = await patched_mcp.chroma_delete_documents(
-            collection_name="test_collection",
-            where=where
-        )
-
-        # Verify result
-        assert result["status"] == "success"
-        assert result["deleted_count"] == 1 # Mock deletes 1 if using filters
-
-    @pytest.mark.asyncio
-    async def test_error_handling(self, patched_mcp):
-        """Test error handling in document operations."""
-        # Override with a function that raises an exception
-        original_fn = patched_mcp.chroma_query_documents
         
-        async def error_fn(*args, **kwargs):
-            raise Exception("Collection not found")
+        mock_collection.query.assert_called_once_with(
+            query_texts=["find me stuff"],
+            n_results=2,
+            where=None,
+            where_document=None,
+            include=["documents", "metadatas", "distances"] # Default include
+        )
+        assert len(result["results"]) == 1
+        assert result["total_queries"] == 1
+        assert len(result["results"][0]["matches"]) == 2
+        match1 = result["results"][0]["matches"][0]
+        assert match1["id"] == "id1"
+        assert match1["distance"] == 0.1
+        assert match1["document"] == "doc text 1"
+        assert match1["metadata"] == {"m": "v1"}
+        assert "embedding" not in match1
+
+    @pytest.mark.asyncio
+    async def test_query_documents_custom_include(self, mock_chroma_client):
+        """Test query with custom include parameter."""
+        mock_client, mock_collection = mock_chroma_client
+        mock_collection.query.return_value = {
+            "ids": [["id_a"]],
+            "distances": None, # Not included
+            "metadatas": None, # Not included
+            "documents": [["docA"]],
+            "embeddings": [[[0.1, 0.2]]] # Included
+        }
+        
+        result = await _query_documents_impl(
+            collection_name="test_query_include",
+            query_texts=["find embedding"],
+            n_results=1,
+            include=["documents", "embeddings"]
+        )
+        
+        mock_collection.query.assert_called_once_with(
+            query_texts=["find embedding"],
+            n_results=1,
+            where=None,
+            where_document=None,
+            include=["documents", "embeddings"]
+        )
+        assert len(result["results"][0]["matches"]) == 1
+        match = result["results"][0]["matches"][0]
+        assert match["id"] == "id_a"
+        assert "distance" not in match
+        assert "metadata" not in match
+        assert match["document"] == "docA"
+        assert match["embedding"] == [0.1, 0.2]
+
+    @pytest.mark.asyncio
+    async def test_query_documents_validation_no_query(self, mock_chroma_client):
+        """Test validation failure with no query text."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _query_documents_impl(
+                collection_name="test_valid",
+                query_texts=[]
+            )
+        # Assert original validation message is in the McpError message
+        assert "No query texts provided" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_query_documents_validation_invalid_nresults(self, mock_chroma_client):
+        """Test validation failure with invalid n_results."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _query_documents_impl(
+                collection_name="test_valid",
+                query_texts=["q"],
+                n_results=0
+            )
+        # Assert original validation message is in the McpError message
+        assert "n_results must be a positive integer" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_query_documents_validation_invalid_include(self, mock_chroma_client):
+        """Test validation failure with invalid include value."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _query_documents_impl(
+                collection_name="test_valid",
+                query_texts=["q"],
+                include=["documents", "invalid_field"]
+            )
+        # Assert original validation message is in the McpError message
+        assert "Invalid item in include list" in str(exc_info.value)
+
+    # --- _get_documents_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_get_documents_success_by_ids(self, mock_chroma_client):
+        """Test successful get by IDs."""
+        mock_client, mock_collection = mock_chroma_client
+        mock_collection.get.return_value = {
+            "ids": ["id1", "id3"],
+            "documents": ["doc one", "doc three"],
+            "metadatas": [{"k":1}, {"k":3}]
+        }
+        
+        ids_to_get = ["id1", "id3"]
+        result = await _get_documents_impl(
+            collection_name="test_get",
+            ids=ids_to_get,
+            limit=0, 
+            offset=0
+        )
+        
+        mock_collection.get.assert_called_once_with(
+            ids=ids_to_get,
+            where=None,
+            where_document=None,
+            include=["documents", "metadatas"], # Default include
+            limit=None, # limit=0 becomes None
+            offset=None # offset=0 becomes None
+        )
+        assert result["total_found"] == 2
+        assert len(result["documents"]) == 2
+        assert result["documents"][0]["id"] == "id1"
+        assert result["documents"][0]["content"] == "doc one"
+        assert result["documents"][1]["id"] == "id3"
+        assert result["documents"][1]["metadata"] == {"k":3}
+
+    @pytest.mark.asyncio
+    async def test_get_documents_success_by_where(self, mock_chroma_client):
+        """Test successful get by where filter with limit/offset."""
+        mock_client, mock_collection = mock_chroma_client
+        mock_collection.get.return_value = {
+            "ids": ["id5"],
+            "documents": ["doc five"] # Only metadatas included by default
+        }
+        
+        where_filter = {"topic": "filtering"}
+        result = await _get_documents_impl(
+            collection_name="test_get_filter",
+            where=where_filter,
+            limit=5,
+            offset=4,
+            include=["documents"]
+        )
+        
+        mock_collection.get.assert_called_once_with(
+            ids=None,
+            where=where_filter,
+            where_document=None,
+            include=["documents"],
+            limit=5,
+            offset=4 
+        )
+        assert result["total_found"] == 1
+        assert len(result["documents"]) == 1
+        assert result["documents"][0]["id"] == "id5"
+        assert result["documents"][0]["content"] == "doc five"
+        assert "metadata" not in result["documents"][0]
+        assert result["limit"] == 5
+        assert result["offset"] == 4
+
+    @pytest.mark.asyncio
+    async def test_get_documents_validation_no_criteria(self, mock_chroma_client):
+        """Test validation failure when no criteria (ids/where) provided."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _get_documents_impl(
+                collection_name="test_get_valid"
+            )
+        # Assert original validation message is in the McpError message
+        assert "At least one of ids, where, or where_document" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_documents_validation_invalid_limit(self, mock_chroma_client):
+        """Test validation failure with negative limit."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _get_documents_impl(
+                collection_name="test_get_valid",
+                ids=["id1"], 
+                limit=-1 
+            )
+        # Assert original validation message is in the McpError message
+        assert "limit cannot be negative" in str(exc_info.value)
+        
+    # --- _update_documents_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_update_documents_success(self, mock_chroma_client):
+        """Test successful document update."""
+        mock_client, mock_collection = mock_chroma_client
+        ids_to_update = ["id1"]
+        new_docs = ["new content"]
+        new_metas = [{"k": "new_v"}]
+        
+        result = await _update_documents_impl(
+            collection_name="test_update",
+            ids=ids_to_update,
+            documents=new_docs,
+            metadatas=new_metas
+        )
+        
+        mock_collection.update.assert_called_once_with(
+            ids=ids_to_update,
+            documents=new_docs,
+            metadatas=new_metas
+        )
+        assert result["success"] is True
+        assert result["updated_count"] == 1
+        assert result["document_ids"] == ids_to_update
+
+    @pytest.mark.asyncio
+    async def test_update_documents_validation_no_ids(self, mock_chroma_client):
+        """Test validation failure with no IDs."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _update_documents_impl(
+                collection_name="test_update_valid",
+                ids=[], 
+                documents=["d1"]
+            )
+        # Assert original validation message is in the McpError message
+        assert "List of document IDs is required" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_update_documents_validation_no_data(self, mock_chroma_client):
+        """Test validation failure with no data to update."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _update_documents_impl(
+                collection_name="test_update_valid",
+                ids=["id1"]
+            )
+        # Assert original validation message is in the McpError message
+        assert "Either documents or metadatas must be provided" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_update_documents_validation_mismatch(self, mock_chroma_client):
+        """Test validation failure with mismatched data lengths."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _update_documents_impl(
+                collection_name="test_update_valid",
+                ids=["id1", "id2"],
+                documents=["d1"] 
+            )
+        # Assert original validation message is in the McpError message
+        assert "Number of documents must match number of IDs" in str(exc_info.value)
+
+    # --- _delete_documents_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_delete_documents_success_by_ids(self, mock_chroma_client):
+        """Test successful deletion by IDs."""
+        mock_client, mock_collection = mock_chroma_client
+        ids_to_delete = ["id1", "id2"]
+        
+        result = await _delete_documents_impl(
+            collection_name="test_delete",
+            ids=ids_to_delete
+        )
+        
+        mock_collection.delete.assert_called_once_with(
+            ids=ids_to_delete,
+            where=None,
+            where_document=None
+        )
+        assert result["success"] is True
+        assert result["deleted_count"] == 2 # Based on input IDs
+        assert result["deleted_ids"] == ids_to_delete # Input IDs returned
+
+    @pytest.mark.asyncio
+    async def test_delete_documents_success_by_where(self, mock_chroma_client):
+        """Test successful deletion by where filter."""
+        mock_client, mock_collection = mock_chroma_client
+        where_filter = {"status": "old"}
+        
+        result = await _delete_documents_impl(
+            collection_name="test_delete_filter",
+            where=where_filter
+        )
+        
+        mock_collection.delete.assert_called_once_with(
+            ids=None,
+            where=where_filter,
+            where_document=None
+        )
+        assert result["success"] is True
+        assert result["deleted_count"] == -1 # Count unknown for filters
+        assert result["deleted_ids"] == [] # IDs unknown for filters
+
+    @pytest.mark.asyncio
+    async def test_delete_documents_validation_no_criteria(self, mock_chroma_client):
+        """Test validation failure with no deletion criteria."""
+        # Expect McpError
+        with pytest.raises(McpError) as exc_info:
+            await _delete_documents_impl(
+                collection_name="test_delete_valid"
+            )
+        # Assert original validation message is in the McpError message
+        assert "Either ids, where, or where_document must be provided" in str(exc_info.value)
+
+    # --- General Error Handling Test ---
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "tool_impl_func, args, kwargs, expected_error_msg_part", [
+            (_add_documents_impl, [], {"collection_name": "c", "documents": ["d"]}, "add_documents"),
+            (_query_documents_impl, [], {"collection_name": "c", "query_texts": ["q"]}, "query_documents"),
+            (_get_documents_impl, [], {"collection_name": "c", "ids": ["id1"]}, "get_documents"),
+            (_update_documents_impl, [], {"collection_name": "c", "ids": ["id1"], "documents": ["d"]}, "update_documents"),
+            (_delete_documents_impl, [], {"collection_name": "c", "ids": ["id1"]}, "delete_documents"),
+        ]
+    )
+    async def test_generic_chroma_error_handling(self, mock_chroma_client, tool_impl_func, args, kwargs, expected_error_msg_part):
+        """Test that generic Chroma errors are wrapped correctly."""
+        mock_client, mock_collection = mock_chroma_client
+        
+        # Make the relevant COLLECTION method raise a generic error
+        error_to_raise = Exception("Chroma DB Error")
+        if "add" in expected_error_msg_part: mock_collection.add.side_effect = error_to_raise
+        if "query" in expected_error_msg_part: mock_collection.query.side_effect = error_to_raise
+        if "get" in expected_error_msg_part: mock_collection.get.side_effect = error_to_raise
+        if "update" in expected_error_msg_part: mock_collection.update.side_effect = error_to_raise
+        if "delete" in expected_error_msg_part: mock_collection.delete.side_effect = error_to_raise
+        # Ensure client methods DON'T raise the error initially
+        mock_client.get_collection.side_effect = None
+        mock_client.get_or_create_collection.side_effect = None 
+
+        with pytest.raises(McpError) as exc_info:
+            await tool_impl_func(*args, **kwargs)
             
-        try:
-            patched_mcp.chroma_query_documents = error_fn
-            
-            # Test error handling
-            with pytest.raises(Exception) as exc_info:
-                await patched_mcp.chroma_query_documents(
-                    collection_name="nonexistent",
-                    query_texts=["test"]
-                )
-            assert "Collection not found" in str(exc_info.value)
-            
-        finally:
-            # Restore original function
-            patched_mcp.chroma_query_documents = original_fn
+        # Assert on the McpError message 
+        # Check for the specific exception message we raised in the mock
+        assert "Chroma DB Error" in str(exc_info.value)
+        # Optionally, assert the operation name is mentioned if handle_chroma_error includes it
+        # assert expected_error_msg_part in str(exc_info.value) 
+
+    # Example test for collection not found scenario
+    @pytest.mark.asyncio
+    async def test_query_collection_not_found(self, mock_chroma_client):
+        """Test querying a non-existent collection."""
+        mock_client, _ = mock_chroma_client
+        mock_client.get_collection.side_effect = ValueError("Collection 'nonexistent' not found.")
+        
+        with pytest.raises(McpError) as exc_info:
+            await _query_documents_impl(
+                collection_name="nonexistent",
+                query_texts=["test"]
+            )
+        # Assert on the McpError message
+        assert "Collection 'nonexistent' not found" in str(exc_info.value)

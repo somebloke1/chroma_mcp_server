@@ -54,33 +54,32 @@ class MessageFlowFormatter(logging.Formatter):
     Custom formatter that recognizes message flow patterns and formats them accordingly
     """
     
-    # Pattern to match "sender => receiver | message" format
-    FLOW_PATTERN = re.compile(r"^(\w+) => (\w+) \| (.*)$")
+    # Regex to detect "Sender => Receiver | Message" pattern
+    flow_pattern = re.compile(r"^([^=\s>]+)\s*=>\s*([^|\s]+)\s*\|\s*(.*)", re.DOTALL)
+    # Regex to detect test summary lines
+    test_summary_pattern = re.compile(r"^===.*===$") # Matches lines starting and ending with ===
     
-    # Pattern to match already formatted messages (both standard and flow formats)
-    # This includes timestamp pattern \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}
-    # and agent | timestamp format
-    ALREADY_FORMATTED_PATTERN = re.compile(
-        r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}|^\w+ \| \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})'
-    )
+    # Add pattern to detect already formatted messages (approximated)
+    # Looks for a timestamp pattern preceded by a pipe
+    already_formatted_pattern = re.compile(r"\| \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \|")
     
-    def __init__(self, agent_name: str, fmt=None, datefmt=None, style='%', session_id=None, 
-                 preserve_newlines: bool = True):
+    def __init__(self, agent_name: str, session_id: Optional[str] = None, 
+                 preserve_newlines: bool = True, preserve_test_format: bool = False):
         """
         Initialize the formatter with the agent name
         
         Args:
             agent_name: Name of the agent (used when no flow information is in the message)
-            fmt: Format string
-            datefmt: Date format string
-            style: Style of format string
             session_id: Optional unique session ID to include in log messages
             preserve_newlines: Whether to preserve newlines in the original message
+            preserve_test_format: Whether to skip formatting for test summary lines
         """
-        super().__init__(fmt, datefmt, style)
         self.agent_name = agent_name
         self.session_id = session_id
         self.preserve_newlines = preserve_newlines
+        self.preserve_test_format = preserve_test_format
+        # Basic format string used for timestamping
+        super().__init__(fmt='%(asctime)s', datefmt='%Y-%m-%d %H:%M:%S')
     
     def format(self, record: logging.LogRecord) -> str:
         """
@@ -92,68 +91,40 @@ class MessageFlowFormatter(logging.Formatter):
         Returns:
             Formatted log string
         """
-        # Extract the message
-        original_message = record.getMessage()
+        message = record.getMessage()
+
+        # FIX: Check for already formatted messages FIRST
+        if self.already_formatted_pattern.search(message):
+            return message # Return as-is if it looks formatted
+
+        # FIX: Now check for test summary preservation
+        if self.preserve_test_format and self.test_summary_pattern.match(message):
+            return message
         
-        # Special case for test summary format (always preserve exact format)
-        if "Test Summary:" in original_message or "===" in original_message:
-            # Special case for test analyzer compatibility - don't prepend anything
-            return original_message
-        
-        # Guard against already formatted messages to prevent recursive formatting
-        # Check for timestamp pattern to identify already formatted messages
-        if self.ALREADY_FORMATTED_PATTERN.search(original_message):
-            # Log message is already formatted, return as is
-            return original_message
-            
-        # Check if this is a message flow log
-        flow_match = self.FLOW_PATTERN.match(original_message)
-        if flow_match:
-            sender, receiver, message = flow_match.groups()
-            
-            # Format the timestamp
-            timestamp = self.formatTime(record, self.datefmt)
-            
-            # Format the message with flow information and session ID if available
+        # Use default Formatter logic to handle timestamp AFTER checks
+        s = super().format(record)
+
+        match = self.flow_pattern.match(message)
+        if match:
+            sender, receiver, content = match.groups()
+            log_prefix = f"{receiver} | {s},{int(record.msecs):03d}"
             if self.session_id:
-                formatted_message = f"{receiver} | {timestamp} | {self.session_id} | {sender} => {receiver} | {message}"
-            else:
-                formatted_message = f"{receiver} | {timestamp} | {sender} => {receiver} | {message}"
-            
-            # Override the message in the record
-            record.msg = formatted_message
-            record.args = ()
-            
-            # Return the formatted message directly
-            return formatted_message
+                log_prefix += f" | {self.session_id}"
+            log_prefix += f" | {sender} => {receiver}"
         else:
-            # Standard formatting for non-flow messages
-            timestamp = self.formatTime(record, self.datefmt)
-            
-            # Handle multiline messages
-            if self.preserve_newlines and '\n' in original_message:
-                lines = original_message.split('\n')
-                # Format the first line with the timestamp
-                if self.session_id:
-                    first_line = f"{self.agent_name} | {timestamp} | {self.session_id} | {lines[0]}"
-                else:
-                    first_line = f"{self.agent_name} | {timestamp} | {lines[0]}"
-                
-                # Return the first line and the rest as is
-                return first_line + '\n' + '\n'.join(lines[1:])
-            else:
-                # Regular single-line message
-                if self.session_id:
-                    formatted_message = f"{self.agent_name} | {timestamp} | {self.session_id} | {original_message}"
-                else:
-                    formatted_message = f"{self.agent_name} | {timestamp} | {original_message}"
-                
-                # Override the message in the record
-                record.msg = formatted_message
-                record.args = ()
-                
-                # Return the formatted message
-                return formatted_message
+            content = message
+            log_prefix = f"{self.agent_name} | {s},{int(record.msecs):03d}"
+            if self.session_id:
+                log_prefix += f" | {self.session_id}"
+
+        lines = content.strip().split('\n')
+        first_line = lines[0]
+        formatted_message = f"{log_prefix} | {first_line}"
+
+        if len(lines) > 1 and self.preserve_newlines:
+            formatted_message += '\n' + '\n'.join(lines[1:])
+
+        return formatted_message
 
 
 class LoggerSetup:
@@ -216,15 +187,11 @@ class LoggerSetup:
             logger.handlers.clear()
         
         # Create custom formatter
-        preserve_newlines = not preserve_test_format  # Don't preserve newlines for test output
         message_flow_formatter = MessageFlowFormatter(
-            actual_agent_name, 
+            actual_agent_name,
             session_id=session_id,
-            preserve_newlines=preserve_newlines
+            preserve_test_format=preserve_test_format
         )
-        
-        # Special formatter for test output that preserves test format
-        test_formatter = logging.Formatter('%(message)s') if preserve_test_format else message_flow_formatter
         
         # Create console handler
         console_handler = logging.StreamHandler()
@@ -234,42 +201,41 @@ class LoggerSetup:
         
         # Create file handler if log_file is provided
         if log_file:
-            # If log_file is just a filename, put it in the centralized logs directory
-            if not os.path.isabs(log_file) and not os.path.dirname(log_file):
+            is_absolute = os.path.isabs(log_file)
+            if is_absolute:
+                log_file_path = log_file
+                log_dir_path = os.path.dirname(log_file_path)
+            elif not os.path.dirname(log_file):
                 logs_dir = get_logs_dir(custom_log_dir=log_dir)
-                log_file = os.path.join(logs_dir, log_file)
+                log_file_path = os.path.join(logs_dir, log_file)
+                log_dir_path = logs_dir
             else:
-                # Make sure we use the proper logs directory even for paths with directories
                 logs_dir = get_logs_dir(custom_log_dir=log_dir)
-                
-                # If the log_file has a path but it's not in the logs directory, put it in the logs directory
-                if os.path.dirname(log_file) and not log_file.startswith(logs_dir):
-                    log_file = os.path.join(logs_dir, os.path.basename(log_file))
-                
-                # If a path is provided, ensure the directory exists
-                log_dir_path = os.path.dirname(log_file)
-                if log_dir_path and not os.path.exists(log_dir_path):
-                    os.makedirs(log_dir_path, exist_ok=True)
+                log_file_path = os.path.join(logs_dir, log_file)
+                log_dir_path = os.path.dirname(log_file_path)
+
+            # Ensure the target directory exists
+            if log_dir_path and not os.path.exists(log_dir_path):
+                os.makedirs(log_dir_path, exist_ok=True)
             
-            logger.debug(f"Logging to file: {log_file}")
+            logger.debug(f"Logging to file: {log_file_path}")
             
-            # Choose the appropriate file handler based on use_rotating_file
+            file_mode = 'a' if append_mode else 'w'
             if use_rotating_file:
                 file_handler = RotatingFileHandler(
-                    log_file, 
-                    maxBytes=10*1024*1024,  # 10MB
+                    log_file_path,
+                    maxBytes=10*1024*1024, 
                     backupCount=5,
-                    mode='a' if append_mode else 'w'
+                    mode=file_mode
                 )
             else:
-                # Use simple FileHandler for test scenarios
                 file_handler = logging.FileHandler(
-                    log_file,
-                    mode='a' if append_mode else 'w'
+                    log_file_path,
+                    mode=file_mode
                 )
                 
             file_handler.setLevel(log_level_num)
-            file_handler.setFormatter(test_formatter if preserve_test_format else message_flow_formatter)
+            file_handler.setFormatter(message_flow_formatter)
             logger.addHandler(file_handler)
         
         # Store the logger in active loggers dictionary

@@ -4,9 +4,29 @@ import pytest
 import uuid
 import re # Import re for validation
 from typing import Dict, Any, List, Optional
+from unittest.mock import patch, AsyncMock
+# Import ANY for mock assertions
+from unittest.mock import ANY
 
+from mcp.shared.exceptions import McpError
+from mcp.types import INVALID_PARAMS, ErrorData
+
+# Import specific errors if needed, or rely on ValidationError/Exception
 from src.chroma_mcp.utils.errors import ValidationError, raise_validation_error, handle_chroma_error
-from src.chroma_mcp.tools.collection_tools import _reconstruct_metadata # Import helper
+from src.chroma_mcp.tools.collection_tools import (
+    _reconstruct_metadata, # Keep helper if used
+    _create_collection_impl,
+    _list_collections_impl,
+    _get_collection_impl,
+    _set_collection_description_impl,
+    _set_collection_settings_impl,
+    _update_collection_metadata_impl,
+    _rename_collection_impl,
+    _delete_collection_impl,
+    _peek_collection_impl
+)
+# Correct import for get_collection_settings
+from src.chroma_mcp.utils.config import get_collection_settings
 
 DEFAULT_SIMILARITY_THRESHOLD = 0.7
 
@@ -210,199 +230,364 @@ def mcp():
     """
     return MockMCP()
 
+@pytest.fixture
+def mock_chroma_client_collections():
+    """Fixture to mock the Chroma client and its methods for collection tests."""
+    with patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client, \
+         patch("src.chroma_mcp.tools.collection_tools.get_collection_settings") as mock_get_settings, \
+         patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name:
+
+        mock_client_instance = AsyncMock()
+        mock_collection_instance = AsyncMock()
+        
+        # --- Configure mock methods for collection --- 
+        # Use simple return values or side_effects as needed for tests
+        mock_collection_instance.name = "mock_coll"
+        mock_collection_instance.id = str(uuid.uuid4())
+        # Store metadata within the mock instance to simulate state changes
+        # Get defaults by calling the actual function
+        default_settings_dict = get_collection_settings()
+        mock_collection_instance.metadata = { # Default state
+             f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings_dict.items()
+        }
+        mock_collection_instance.count = AsyncMock(return_value=0)
+        mock_collection_instance.peek = AsyncMock(return_value={"ids": [], "documents": []})
+        mock_collection_instance.modify = AsyncMock() # Tracks calls
+        
+        # --- Configure mock methods for client --- 
+        mock_client_instance.create_collection = AsyncMock(return_value=mock_collection_instance) 
+        mock_client_instance.get_collection = AsyncMock(return_value=mock_collection_instance)
+        mock_client_instance.list_collections = AsyncMock(return_value=["existing_coll1", "existing_coll2"]) # Default list
+        mock_client_instance.delete_collection = AsyncMock() # Tracks calls
+        
+        mock_get_client.return_value = mock_client_instance
+        
+        # Mock config/validation helpers
+        # Get actual defaults and set the patched function to return them
+        default_settings_dict = get_collection_settings()
+        mock_get_settings.return_value = default_settings_dict
+        mock_validate_name.return_value = None # Assume valid by default
+        
+        # Use the defaults to set the initial metadata on the mock collection instance
+        # Manually corrected f-string syntax:
+        mock_collection_instance.metadata = {
+            f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings_dict.items()
+        }
+        
+        yield mock_client_instance, mock_collection_instance, mock_validate_name
+
 class TestCollectionTools:
     """Test cases for collection management tools."""
 
+    # --- _create_collection_impl Tests ---
     @pytest.mark.asyncio
-    async def test_create_collection_success(self, mcp):
+    async def test_create_collection_success(self, mock_chroma_client_collections):
         """Test successful collection creation."""
-        collection_name = "test_create"
-        result = await mcp.chroma_create_collection(collection_name=collection_name)
-        # Verify result
+        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
+        collection_name = "test_create_new"
+        
+        # Mock the collection returned by create_collection to have the correct name/id
+        created_collection_mock = AsyncMock()
+        created_collection_mock.name = collection_name
+        created_collection_mock.id = str(uuid.uuid4())
+        # Store metadata within the mock instance to simulate state changes
+        # Get defaults by calling the actual function
+        default_settings_dict = get_collection_settings()
+        created_collection_mock.metadata = { # Match initial metadata used in _impl
+             f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings_dict.items()
+        }
+        mock_client.create_collection.return_value = created_collection_mock
+        
+        result = await _create_collection_impl(collection_name=collection_name)
+        
+        mock_validate.assert_called_once_with(collection_name)
+        mock_client.create_collection.assert_awaited_once()
+        # Check args passed to create_collection if necessary
+        call_args = mock_client.create_collection.call_args
+        assert call_args.kwargs["name"] == collection_name
+        # Assertions on the returned dict
         assert result["name"] == collection_name
         assert "id" in result
-        assert "metadata" in result
-        assert "settings" in result["metadata"] # Check reconstructed settings
-        assert result["metadata"]["settings"]["hnsw:space"] == "cosine" # Check default
-        assert collection_name in mcp.collections # Check internal state
-        assert mcp.collections[collection_name]["metadata"]["chroma:setting:hnsw_space"] == "cosine"
-
-    @pytest.mark.asyncio
-    async def test_create_collection_invalid_name(self, mcp):
-        """Test collection creation with invalid name."""
-        with pytest.raises(ValidationError):
-            await mcp.chroma_create_collection(collection_name="invalid@name")
-
-    @pytest.mark.asyncio
-    async def test_create_collection_duplicate(self, mcp):
-        """Test creating a duplicate collection name."""
-        collection_name = "test_duplicate"
-        await mcp.chroma_create_collection(collection_name=collection_name)
-        with pytest.raises(Exception, match="already exists"):
-            await mcp.chroma_create_collection(collection_name=collection_name)
-
-    @pytest.mark.asyncio
-    async def test_list_collections_success(self, mcp):
-        """Test successful collections listing."""
-        await mcp.chroma_create_collection(collection_name="list_test1")
-        await mcp.chroma_create_collection(collection_name="list_test2")
-        result = await mcp.chroma_list_collections()
-        assert len(result["collection_names"]) == 2
-        assert result["total_count"] == 2
-
-    @pytest.mark.asyncio
-    async def test_list_collections_with_filter(self, mcp):
-        """Test collections listing with name filter."""
-        await mcp.chroma_create_collection(collection_name="filter_test1")
-        await mcp.chroma_create_collection(collection_name="filter_other2")
-        result = await mcp.chroma_list_collections(name_contains="test")
-        assert len(result["collection_names"]) == 1
-        assert result["collection_names"][0] == "filter_test1"
-        assert result["total_count"] == 1
-
-    @pytest.mark.asyncio
-    async def test_get_collection_success(self, mcp):
-        """Test successful collection retrieval."""
-        collection_name = "get_test"
-        await mcp.chroma_create_collection(collection_name=collection_name)
-        result = await mcp.chroma_get_collection(collection_name)
-        assert result["name"] == collection_name
+        assert result["id"] == created_collection_mock.id
         assert "metadata" in result
         assert "settings" in result["metadata"]
-        assert "count" in result
-        assert "sample_entries" in result
-        assert "ids" in result["sample_entries"]
+        assert result["metadata"]["settings"]["hnsw:space"] == default_settings_dict["hnsw:space"]
 
     @pytest.mark.asyncio
-    async def test_get_collection_not_found(self, mcp):
-        """Test getting a non-existent collection."""
-        with pytest.raises(Exception, match="not found"):
-            await mcp.chroma_get_collection("non_existent")
+    async def test_create_collection_invalid_name(self, mock_chroma_client_collections):
+        """Test collection creation with invalid name (validation failure)."""
+        mock_client, _, mock_validate = mock_chroma_client_collections
+        error_data = ErrorData(code=INVALID_PARAMS, message="Invalid name")
+        mock_validate.side_effect = McpError(error_data)
+        
+        with pytest.raises(McpError) as exc_info:
+            await _create_collection_impl(collection_name="invalid@name")
+        assert "Invalid name" in str(exc_info.value)
+        mock_client.create_collection.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_set_collection_description_success(self, mcp):
-        """Test setting collection description."""
-        collection_name = "desc_test"
-        await mcp.chroma_create_collection(collection_name=collection_name)
-        desc = "My test description"
-        result = await mcp.chroma_set_collection_description(collection_name, desc)
-        assert result["metadata"]["description"] == desc
-        # Verify internal storage
-        assert mcp.collections[collection_name]["metadata"]["description"] == desc
+    async def test_create_collection_chroma_error(self, mock_chroma_client_collections):
+        """Test handling of ChromaDB error during creation."""
+        mock_client, _, _ = mock_chroma_client_collections
+        mock_client.create_collection.side_effect = Exception("Chroma duplicate error")
+        
+        with pytest.raises(McpError) as exc_info:
+            await _create_collection_impl(collection_name="test_chroma_fail")
+        assert "Chroma duplicate error" in str(exc_info.value)
+
+    # --- _list_collections_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_list_collections_success(self, mock_chroma_client_collections):
+        """Test successful default collection listing."""
+        mock_client, _, _ = mock_chroma_client_collections
+        mock_client.list_collections.return_value = ["coll_a", "coll_b"]
+        
+        result = await _list_collections_impl()
+        
+        mock_client.list_collections.assert_awaited_once()
+        assert result["collection_names"] == ["coll_a", "coll_b"]
+        assert result["total_count"] == 2
+        assert result["limit"] == 0
+        assert result["offset"] == 0
 
     @pytest.mark.asyncio
-    async def test_set_collection_settings_success(self, mcp):
-        """Test setting collection settings."""
-        collection_name = "settings_test"
-        await mcp.chroma_create_collection(collection_name=collection_name)
-        new_settings = {"hnsw:space": "ip", "hnsw:construction_ef": 200}
-        result = await mcp.chroma_set_collection_settings(collection_name, new_settings)
-        assert result["metadata"]["settings"] == new_settings
-        # Verify internal storage (flattened)
-        assert mcp.collections[collection_name]["metadata"]["chroma:setting:hnsw_space"] == "ip"
-        assert mcp.collections[collection_name]["metadata"]["chroma:setting:hnsw_construction_ef"] == 200
-        # Ensure old default settings were removed/overwritten
-        assert "chroma:setting:hnsw_M" not in mcp.collections[collection_name]["metadata"]
+    async def test_list_collections_with_filter_pagination(self, mock_chroma_client_collections):
+        """Test listing with name filter and pagination."""
+        mock_client, _, _ = mock_chroma_client_collections
+        mock_client.list_collections.return_value = ["apple", "banana", "apricot", "avocado"]
+        
+        result = await _list_collections_impl(limit=2, offset=1, name_contains="ap")
+        
+        mock_client.list_collections.assert_awaited_once()
+        # Filtered: ["apple", "apricot"] -> Offset 1: ["apricot"] -> Limit 2: ["apricot"]
+        assert result["collection_names"] == ["apricot"]
+        assert result["total_count"] == 2 # Count after filtering, before pagination
+        assert result["limit"] == 2
+        assert result["offset"] == 1
         
     @pytest.mark.asyncio
-    async def test_set_collection_settings_invalid(self, mcp):
-        """Test setting invalid settings type."""
-        collection_name = "settings_invalid"
-        await mcp.chroma_create_collection(collection_name=collection_name)
-        with pytest.raises(ValidationError):
-            await mcp.chroma_set_collection_settings(collection_name, ["not", "a", "dict"])
+    async def test_list_collections_validation_error(self, mock_chroma_client_collections):
+        """Test validation errors for list parameters."""
+        # Expect McpError because handle_chroma_error wraps ValidationError
+        with pytest.raises(McpError) as exc_info_limit:
+            await _list_collections_impl(limit=-1)
+        assert "limit cannot be negative" in str(exc_info_limit.value)
+        
+        with pytest.raises(McpError) as exc_info_offset:
+            await _list_collections_impl(offset=-1)
+        assert "offset cannot be negative" in str(exc_info_offset.value)
+
+    # --- _get_collection_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_get_collection_success(self, mock_chroma_client_collections):
+        """Test getting existing collection info."""
+        mock_client, mock_collection, _ = mock_chroma_client_collections
+        collection_name = "my_coll"
+        # Set specific metadata on the mock collection for this test
+        mock_collection.name = collection_name
+        mock_collection.id = "test-id-123"
+        mock_collection.metadata = {"description": "test desc", "chroma:setting:hnsw_space": "l2"}
+        mock_collection.count.return_value = 42
+        mock_collection.peek.return_value = {"ids": ["p1"], "documents": ["peek doc"]}
+        mock_client.get_collection.return_value = mock_collection
+        
+        result = await _get_collection_impl(collection_name)
+        
+        mock_client.get_collection.assert_awaited_once_with(name=collection_name, embedding_function=ANY)
+        mock_collection.count.assert_awaited_once()
+        mock_collection.peek.assert_awaited_once()
+        assert result["name"] == collection_name
+        assert result["id"] == "test-id-123"
+        assert result["count"] == 42
+        assert result["metadata"] == {"description": "test desc", "settings": {"hnsw:space": "l2"}}
+        assert result["sample_entries"] == {"ids": ["p1"], "documents": ["peek doc"]}
 
     @pytest.mark.asyncio
-    async def test_update_collection_metadata_success(self, mcp):
-        """Test updating custom collection metadata."""
-        collection_name = "metadata_test"
-        await mcp.chroma_create_collection(collection_name=collection_name)
-        await mcp.chroma_set_collection_description(collection_name, "Initial desc")
-        update = {"project": "alpha", "status": "active"}
-        result = await mcp.chroma_update_collection_metadata(collection_name, update)
-        assert result["metadata"]["project"] == "alpha"
-        assert result["metadata"]["status"] == "active"
-        assert result["metadata"]["description"] == "Initial desc" # Ensure description untouched
-        assert "settings" in result["metadata"] # Ensure settings untouched
-        # Verify internal
-        assert mcp.collections[collection_name]["metadata"]["project"] == "alpha"
+    async def test_get_collection_not_found(self, mock_chroma_client_collections):
+        """Test getting a non-existent collection."""
+        mock_client, _, _ = mock_chroma_client_collections
+        mock_client.get_collection.side_effect = ValueError("Collection 'not_found' not found") # Simulate Chroma error
+        
+        with pytest.raises(McpError) as exc_info:
+            await _get_collection_impl("not_found")
+        assert "Collection 'not_found' not found" in str(exc_info.value)
+
+    # --- _set_collection_description_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_set_collection_description_success(self, mock_chroma_client_collections):
+        """Test setting a collection description."""
+        mock_client, mock_collection, _ = mock_chroma_client_collections
+        collection_name = "desc_coll"
+        new_description = "My new description"
+        
+        # Mock get_collection to return our mock collection
+        mock_client.get_collection.return_value = mock_collection
+        # Reset modify mock to check its call
+        mock_collection.modify.reset_mock()
+        
+        # Assume _get_collection_impl works (tested elsewhere) 
+        # or mock its behavior if complex interactions are needed
+        with patch("src.chroma_mcp.tools.collection_tools._get_collection_impl") as mock_get_impl:
+             mock_get_impl.return_value = {"name": collection_name, "metadata": {"description": new_description}}
+             
+             result = await _set_collection_description_impl(collection_name, new_description)
+
+        mock_client.get_collection.assert_awaited_once_with(name=collection_name, embedding_function=ANY)
+        mock_collection.modify.assert_awaited_once()
+        # Check that modify was called with the correct updated metadata
+        call_args = mock_collection.modify.call_args
+        assert call_args.kwargs["metadata"]["description"] == new_description
+        # Check the final returned result (comes from the mocked _get_collection_impl)
+        assert result["metadata"]["description"] == new_description 
+
+    # --- _set_collection_settings_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_set_collection_settings_success(self, mock_chroma_client_collections):
+        """Test setting collection settings."""
+        mock_client, mock_collection, _ = mock_chroma_client_collections
+        collection_name = "settings_coll"
+        new_settings = {"hnsw:space": "ip", "hnsw:construction_ef": 200}
+        
+        mock_client.get_collection.return_value = mock_collection
+        mock_collection.modify.reset_mock()
+        
+        # Assume _get_collection_impl works
+        with patch("src.chroma_mcp.tools.collection_tools._get_collection_impl") as mock_get_impl:
+             mock_get_impl.return_value = {"name": collection_name, "metadata": {"settings": new_settings}}
+             
+             result = await _set_collection_settings_impl(collection_name, new_settings)
+             
+        mock_collection.modify.assert_awaited_once()
+        call_args = mock_collection.modify.call_args
+        expected_metadata = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in new_settings.items()}
+        assert call_args.kwargs["metadata"] == expected_metadata # Modify expects flattened
+        assert result["metadata"]["settings"] == new_settings # Return value has reconstructed
 
     @pytest.mark.asyncio
-    async def test_update_collection_metadata_ignore_reserved(self, mcp):
-        """Test that updating metadata ignores reserved keys."""
-        collection_name = "metadata_reserved"
-        await mcp.chroma_create_collection(collection_name=collection_name)
-        update = {"project": "beta", "description": "ignored", "settings": {"ignored": True}}
-        result = await mcp.chroma_update_collection_metadata(collection_name, update)
-        assert result["metadata"]["project"] == "beta"
-        assert "description" not in result["metadata"] # Should not be set by update_metadata
-        assert result["metadata"]["settings"]["hnsw:space"] == "cosine" # Should be default setting
+    async def test_set_collection_settings_invalid_type(self, mock_chroma_client_collections):
+        """Test error when settings are not a dict."""
+        with pytest.raises(McpError) as exc_info:
+            await _set_collection_settings_impl("any_coll", ["not", "a"]) # Pass list
+        assert "settings parameter must be a dictionary" in str(exc_info.value)
 
+    # --- _update_collection_metadata_impl Tests ---
     @pytest.mark.asyncio
-    async def test_rename_collection_success(self, mcp):
-        """Test renaming a collection."""
-        old_name = "rename_old"
-        new_name = "rename_new"
-        await mcp.chroma_create_collection(collection_name=old_name)
-        result = await mcp.chroma_rename_collection(old_name, new_name)
-        assert result["name"] == new_name
-        assert old_name not in mcp.collections
-        assert new_name in mcp.collections
+    async def test_update_collection_metadata_success(self, mock_chroma_client_collections):
+        """Test updating custom metadata."""
+        mock_client, mock_collection, _ = mock_chroma_client_collections
+        collection_name = "meta_coll"
+        metadata_update = {"custom_key": "new_value", "another": 123}
+        # Set initial metadata on the mock collection
+        mock_collection.metadata = {"existing": "data"}
+        mock_client.get_collection.return_value = mock_collection
+        mock_collection.modify.reset_mock()
 
-    @pytest.mark.asyncio
-    async def test_rename_collection_invalid_new_name(self, mcp):
-        """Test renaming to an invalid name."""
-        old_name = "rename_invalid"
-        await mcp.chroma_create_collection(collection_name=old_name)
-        with pytest.raises(ValidationError):
-            await mcp.chroma_rename_collection(old_name, "invalid@name")
+        with patch("src.chroma_mcp.tools.collection_tools._get_collection_impl") as mock_get_impl:
+            # Mock the return to reflect the update
+            updated_meta_result = {"existing": "data", **metadata_update}
+            mock_get_impl.return_value = {"name": collection_name, "metadata": updated_meta_result}
             
-    @pytest.mark.asyncio
-    async def test_rename_collection_duplicate_name(self, mcp):
-        """Test renaming to an existing name."""
-        name1 = "rename_dup1"
-        name2 = "rename_dup2"
-        await mcp.chroma_create_collection(collection_name=name1)
-        await mcp.chroma_create_collection(collection_name=name2)
-        with pytest.raises(Exception, match="already exists"):
-            await mcp.chroma_rename_collection(name1, name2)
+            result = await _update_collection_metadata_impl(collection_name, metadata_update)
+
+        mock_collection.modify.assert_awaited_once()
+        call_args = mock_collection.modify.call_args
+        # Check metadata passed includes original and update
+        assert call_args.kwargs["metadata"]["existing"] == "data"
+        assert call_args.kwargs["metadata"]["custom_key"] == "new_value"
+        assert result["metadata"] == updated_meta_result
 
     @pytest.mark.asyncio
-    async def test_delete_collection_success(self, mcp):
+    async def test_update_collection_metadata_rejects_reserved(self, mock_chroma_client_collections):
+        """Test that updating reserved keys fails."""
+        with pytest.raises(McpError) as exc_info:
+            await _update_collection_metadata_impl("any_coll", {"description": "no!"})
+        assert "Cannot update reserved keys" in str(exc_info.value)
+        
+        with pytest.raises(McpError) as exc_info_settings:
+             await _update_collection_metadata_impl("any_coll", {"settings": {"a":1}})
+        assert "Cannot update reserved keys" in str(exc_info_settings.value)
+
+        with pytest.raises(McpError) as exc_info_prefix:
+             await _update_collection_metadata_impl("any_coll", {"chroma:setting:x": "y"})
+        assert "Cannot update reserved keys" in str(exc_info_prefix.value)
+
+    # --- _rename_collection_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_rename_collection_success(self, mock_chroma_client_collections):
+        """Test successful collection renaming."""
+        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
+        old_name = "old_name"
+        new_name = "new_name_valid"
+        mock_client.get_collection.return_value = mock_collection
+        mock_collection.modify.reset_mock()
+
+        with patch("src.chroma_mcp.tools.collection_tools._get_collection_impl") as mock_get_impl:
+            mock_get_impl.return_value = {"name": new_name} # Mock return after rename
+            result = await _rename_collection_impl(old_name, new_name)
+
+        mock_validate.assert_called_once_with(new_name)
+        mock_client.get_collection.assert_awaited_once_with(name=old_name, embedding_function=ANY)
+        mock_collection.modify.assert_awaited_once_with(name=new_name)
+        mock_get_impl.assert_awaited_once_with(new_name)
+        assert result["name"] == new_name
+
+    @pytest.mark.asyncio
+    async def test_rename_collection_invalid_new_name(self, mock_chroma_client_collections):
+        """Test renaming with invalid new name."""
+        _, _, mock_validate = mock_chroma_client_collections
+        error_data = ErrorData(code=INVALID_PARAMS, message="Invalid name")
+        mock_validate.side_effect = McpError(error_data)
+        with pytest.raises(McpError) as exc_info:
+            await _rename_collection_impl("old", "new@invalid")
+        assert "Invalid name" in str(exc_info.value)
+
+    # --- _delete_collection_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_delete_collection_success(self, mock_chroma_client_collections):
         """Test successful collection deletion."""
-        collection_name = "delete_test"
-        await mcp.chroma_create_collection(collection_name=collection_name)
-        assert collection_name in mcp.collections
-        result = await mcp.chroma_delete_collection(collection_name)
-        assert result["status"] == "deleted"
-        assert collection_name not in mcp.collections
+        mock_client, _, _ = mock_chroma_client_collections
+        collection_name = "to_delete"
+        result = await _delete_collection_impl(collection_name)
+        mock_client.delete_collection.assert_awaited_once_with(name=collection_name)
+        assert result["success"] is True
+        assert result["deleted_collection"] == collection_name
 
     @pytest.mark.asyncio
-    async def test_delete_collection_not_found(self, mcp):
-        """Test deleting a non-existent collection."""
-        result = await mcp.chroma_delete_collection("non_existent_for_delete")
-        assert result["status"] == "not_found"
+    async def test_delete_collection_chroma_error(self, mock_chroma_client_collections):
+        """Test handling Chroma error during deletion (e.g., not found handled by impl)."""
+        mock_client, _, _ = mock_chroma_client_collections
+        # Simulate error like concurrent deletion or other issue
+        mock_client.delete_collection.side_effect = Exception("Generic Chroma Delete Error") 
+        with pytest.raises(McpError) as exc_info:
+            await _delete_collection_impl("delete_fail")
+        assert "Generic Chroma Delete Error" in str(exc_info.value)
+
+    # --- _peek_collection_impl Tests ---
+    @pytest.mark.asyncio
+    async def test_peek_collection_success(self, mock_chroma_client_collections):
+        """Test peeking into a collection."""
+        mock_client, mock_collection, _ = mock_chroma_client_collections
+        collection_name = "peek_coll"
+        limit = 5
+        mock_peek_data = {"ids": ["p1", "p2"]}
+        mock_collection.peek.return_value = mock_peek_data
+        mock_client.get_collection.return_value = mock_collection
+        
+        result = await _peek_collection_impl(collection_name, limit)
+        
+        mock_client.get_collection.assert_awaited_once_with(name=collection_name, embedding_function=ANY)
+        mock_collection.peek.assert_awaited_once_with(limit=limit)
+        assert result["collection_name"] == collection_name
+        assert result["limit"] == limit
+        assert result["peek_result"] == mock_peek_data
 
     @pytest.mark.asyncio
-    async def test_peek_collection_success(self, mcp):
-        """Test successful collection peek."""
-        collection_name = "peek_test"
-        await mcp.chroma_create_collection(collection_name=collection_name)
-        result = await mcp.chroma_peek_collection(collection_name, limit=3)
-        assert "peek_result" in result
-        assert len(result["peek_result"]["ids"]) == 3
+    async def test_peek_collection_invalid_limit(self, mock_chroma_client_collections):
+        """Test peeking with invalid limit."""
+        with pytest.raises(McpError) as exc_info:
+            await _peek_collection_impl("peek_invalid", limit=0)
+        assert "limit must be a positive integer" in str(exc_info.value)
 
-    @pytest.mark.asyncio
-    async def test_peek_collection_mock_rejects_invalid_limit(self, mcp):
-        """Test that the mock (simulating tool logic) handles invalid limit."""
-        collection_name = "peek_invalid_mock"
-        await mcp.chroma_create_collection(collection_name=collection_name)
-        # The actual tool raises ValidationError, the mock might raise something else or nothing.
-        # Since the mock doesn't implement the validation, we can't directly test this.
-        # Let's focus on testing the *successful* peek call.
-        pass # Removing this test as the mock doesn't validate
-
-    # Optional: Add a test for error handling wrapping if needed
-    # async def test_error_handling_wrapper(self, mcp):
-    #     # ... (test how handle_chroma_error wraps exceptions) ...
-    #     pass
+        with pytest.raises(McpError) as exc_info_neg:
+            await _peek_collection_impl("peek_invalid", limit=-1)
+        assert "limit must be a positive integer" in str(exc_info_neg.value)

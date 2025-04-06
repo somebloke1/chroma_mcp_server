@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.15"
+version = "0.1.17"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -159,13 +159,39 @@ dependencies = [
 [tool.hatch.envs.test.scripts]
 run = "pytest {args:tests}"
 cov = [
-  "pytest --cov-report=term-missing --cov-report=xml --cov=src/chroma_mcp {args:tests}",
-  "coverage report",
+  # FIX: Only run pytest here to generate parallel files
+  "pytest --cov-report= --cov=src/chroma_mcp --cov-config=pyproject.toml {args:tests}",
+  # REMOVED: combine and report steps move to a separate env
 ]
 html = [
-  "pytest --cov-report=html --cov=src/chroma_mcp {args:tests}",
-  "coverage report",
+  # Apply the same fix for the html report script
+  # FIX: Only run pytest here, maybe add --cov-report=html directly?
+  # Let's keep it simple: generate data, report later.
+  "pytest --cov-report= --cov=src/chroma_mcp --cov-config=pyproject.toml {args:tests}", 
+  # REMOVED: combine and report steps
 ]
+
+# FIX: Define a new environment for combining and reporting
+[tool.hatch.envs.cov-report]
+# Depend on the entire test matrix completing first
+dependencies = [
+    "coverage[toml]>=7.4"
+]
+# Don't need test dependencies here, just coverage
+# detached = true # Optional: useful if dependencies conflict
+[tool.hatch.envs.cov-report.scripts]
+# Define scripts for this reporting env
+term = [
+  "coverage report -m", # Add -m for missing lines
+]
+xml = [
+  "coverage xml",
+]
+html = [
+  "coverage html",
+]
+# Default script if just 'hatch run cov-report'
+_ = "hatch run cov-report:term"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.10", "3.11", "3.12"]
@@ -175,7 +201,6 @@ branch = true
 parallel = true
 source = ["src/chroma_mcp"]
 relative_files = true
-dynamic_context = "test_function"
 
 [tool.coverage.paths]
 source = [
@@ -184,6 +209,7 @@ source = [
 ]
 
 [tool.coverage.report]
+omit = ["src/chroma_mcp/__main__.py"]
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
