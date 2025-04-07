@@ -64,18 +64,22 @@ echo "Running tests with Hatch..."
 
 if [ "$HTML" = true ]; then
     echo "Running tests across matrix for HTML coverage..."
-    hatch run test:cov # Step 1: Run tests to generate data
+    # Run tests, generate parallel data (no report flag needed in pytest call)
+    hatch run test:html # Alias 'html' in hatch config runs pytest
     echo "Combining parallel coverage data..."
-    coverage combine # Step 2: Combine data files directly
+    # Use hatch run to ensure coverage is available in the correct env
+    hatch run coverage combine
     echo "Generating HTML coverage report..."
-    hatch run cov-report:html # Step 3: Generate report from combined data
+    hatch run coverage html # Use hatch run to ensure coverage is available
 elif [ "$COVERAGE" = true ]; then
     echo "Running tests across matrix for coverage..."
-    hatch run test:cov # Step 1: Run tests to generate data
+    # Run tests, generate parallel data
+    hatch run test:cov # Alias 'cov' in hatch config runs pytest
     echo "Combining parallel coverage data..."
-    coverage combine # Step 2: Combine data files directly
-    echo "Generating terminal coverage report..."
-    hatch run cov-report:term # Step 3: Generate report from combined data
+    hatch run coverage combine
+    echo "Generating XML and terminal coverage report..."
+    hatch run coverage xml # Generate XML for Codecov
+    hatch run coverage report -m # Show terminal report
 else
     if [ "$VERBOSE" = true ]; then
         echo "Running tests in verbose mode..."

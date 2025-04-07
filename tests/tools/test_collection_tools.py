@@ -4,15 +4,13 @@ import pytest
 import uuid
 import re # Import re for validation
 from typing import Dict, Any, List, Optional
-from unittest.mock import patch, AsyncMock
-# Import ANY for mock assertions
-from unittest.mock import ANY
+from unittest.mock import patch, AsyncMock, MagicMock, ANY
 
 from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, ErrorData
 
 # Import specific errors if needed, or rely on ValidationError/Exception
-from src.chroma_mcp.utils.errors import ValidationError, raise_validation_error, handle_chroma_error
+from src.chroma_mcp.utils.errors import ValidationError, CollectionNotFoundError, raise_validation_error, handle_chroma_error
 from src.chroma_mcp.tools.collection_tools import (
     _reconstruct_metadata, # Keep helper if used
     _create_collection_impl,
@@ -233,47 +231,34 @@ def mcp():
 @pytest.fixture
 def mock_chroma_client_collections():
     """Fixture to mock the Chroma client and its methods for collection tests."""
-    with patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client, \
+    with patch("src.chroma_mcp.utils.client.get_chroma_client") as mock_get_client, \
+         patch("src.chroma_mcp.utils.client.get_embedding_function") as mock_get_embedding_function, \
          patch("src.chroma_mcp.tools.collection_tools.get_collection_settings") as mock_get_settings, \
          patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name:
 
-        mock_client_instance = AsyncMock()
-        mock_collection_instance = AsyncMock()
+        # Use MagicMock for synchronous behavior
+        mock_client_instance = MagicMock() 
+        mock_collection_instance = MagicMock()
         
-        # --- Configure mock methods for collection --- 
-        # Use simple return values or side_effects as needed for tests
-        mock_collection_instance.name = "mock_coll"
-        mock_collection_instance.id = str(uuid.uuid4())
-        # Store metadata within the mock instance to simulate state changes
-        # Get defaults by calling the actual function
-        default_settings_dict = get_collection_settings()
-        mock_collection_instance.metadata = { # Default state
-             f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings_dict.items()
-        }
-        mock_collection_instance.count = AsyncMock(return_value=0)
-        mock_collection_instance.peek = AsyncMock(return_value={"ids": [], "documents": []})
-        mock_collection_instance.modify = AsyncMock() # Tracks calls
+        # --- Configure mock methods for collection (now synchronous) --- 
+        mock_collection_instance.name = "mock_collection"
+        mock_collection_instance.id = "mock_id_123"
+        mock_collection_instance.metadata = {"hnsw:space": "cosine"} # Example metadata
+        mock_collection_instance.count.return_value = 0 # Sync return
+        mock_collection_instance.peek.return_value = {"ids": [], "documents": []} # Sync return
+        # modify is just tracked, no specific return needed unless tested
         
-        # --- Configure mock methods for client --- 
-        mock_client_instance.create_collection = AsyncMock(return_value=mock_collection_instance) 
-        mock_client_instance.get_collection = AsyncMock(return_value=mock_collection_instance)
-        mock_client_instance.list_collections = AsyncMock(return_value=["existing_coll1", "existing_coll2"]) # Default list
-        mock_client_instance.delete_collection = AsyncMock() # Tracks calls
-        
+        # --- Configure mock methods for client (now synchronous) --- 
+        mock_client_instance.create_collection.return_value = mock_collection_instance # Sync return
+        mock_client_instance.get_collection.return_value = mock_collection_instance # Sync return
+        mock_client_instance.list_collections.return_value = ["existing_coll1", "existing_coll2"] # Sync return
+        # delete_collection is just tracked
+
         mock_get_client.return_value = mock_client_instance
-        
-        # Mock config/validation helpers
-        # Get actual defaults and set the patched function to return them
-        default_settings_dict = get_collection_settings()
-        mock_get_settings.return_value = default_settings_dict
-        mock_validate_name.return_value = None # Assume valid by default
-        
-        # Use the defaults to set the initial metadata on the mock collection instance
-        # Manually corrected f-string syntax:
-        mock_collection_instance.metadata = {
-            f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings_dict.items()
-        }
-        
+        mock_get_embedding_function.return_value = None # Or a mock embedding function if needed
+        mock_get_settings.return_value = {"hnsw:space": "cosine"} # Mock default settings
+        mock_validate_name.return_value = None # Assume validation passes
+
         yield mock_client_instance, mock_collection_instance, mock_validate_name
 
 class TestCollectionTools:
@@ -287,7 +272,7 @@ class TestCollectionTools:
         collection_name = "test_create_new"
         
         # Mock the collection returned by create_collection to have the correct name/id
-        created_collection_mock = AsyncMock()
+        created_collection_mock = MagicMock()
         created_collection_mock.name = collection_name
         created_collection_mock.id = str(uuid.uuid4())
         # Store metadata within the mock instance to simulate state changes
@@ -301,7 +286,7 @@ class TestCollectionTools:
         result = await _create_collection_impl(collection_name=collection_name)
         
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.create_collection.assert_awaited_once()
+        mock_client.create_collection.assert_called_once()
         # Check args passed to create_collection if necessary
         call_args = mock_client.create_collection.call_args
         assert call_args.kwargs["name"] == collection_name
@@ -323,7 +308,7 @@ class TestCollectionTools:
         with pytest.raises(McpError) as exc_info:
             await _create_collection_impl(collection_name="invalid@name")
         assert "Invalid name" in str(exc_info.value)
-        mock_client.create_collection.assert_not_awaited()
+        mock_client.create_collection.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_create_collection_chroma_error(self, mock_chroma_client_collections):
@@ -340,11 +325,12 @@ class TestCollectionTools:
     async def test_list_collections_success(self, mock_chroma_client_collections):
         """Test successful default collection listing."""
         mock_client, _, _ = mock_chroma_client_collections
+        # Explicitly set the return value for this specific test case
         mock_client.list_collections.return_value = ["coll_a", "coll_b"]
         
         result = await _list_collections_impl()
         
-        mock_client.list_collections.assert_awaited_once()
+        mock_client.list_collections.assert_called_once()
         assert result["collection_names"] == ["coll_a", "coll_b"]
         assert result["total_count"] == 2
         assert result["limit"] == 0
@@ -354,14 +340,14 @@ class TestCollectionTools:
     async def test_list_collections_with_filter_pagination(self, mock_chroma_client_collections):
         """Test listing with name filter and pagination."""
         mock_client, _, _ = mock_chroma_client_collections
+        # Explicitly set the return value for this specific test case
         mock_client.list_collections.return_value = ["apple", "banana", "apricot", "avocado"]
         
         result = await _list_collections_impl(limit=2, offset=1, name_contains="ap")
         
-        mock_client.list_collections.assert_awaited_once()
-        # Filtered: ["apple", "apricot"] -> Offset 1: ["apricot"] -> Limit 2: ["apricot"]
+        mock_client.list_collections.assert_called_once()
         assert result["collection_names"] == ["apricot"]
-        assert result["total_count"] == 2 # Count after filtering, before pagination
+        assert result["total_count"] == 2
         assert result["limit"] == 2
         assert result["offset"] == 1
         
@@ -393,9 +379,9 @@ class TestCollectionTools:
         
         result = await _get_collection_impl(collection_name)
         
-        mock_client.get_collection.assert_awaited_once_with(name=collection_name, embedding_function=ANY)
-        mock_collection.count.assert_awaited_once()
-        mock_collection.peek.assert_awaited_once()
+        mock_client.get_collection.assert_called_once_with(name=collection_name, embedding_function=ANY)
+        mock_collection.count.assert_called_once()
+        mock_collection.peek.assert_called_once()
         assert result["name"] == collection_name
         assert result["id"] == "test-id-123"
         assert result["count"] == 42
@@ -432,8 +418,8 @@ class TestCollectionTools:
              
              result = await _set_collection_description_impl(collection_name, new_description)
 
-        mock_client.get_collection.assert_awaited_once_with(name=collection_name, embedding_function=ANY)
-        mock_collection.modify.assert_awaited_once()
+        mock_client.get_collection.assert_called_once_with(name=collection_name, embedding_function=ANY)
+        mock_collection.modify.assert_called_once()
         # Check that modify was called with the correct updated metadata
         call_args = mock_collection.modify.call_args
         assert call_args.kwargs["metadata"]["description"] == new_description
@@ -457,7 +443,7 @@ class TestCollectionTools:
              
              result = await _set_collection_settings_impl(collection_name, new_settings)
              
-        mock_collection.modify.assert_awaited_once()
+        mock_collection.modify.assert_called_once()
         call_args = mock_collection.modify.call_args
         expected_metadata = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in new_settings.items()}
         assert call_args.kwargs["metadata"] == expected_metadata # Modify expects flattened
@@ -489,7 +475,7 @@ class TestCollectionTools:
             
             result = await _update_collection_metadata_impl(collection_name, metadata_update)
 
-        mock_collection.modify.assert_awaited_once()
+        mock_collection.modify.assert_called_once()
         call_args = mock_collection.modify.call_args
         # Check metadata passed includes original and update
         assert call_args.kwargs["metadata"]["existing"] == "data"
@@ -526,9 +512,9 @@ class TestCollectionTools:
             result = await _rename_collection_impl(old_name, new_name)
 
         mock_validate.assert_called_once_with(new_name)
-        mock_client.get_collection.assert_awaited_once_with(name=old_name, embedding_function=ANY)
-        mock_collection.modify.assert_awaited_once_with(name=new_name)
-        mock_get_impl.assert_awaited_once_with(new_name)
+        mock_client.get_collection.assert_called_once_with(name=old_name, embedding_function=ANY)
+        mock_collection.modify.assert_called_once_with(name=new_name)
+        mock_get_impl.assert_called_once_with(new_name)
         assert result["name"] == new_name
 
     @pytest.mark.asyncio
@@ -548,7 +534,7 @@ class TestCollectionTools:
         mock_client, _, _ = mock_chroma_client_collections
         collection_name = "to_delete"
         result = await _delete_collection_impl(collection_name)
-        mock_client.delete_collection.assert_awaited_once_with(name=collection_name)
+        mock_client.delete_collection.assert_called_once_with(name=collection_name)
         assert result["success"] is True
         assert result["deleted_collection"] == collection_name
 
@@ -575,8 +561,8 @@ class TestCollectionTools:
         
         result = await _peek_collection_impl(collection_name, limit)
         
-        mock_client.get_collection.assert_awaited_once_with(name=collection_name, embedding_function=ANY)
-        mock_collection.peek.assert_awaited_once_with(limit=limit)
+        mock_client.get_collection.assert_called_once_with(name=collection_name, embedding_function=ANY)
+        mock_collection.peek.assert_called_once_with(limit=limit)
         assert result["collection_name"] == collection_name
         assert result["limit"] == limit
         assert result["peek_result"] == mock_peek_data
@@ -591,3 +577,27 @@ class TestCollectionTools:
         with pytest.raises(McpError) as exc_info_neg:
             await _peek_collection_impl("peek_invalid", limit=-1)
         assert "limit must be a positive integer" in str(exc_info_neg.value)
+
+    # --- Error Handling Tests ---
+    @pytest.mark.asyncio
+    async def test_create_collection_duplicate_error(self, mock_chroma_client_collections):
+        """Test handling duplicate collection error during creation."""
+        mock_client, _, _ = mock_chroma_client_collections
+        mock_client.create_collection.side_effect = Exception("Chroma duplicate error")
+        
+        with pytest.raises(McpError) as exc_info:
+            await _create_collection_impl(collection_name="test_chroma_fail")
+        
+        assert "ChromaDB operation failed" in str(exc_info.value)
+        assert "Chroma duplicate error" in str(exc_info.value) # Check original error
+
+    @pytest.mark.asyncio
+    async def test_set_description_collection_not_found(self, mock_chroma_client_collections):
+        """Test setting description when the collection doesn't exist."""
+        mock_client, _, _ = mock_chroma_client_collections
+        mock_client.get_collection.side_effect = CollectionNotFoundError("Collection 'nonexistent' not found")
+        
+        with pytest.raises(McpError) as exc_info:
+            await _set_collection_description_impl(collection_name="nonexistent", description="test")
+            
+        assert "Collection 'nonexistent' not found" in str(exc_info.value)

@@ -110,17 +110,28 @@ Alternatively, for testing integration with tools like Cursor that use `uvx`, yo
 Tests are located in the `tests/` directory and use `pytest`. Run tests using the script:
 
 ```bash
-# Run all tests (uses hatch run test:run)
+# Run all tests across the Python matrix (defined in pyproject.toml)
+# This uses hatch run test:run internally.
 ./scripts/test.sh
 
-# Run with coverage report
-./scripts/test.sh --coverage
+# Run tests across the matrix and generate coverage reports.
+# This runs tests first, then combines data, then generates:
+# 1. Terminal report (with missing lines)
+# 2. XML report (coverage.xml for Codecov)
+./scripts/test.sh --coverage 
+# or shorthand:
+./scripts/test.sh -c
 
-# Force environment rebuild before testing
+# Run tests across the matrix and generate an HTML coverage report.
+# This runs tests first, then combines data, then generates the report
+# in the coverage_html/ directory (as configured in pyproject.toml).
+./scripts/test.sh --html
+
+# Force environment rebuild before testing (useful if dependencies change)
 ./scripts/test.sh --clean
 ```
 
-You can also pass arguments directly to `pytest` via `hatch run` if needed:
+Note that coverage reports (`terminal`, `XML`, `HTML`) are generated *after* all tests across all configured Python versions have completed.
 
 ```bash
 # Run specific tests within the Hatch environment

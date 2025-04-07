@@ -77,7 +77,7 @@ The server primarily uses environment variables for configuration. A `.env` file
 
 - `CHROMA_CLIENT_TYPE`: `persistent` or `ephemeral` (default)
 - `CHROMA_DATA_DIR`: Path for persistent storage (required if `persistent`)
-- `CHROMA_LOG_DIR`: Directory for logs.
+- `CHROMA_LOG_DIR`: Directory where the `chroma_mcp_server.log` file will be created. If not set, logs only go to the console.
 - `LOG_LEVEL`: Standard Python log level (e.g., `DEBUG`, `INFO`).
 
 Cursor uses `.cursor/mcp.json` to configure server launch commands:

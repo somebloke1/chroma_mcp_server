@@ -21,17 +21,8 @@ from chroma_mcp.server import (
 from chroma_mcp.utils.errors import (
     CollectionNotFoundError, ValidationError
 )
-from chroma_mcp.server import LoggerSetup # Import LoggerSetup
 
 # Mock dependencies globally for simplicity in these tests
-@pytest.fixture(autouse=True)
-def mock_logger_setup(): # Renamed fixture
-    """Mocks the LoggerSetup to control logger creation."""
-    mock_logger_instance = MagicMock()
-    # Patch the create_logger method within the server module context
-    with patch("chroma_mcp.server.LoggerSetup.create_logger", return_value=mock_logger_instance) as mock_create:
-        yield mock_logger_instance # Yield the mock logger instance
-
 @pytest.fixture(autouse=True)
 def mock_dependencies():
     """Mock external dependencies like ChromaDB and FastMCP availability."""
@@ -69,6 +60,14 @@ def mock_mcp():
     with patch("chroma_mcp.server.FastMCP", autospec=True) as mock:
         yield mock
 
+# Patch logging.getLogger for tests needing to check log calls
+@pytest.fixture
+def mock_get_logger():
+    with patch("chroma_mcp.server.logging.getLogger") as mock_get:
+        mock_logger = MagicMock()
+        mock_get.return_value = mock_logger
+        yield mock_logger # Yield the instance returned by getLogger
+
 # --- Test Functions ---
 
 def test_create_parser():
@@ -81,7 +80,7 @@ def test_create_parser():
     assert args.ssl is True # Default SSL for HTTP client if relevant
     assert args.cpu_execution_provider == 'auto'
 
-def test_server_config_defaults(mock_logger_setup): # Use updated fixture
+def test_server_config_defaults(mock_get_logger): # Use new fixture
     """Test server configuration with default arguments."""
     parser = create_parser()
     args = parser.parse_args([])
@@ -90,9 +89,9 @@ def test_server_config_defaults(mock_logger_setup): # Use updated fixture
         config_server(args)
 
     # Check logger initialization (using the mock instance)
-    mock_logger_setup.info.assert_any_call("Server configured (CPU provider: auto-detected)")
+    mock_get_logger.info.assert_any_call("Server configured (CPU provider: auto-detected)")
 
-def test_server_config_persistent(mock_logger_setup): # Use updated fixture
+def test_server_config_persistent(mock_get_logger): # Use new fixture
     """Test server configuration with persistent client."""
     parser = create_parser()
     test_data_dir = "/tmp/chroma_test_data"
@@ -103,16 +102,19 @@ def test_server_config_persistent(mock_logger_setup): # Use updated fixture
         "--log-dir", test_log_dir
     ])
 
-    with patch("os.path.exists", return_value=False):
+    with patch("os.path.exists", return_value=False), \
+         patch("os.makedirs"), \
+         patch("logging.handlers.RotatingFileHandler"): # Patch file handler creation
         config_server(args)
 
     # Use the mock logger instance for assertions
-    mock_logger_setup.info.assert_any_call(f"Logs will be saved to: {test_log_dir}")
-    mock_logger_setup.info.assert_any_call(f"Data directory: {test_data_dir}")
+    mock_get_logger.info.assert_any_call(f"Logs will be saved to: {test_log_dir}")
+    mock_get_logger.info.assert_any_call(f"Data directory: {test_data_dir}")
 
 @patch('chroma_mcp.server.load_dotenv')
-def test_server_config_error(mock_load_dotenv, mock_logger_setup): # Use updated fixture
-    """Test error handling during server configuration."""
+@patch('builtins.print') # Patch print instead
+def test_server_config_error(mock_print, mock_load_dotenv):
+    """Test error handling during server configuration (early failure)."""
     with patch("os.path.exists", return_value=True):
         mock_load_dotenv.side_effect = OSError("Failed to load .env")
         parser = create_parser()
@@ -122,28 +124,37 @@ def test_server_config_error(mock_load_dotenv, mock_logger_setup): # Use updated
             config_server(args)
 
         assert "Failed to configure server" in str(exc_info.value)
+        # Remove the assertion for logger.error
+        # mock_logger_instance.error.assert_called_once_with("Failed to configure server: Failed to load .env")
+        # Assert that print was called with the correct error message
+        mock_print.assert_called_once_with("ERROR: Failed to configure server: Failed to load .env")
 
-def test_server_config_cpu_provider_options(mock_logger_setup): # Use updated fixture
+def test_server_config_cpu_provider_options(mock_get_logger): # Use new fixture
     """Test server configuration with different CPU provider settings."""
     parser = create_parser()
 
     # Test auto (default)
     args_auto = parser.parse_args([])
-    with patch("os.path.exists", return_value=False):
+    with patch("os.path.exists", return_value=False), \
+         patch("logging.handlers.RotatingFileHandler"): # Patch file handler
         config_server(args_auto)
-    mock_logger_setup.info.assert_any_call("Server configured (CPU provider: auto-detected)")
+    mock_get_logger.info.assert_any_call("Server configured (CPU provider: auto-detected)")
+    mock_get_logger.reset_mock() # Reset mock for next call
 
     # Test force true
     args_true = parser.parse_args(["--cpu-execution-provider", "true"])
-    with patch("os.path.exists", return_value=False):
+    with patch("os.path.exists", return_value=False), \
+         patch("logging.handlers.RotatingFileHandler"): # Patch file handler
         config_server(args_true)
-    mock_logger_setup.info.assert_any_call("Server configured (CPU provider: enabled)")
+    mock_get_logger.info.assert_any_call("Server configured (CPU provider: enabled)")
+    mock_get_logger.reset_mock() # Reset mock for next call
 
     # Test force false
     args_false = parser.parse_args(["--cpu-execution-provider", "false"])
-    with patch("os.path.exists", return_value=False):
+    with patch("os.path.exists", return_value=False), \
+         patch("logging.handlers.RotatingFileHandler"): # Patch file handler
         config_server(args_false)
-    mock_logger_setup.info.assert_any_call("Server configured (CPU provider: disabled)")
+    mock_get_logger.info.assert_any_call("Server configured (CPU provider: disabled)")
 
 def test_get_mcp_initialization(
     mock_mcp, mock_register_collection, mock_register_document, mock_register_thinking, monkeypatch

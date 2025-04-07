@@ -8,7 +8,6 @@ from .utils import (
     config,
     client,
     errors,
-    logger_setup
 )
 # from .handlers import (
 #     CollectionHandler,
@@ -39,7 +38,6 @@ __all__ = [
     "config",
     "client",
     "errors",
-    "logger_setup",
     # Tools
     "collection_tools",
     "document_tools",

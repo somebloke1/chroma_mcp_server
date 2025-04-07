@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.17"
+version = "0.1.25"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -159,39 +159,13 @@ dependencies = [
 [tool.hatch.envs.test.scripts]
 run = "pytest {args:tests}"
 cov = [
-  # FIX: Only run pytest here to generate parallel files
-  "pytest --cov-report= --cov=src/chroma_mcp --cov-config=pyproject.toml {args:tests}",
-  # REMOVED: combine and report steps move to a separate env
+  # FIX: Remove --cov-config, keep --cov-report=
+  "pytest --cov-report= --cov=src/chroma_mcp {args:tests}",
 ]
 html = [
-  # Apply the same fix for the html report script
-  # FIX: Only run pytest here, maybe add --cov-report=html directly?
-  # Let's keep it simple: generate data, report later.
-  "pytest --cov-report= --cov=src/chroma_mcp --cov-config=pyproject.toml {args:tests}", 
-  # REMOVED: combine and report steps
+  # FIX: Remove --cov-config, keep --cov-report=
+  "pytest --cov-report= --cov=src/chroma_mcp {args:tests}", 
 ]
-
-# FIX: Define a new environment for combining and reporting
-[tool.hatch.envs.cov-report]
-# Depend on the entire test matrix completing first
-dependencies = [
-    "coverage[toml]>=7.4"
-]
-# Don't need test dependencies here, just coverage
-# detached = true # Optional: useful if dependencies conflict
-[tool.hatch.envs.cov-report.scripts]
-# Define scripts for this reporting env
-term = [
-  "coverage report -m", # Add -m for missing lines
-]
-xml = [
-  "coverage xml",
-]
-html = [
-  "coverage html",
-]
-# Default script if just 'hatch run cov-report'
-_ = "hatch run cov-report:term"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.10", "3.11", "3.12"]
@@ -201,6 +175,12 @@ branch = true
 parallel = true
 source = ["src/chroma_mcp"]
 relative_files = true
+# Add omit from .coveragerc
+omit = [
+    "*/tests/*",
+    "src/chroma_mcp/__init__.py", # Make path more specific
+    "setup.py", # Keep if relevant, otherwise remove
+]
 
 [tool.coverage.paths]
 source = [
@@ -209,7 +189,9 @@ source = [
 ]
 
 [tool.coverage.report]
+# Keep omit for main
 omit = ["src/chroma_mcp/__main__.py"]
+# Consolidate exclude_lines
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
@@ -217,8 +199,19 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
+    "pass", # from .coveragerc
+    "raise AssertionError", # from .coveragerc
+    "@abstractmethod", # from .coveragerc
 ]
 show_missing = true
+
+# Add html output settings from .coveragerc
+[tool.coverage.html]
+directory = "coverage_html"
+
+# Add xml output settings from .coveragerc (for Codecov)
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.pytest-asyncio]
 mode = "auto"

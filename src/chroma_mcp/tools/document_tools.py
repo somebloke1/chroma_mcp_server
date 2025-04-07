@@ -10,23 +10,9 @@ from mcp.server.fastmcp import FastMCP
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INVALID_PARAMS
 
-from ..utils.logger_setup import LoggerSetup
-from ..utils.client import get_chroma_client, get_embedding_function
+# Use relative imports
 from ..utils.errors import handle_chroma_error, validate_input, raise_validation_error
-
-# Initialize logger
-logger = LoggerSetup.create_logger(
-    "ChromaDocuments",
-    log_file="chroma_documents.log"
-)
-
-@dataclass
-class DocumentMetadata:
-    """Document metadata structure."""
-    source: Optional[str] = None
-    timestamp: Optional[int] = None
-    tags: List[str] = None
-    custom_data: Dict[str, Any] = None
+from ..types import DocumentMetadata # Import DocumentMetadata
 
 # --- Implementation Functions ---
 
@@ -38,6 +24,10 @@ async def _add_documents_impl(
     increment_index: bool = True
 ) -> Dict[str, Any]:
     """Implementation logic for adding documents."""
+    from ..server import get_logger
+    logger = get_logger("tools.document")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         # Handle None defaults for lists
         effective_metadatas = metadatas if metadatas is not None else []
@@ -51,30 +41,29 @@ async def _add_documents_impl(
         if effective_ids and len(effective_ids) != len(documents):
             raise_validation_error("Number of IDs must match number of documents")
         
-        # Get or create collection - Await the client call
+        # Get or create collection
         client = get_chroma_client()
         collection = await client.get_or_create_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
         
-        # Generate IDs if not provided (use effective_ids)
+        # Generate IDs if not provided
         generated_ids = False
         final_ids = effective_ids
         if not final_ids:
             generated_ids = True
-            # Await the count() call
             current_count = await collection.count() if increment_index else 0
             timestamp = int(time.time())
             final_ids = [f"doc_{timestamp}_{current_count + i}" for i in range(len(documents))]
         
-        # Prepare metadatas (use effective_metadatas)
+        # Prepare metadatas
         final_metadatas = effective_metadatas if effective_metadatas else None
         
-        # Add documents - Await the add() call
+        # Add documents
         await collection.add(
             documents=documents,
-            metadatas=final_metadatas, # Pass None if list was empty
+            metadatas=final_metadatas,
             ids=final_ids
         )
         
@@ -99,6 +88,10 @@ async def _query_documents_impl(
     include: List[str] = None
 ) -> Dict[str, Any]:
     """Implementation logic for querying documents."""
+    from ..server import get_logger
+    logger = get_logger("tools.document")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         # Handle None defaults for dicts/lists
         effective_where = where if where is not None else {}
@@ -116,7 +109,7 @@ async def _query_documents_impl(
         if effective_include and not all(item in valid_includes for item in effective_include):
             raise_validation_error(f"Invalid item in include list. Valid items are: {valid_includes}")
         
-        # Get collection - Await the client call
+        # Get collection
         client = get_chroma_client()
         collection = await client.get_collection(
             name=collection_name,
@@ -126,8 +119,7 @@ async def _query_documents_impl(
         # Set default includes if list was empty
         final_include = effective_include if effective_include else ["documents", "metadatas", "distances"]
         
-        # Query documents using effective filters (pass None if dicts were empty)
-        # Await the query() call
+        # Query documents
         results = await collection.query(
             query_texts=query_texts,
             n_results=n_results,
@@ -192,6 +184,10 @@ async def _get_documents_impl(
     offset: int = 0
 ) -> Dict[str, Any]:
     """Implementation logic for getting documents."""
+    from ..server import get_logger
+    logger = get_logger("tools.document")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         # Handle None defaults
         effective_ids = ids if ids is not None else []
@@ -213,7 +209,7 @@ async def _get_documents_impl(
         if effective_include and not all(item in valid_includes for item in effective_include):
             raise_validation_error(f"Invalid item in include list. Valid items are: {valid_includes}")
         
-        # Get collection - Await the client call
+        # Get collection
         client = get_chroma_client()
         collection = await client.get_collection(
             name=collection_name,
@@ -227,8 +223,7 @@ async def _get_documents_impl(
         final_limit = limit if limit > 0 else None
         final_offset = offset if offset > 0 else None
         
-        # Get documents using effective filters (pass None if empty)
-        # Await the get() call
+        # Get documents
         results = await collection.get(
             ids=effective_ids if effective_ids else None,
             where=effective_where if effective_where else None,
@@ -273,6 +268,10 @@ async def _update_documents_impl(
     metadatas: List[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """Implementation logic for updating documents."""
+    from ..server import get_logger
+    logger = get_logger("tools.document")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         # Handle None defaults for lists
         effective_documents = documents if documents is not None else []
@@ -288,15 +287,14 @@ async def _update_documents_impl(
         if effective_metadatas and len(effective_metadatas) != len(ids):
             raise_validation_error("Number of metadatas must match number of IDs")
         
-        # Get collection - Await the client call
+        # Get collection
         client = get_chroma_client()
         collection = await client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
         
-        # Update documents (pass None if lists were empty)
-        # Await the update() call
+        # Update documents
         await collection.update(
             ids=ids,
             documents=effective_documents if effective_documents else None,
@@ -321,6 +319,10 @@ async def _delete_documents_impl(
     where_document: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """Implementation logic for deleting documents."""
+    from ..server import get_logger
+    logger = get_logger("tools.document")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         # Handle None defaults
         effective_ids = ids if ids is not None else []
@@ -331,7 +333,7 @@ async def _delete_documents_impl(
         if not effective_ids and not effective_where and not effective_where_document:
             raise_validation_error("Either ids, where, or where_document must be provided for deletion")
             
-        # Get collection - Await the client call
+        # Get collection
         client = get_chroma_client()
         collection = await client.get_collection(
             name=collection_name,
@@ -341,9 +343,8 @@ async def _delete_documents_impl(
         # Determine deletion method for logging and result structure
         delete_by_ids = bool(effective_ids)
         
-        # Delete documents (pass None if filters/ids are empty)
-        # Await the delete() call
-        await collection.delete(
+        # Delete documents
+        deleted_ids = await collection.delete(
             ids=effective_ids if effective_ids else None,
             where=effective_where if effective_where else None,
             where_document=effective_where_document if effective_where_document else None

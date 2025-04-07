@@ -1,7 +1,7 @@
 """Type definitions for the ChromaMCP server."""
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel
 
 # Error codes
@@ -37,4 +37,12 @@ class ThoughtMetadata:
     branch_from_thought: Optional[int] = None  # Thought number this branches from
     branch_id: Optional[str] = None  # Identifier for the branch
     next_thought_needed: bool = False  # Whether another thought is needed
-    custom_data: Optional[Dict[str, Any]] = None  # Additional metadata 
+    custom_data: Optional[Dict[str, Any]] = None  # Additional metadata
+
+@dataclass
+class DocumentMetadata:
+    """Standardized structure for document metadata."""
+    source: Optional[str] = None
+    timestamp: Optional[int] = None
+    tags: Optional[List[str]] = None  # Make tags optional too for consistency
+    custom_data: Optional[Dict[str, Any]] = None 

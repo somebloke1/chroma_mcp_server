@@ -8,13 +8,16 @@ from dataclasses import dataclass
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
-from .logger_setup import LoggerSetup
+# Remove old logger setup
+# from .logger_setup import LoggerSetup
+# Replace with get_logger from server
+# from ..server import get_logger
 
-# Initialize logger
-logger = LoggerSetup.create_logger(
-    "ChromaErrors",
-    log_file="chroma_errors.log"
-)
+# Initialize logger using the central function
+# logger = LoggerSetup.create_logger(
+#     "ChromaErrors",
+#     log_file="chroma_errors.log"
+# )
 
 class ValidationError(Exception):
     """Raised when input validation fails."""
@@ -79,6 +82,10 @@ def handle_chroma_error(error: Exception, operation: str) -> McpError:
     Returns:
         McpError instance with standardized error information
     """
+    # Import and get logger within the function
+    from ..server import get_logger
+    logger = get_logger("utils.errors")
+
     # Map ChromaDB exceptions to our error codes
     if "Collection not found" in str(error):
         code = COLLECTION_NOT_FOUND
@@ -172,5 +179,9 @@ def raise_validation_error(error_message: str) -> None:
     Raises:
         ValidationError with error message
     """
+    # Import and get logger within the function
+    from ..server import get_logger
+    logger = get_logger("utils.errors")
+
     logger.error(f"Validation error: {error_message}")
     raise ValidationError(error_message)

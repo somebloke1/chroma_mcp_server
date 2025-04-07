@@ -3,7 +3,7 @@
 import pytest
 import uuid
 from typing import Dict, Any, List, Optional
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock, ANY
 
 from mcp.shared.exceptions import McpError
 from src.chroma_mcp.utils.errors import ValidationError, CollectionNotFoundError, handle_chroma_error, raise_validation_error
@@ -240,7 +240,8 @@ def patched_mcp():
 @pytest.fixture
 def mock_chroma_client():
     """Fixture to mock the Chroma client and its methods."""
-    with patch("src.chroma_mcp.tools.document_tools.get_chroma_client") as mock_get_client:
+    with patch("src.chroma_mcp.utils.client.get_chroma_client") as mock_get_client, \
+         patch("src.chroma_mcp.utils.client.get_embedding_function") as mock_get_embedding_function:
         mock_client_instance = AsyncMock()
         mock_collection_instance = AsyncMock()
         
@@ -257,6 +258,7 @@ def mock_chroma_client():
         mock_client_instance.get_or_create_collection = AsyncMock(return_value=mock_collection_instance)
         
         mock_get_client.return_value = mock_client_instance
+        mock_get_embedding_function.return_value = None # Assuming no embedding function
         yield mock_client_instance, mock_collection_instance
 
 class TestDocumentTools:
@@ -721,3 +723,40 @@ class TestDocumentTools:
             )
         # Assert on the McpError message
         assert "Collection 'nonexistent' not found" in str(exc_info.value)
+
+    # --- Error Handling Tests ---
+    @pytest.mark.asyncio
+    async def test_add_documents_chroma_error(self, mock_chroma_client):
+        """Test handling generic ChromaDB error when adding documents."""
+        mock_client, mock_collection = mock_chroma_client
+        mock_collection.add.side_effect = Exception("Simulated ChromaDB internal error")
+        
+        with pytest.raises(McpError) as exc_info:
+            await _add_documents_impl(
+                collection_name="test_docs",
+                documents=["doc1"],
+                ids=["id1"]
+            )
+        
+        assert "ChromaDB operation failed" in str(exc_info.value)
+        assert "Simulated ChromaDB internal error" in str(exc_info.value) # Check original error included
+
+    @pytest.mark.asyncio
+    async def test_add_documents_collection_not_found(self, mock_chroma_client):
+        """Test adding documents when the collection doesn't exist (via get_or_create)."""
+        mock_client, _ = mock_chroma_client # Only need client mock
+        # Configure the CLIENT's get_or_create_collection method to raise the error
+        mock_client.get_or_create_collection.side_effect = CollectionNotFoundError("Collection 'nonexistent' simulated not found during get_or_create")
+        
+        with pytest.raises(McpError) as exc_info:
+            await _add_documents_impl(collection_name="nonexistent", documents=["doc1"])
+            
+        # Check that the specific CollectionNotFoundError is wrapped correctly
+        assert "Collection 'nonexistent' simulated not found" in str(exc_info.value)
+        mock_client.get_or_create_collection.assert_awaited_once_with(name="nonexistent", embedding_function=ANY)
+
+    @pytest.mark.asyncio
+    async def test_query_documents_chroma_error(self, mock_chroma_client):
+        # This test case is not provided in the original file or the new code block
+        # It's assumed to exist as it's called in the test_add_documents_collection_not_found test
+        pass

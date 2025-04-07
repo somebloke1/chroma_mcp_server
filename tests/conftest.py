@@ -5,6 +5,12 @@ import chromadb
 import inspect
 import uuid
 import time
+import logging
+import logging.handlers
+import os
+
+# Import the server module to access its globals
+from src.chroma_mcp import server
 
 from typing import Dict, List, Optional, Any
 from fastmcp import FastMCP
@@ -21,16 +27,44 @@ from src.chroma_mcp.tools.collection_tools import register_collection_tools
 from src.chroma_mcp.tools.document_tools import register_document_tools
 
 from src.chroma_mcp.types import ChromaClientConfig, ThoughtMetadata
-from src.chroma_mcp.utils.logger_setup import LoggerSetup
 from src.chroma_mcp.utils.client import get_chroma_client, get_embedding_function
 from src.chroma_mcp.utils.errors import handle_chroma_error, validate_input, raise_validation_error
 
-# Set up logging
-logger = LoggerSetup().create_logger(
-    "ChromaMCPTest",
-    log_file="logs/test_debug.log",
-    log_level="DEBUG"
-)
+# --- Start: Logger Configuration for Tests --- 
+TEST_LOG_DIR = "logs"
+# Target the actual base logger name used by the application
+# TEST_BASE_LOGGER_NAME = "chromamcp.test" # Use a sub-logger for tests
+TEST_BASE_LOGGER_NAME = "chromamcp" # Configure the app's root logger
+
+logger = logging.getLogger(TEST_BASE_LOGGER_NAME)
+logger.setLevel(logging.DEBUG) # Default to DEBUG for tests
+
+# Prevent adding handlers multiple times
+if not logger.hasHandlers():
+    formatter = logging.Formatter(
+        f'%(asctime)s | %(name)-{len(TEST_BASE_LOGGER_NAME)+10}s | %(levelname)-8s | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Console handler (useful for seeing test output)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    # File handler
+    os.makedirs(TEST_LOG_DIR, exist_ok=True)
+    log_file = os.path.join(TEST_LOG_DIR, "test_debug.log")
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes=5*1024*1024, # 5 MB
+        backupCount=3
+    )
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+# --- Explicitly set the global instance for tests --- 
+server._main_logger_instance = logger
+# --- End: Logger Configuration for Tests --- 
 
 THOUGHTS_COLLECTION = "thoughts"
 DEFAULT_SIMILARITY_THRESHOLD = 0.7
@@ -125,11 +159,6 @@ def mock_config() -> ChromaClientConfig:
         port=None,
         data_dir=None
     )
-
-@pytest.fixture
-def mock_logger():
-    """Create a mock logger."""
-    return MagicMock()
 
 @pytest.fixture
 def sample_documents():

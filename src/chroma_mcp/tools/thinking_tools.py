@@ -11,16 +11,8 @@ from mcp.server.fastmcp import FastMCP
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INVALID_PARAMS, INTERNAL_ERROR
 
-from ..utils.logger_setup import LoggerSetup
-from ..utils.client import get_chroma_client, get_embedding_function
 from ..utils.errors import handle_chroma_error, validate_input, raise_validation_error
 from ..types import ThoughtMetadata
-
-# Initialize logger
-logger = LoggerSetup.create_logger(
-    "ChromaThinking",
-    log_file="chroma_thinking.log"
-)
 
 # Constants
 THOUGHTS_COLLECTION = "thoughts"
@@ -52,6 +44,10 @@ async def _sequential_thinking_impl(
     custom_data: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """Implementation logic for recording a thought."""
+    from ..server import get_logger
+    logger = get_logger("tools.thinking")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         if custom_data is None:
             custom_data = {}
@@ -144,6 +140,10 @@ async def _find_similar_thoughts_impl(
     include_branches: bool = True # Note: include_branches not currently used in filter
 ) -> Dict[str, Any]:
     """Implementation logic for finding similar thoughts."""
+    from ..server import get_logger
+    logger = get_logger("tools.thinking")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         client = get_chroma_client()
         collection = await client.get_collection(
@@ -198,6 +198,10 @@ async def _get_session_summary_impl(
     include_branches: bool = True # Note: include_branches not currently used
 ) -> Dict[str, Any]:
     """Implementation logic for getting session summary."""
+    from ..server import get_logger
+    logger = get_logger("tools.thinking")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         client = get_chroma_client()
         collection = await client.get_collection(
@@ -253,28 +257,60 @@ async def _find_similar_sessions_impl(
     threshold: float = DEFAULT_SIMILARITY_THRESHOLD
 ) -> Dict[str, Any]:
     """Implementation logic for finding similar sessions."""
+    from ..server import get_logger
+    logger = get_logger("tools.thinking")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         client = get_chroma_client()
-        collection = await client.get_collection(
-            name=THOUGHTS_COLLECTION, # Query the thoughts collection
+        sessions_collection = await client.get_or_create_collection(
+            name=SESSIONS_COLLECTION,
             embedding_function=get_embedding_function()
         )
         
-        # Query for thoughts similar to the query text
-        results = await collection.query(
-            query_texts=[query],
-            n_results=n_results * 10, # Fetch more results initially
-            include=["metadatas", "distances"]
+        thought_collection = await client.get_collection(
+            name=THOUGHTS_COLLECTION,
+            embedding_function=get_embedding_function()
         )
-        
+        all_thoughts = await thought_collection.get(include=["metadatas"])
+        all_session_ids = set(meta['session_id'] for meta in all_thoughts.get('metadatas', []) if meta and 'session_id' in meta)
+
+        summaries = []
+        session_ids_processed = []
+        for session_id in all_session_ids:
+            try:
+                summary_data = await _get_session_summary_impl(session_id)
+                summary_text = " ".join([t['content'] for t in summary_data.get('session_thoughts', [])])
+                if summary_text:
+                    summaries.append(summary_text)
+                    session_ids_processed.append(session_id)
+            except Exception as e:
+                logger.warning(f"Could not summarize session {session_id}: {e}")
+
+        if not summaries:
+            return {"similar_sessions": [], "total_found": 0}
+
+        await sessions_collection.upsert(
+            ids=session_ids_processed,
+            documents=summaries,
+            metadatas=[{"last_updated": int(time.time())} for _ in session_ids_processed]
+        )
+
+        query_results = await sessions_collection.query(
+            query_texts=[query],
+            n_results=n_results,
+            include=["documents", "metadatas", "distances"]
+        )
+
+        similar_sessions = []
         session_similarities = {}
-        if results and results.get("ids") and results["ids"][0]:
-            for i in range(len(results["ids"][0])):
-                distance = results["distances"][0][i]
+        if query_results and query_results.get("ids") and query_results["ids"][0]:
+            for i in range(len(query_results["ids"][0])):
+                distance = query_results["distances"][0][i]
                 similarity = 1 - distance
                 
                 if similarity >= threshold:
-                    metadata = results["metadatas"][0][i] or {}
+                    metadata = query_results["metadatas"][0][i] or {}
                     session_id = metadata.get("session_id")
                     if session_id:
                         if session_id not in session_similarities or similarity > session_similarities[session_id]["max_similarity"]:

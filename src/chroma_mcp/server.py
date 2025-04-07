@@ -10,14 +10,14 @@ import argparse
 import importlib.metadata
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
+import logging
+import logging.handlers # Add this for FileHandler
 
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.exceptions import McpError
 
 from .types import ChromaClientConfig, ThoughtMetadata
-from .utils.logger_setup import LoggerSetup
-from .utils.client import get_chroma_client, get_embedding_function
 from .utils.config import load_config
 from .tools.collection_tools import register_collection_tools
 from .tools.document_tools import register_document_tools
@@ -42,15 +42,49 @@ except ImportError:
 # Initialize logger - will be properly configured in config_server
 logger = None
 
+# Add a base logger name
+BASE_LOGGER_NAME = "chromamcp"
+
 # Remove handler initializations and related global variables
 # _collection_handler = None
 # _document_handler = None
 # _thinking_handler = None
 _mcp_instance = None
 
+# Add this near the top with other globals
+_global_client_config: Optional[ChromaClientConfig] = None
+
+# Add the get_logger function here
+_main_logger_instance = None # Initialize to None
+
+def get_logger(name: Optional[str] = None) -> logging.Logger:
+    """
+    Get a logger instance. If a name is provided, it gets a child logger
+    under the base 'chromamcp' logger. Otherwise, returns the main logger.
+    """
+    if _main_logger_instance is None:
+        # This case should ideally not happen in normal operation after config_server runs
+        # but provides a fallback if called too early.
+        print("Warning: Logger requested before main configuration.")
+        fallback_logger = logging.getLogger(f"{BASE_LOGGER_NAME}.unconfigured")
+        if not fallback_logger.hasHandlers():
+             fallback_logger.addHandler(logging.StreamHandler()) # Basic console output
+             fallback_logger.setLevel(logging.WARNING)
+        return fallback_logger
+
+    if name:
+        # Return a child logger (e.g., "chromamcp.utils.client")
+        return logging.getLogger(f"{BASE_LOGGER_NAME}.{name}")
+    else:
+        # Return the main application logger ("chromamcp")
+        return _main_logger_instance
+
 def _initialize_mcp_instance():
     """Helper to initialize MCP and register tools."""
     global _mcp_instance
+    # Get the configured logger instance
+    logger = get_logger()
+
     if _mcp_instance is not None:
         return _mcp_instance
         
@@ -184,23 +218,54 @@ def config_server(args: argparse.Namespace) -> None:
     Raises:
         McpError: If configuration fails
     """
-    global logger
-    
+    global _main_logger_instance, _global_client_config
+
+    logger = None # Initialize logger to None before try block
     try:
         # Load environment variables if dotenv file exists
         if args.dotenv_path and os.path.exists(args.dotenv_path):
             load_dotenv(dotenv_path=args.dotenv_path)
         
-        # Initialize logger with custom log directory if provided
+        # --- Start: Logger Configuration --- 
         log_dir = args.log_dir
-        
-        # Setup the logger
-        logger = LoggerSetup.create_logger(
-            "ChromaMCP",
-            log_file="chroma_mcp_server.log",
-            log_level=os.getenv("LOG_LEVEL", "INFO"),
-            log_dir=log_dir
-        )
+        log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
+        log_level = getattr(logging, log_level_str, logging.INFO)
+
+        # Get the root logger for our application
+        logger = logging.getLogger(BASE_LOGGER_NAME)
+        logger.setLevel(log_level)
+
+        # Prevent adding handlers multiple times if config_server is called again (e.g., in tests)
+        if not logger.hasHandlers():
+            # Create formatter
+            formatter = logging.Formatter(
+                f'%(asctime)s | %(name)-{len(BASE_LOGGER_NAME)+15}s | %(levelname)-8s | %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            
+            # Create console handler
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(formatter)
+            logger.addHandler(console_handler)
+            
+            # Create file handler if log_dir is specified
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
+                log_file = os.path.join(log_dir, "chroma_mcp_server.log")
+                file_handler = logging.handlers.RotatingFileHandler(
+                    log_file,
+                    maxBytes=10*1024*1024, # 10 MB
+                    backupCount=5
+                )
+                file_handler.setFormatter(formatter)
+                logger.addHandler(file_handler)
+
+        # Store the configured logger instance globally
+        _main_logger_instance = logger
+        # --- End: Logger Configuration ---
+
+        # Get the logger instance for use within *this* function scope
+        # logger = get_logger() # This is redundant now, logger is already assigned above
         
         # Handle CPU provider setting
         use_cpu_provider = None  # Auto-detect
@@ -220,6 +285,9 @@ def config_server(args: argparse.Namespace) -> None:
             use_cpu_provider=use_cpu_provider
         )
         
+        # Store the config globally
+        _global_client_config = client_config
+
         # This will initialize our configurations for later use
         provider_status = 'auto-detected' if use_cpu_provider is None else ('enabled' if use_cpu_provider else 'disabled')
         logger.info(f"Server configured (CPU provider: {provider_status})")
@@ -255,8 +323,15 @@ def config_server(args: argparse.Namespace) -> None:
             message=error_msg
         ))
 
+def get_server_config() -> ChromaClientConfig:
+    """Return the globally stored server configuration."""
+    if _global_client_config is None:
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message="Server configuration not initialized"))
+    return _global_client_config
+
 def main() -> None:
     """Entry point for the Chroma MCP server."""
+    logger = None # Initialize logger variable for this scope
     try:
         # Parse arguments
         parser = create_parser()
@@ -264,6 +339,9 @@ def main() -> None:
         
         # Initialize server configuration (logging etc.)
         config_server(args)
+        
+        # Get the configured logger *after* config_server runs
+        logger = get_logger()
         
         # Initialize MCP instance and register ALL tools *before* running
         mcp_instance = _initialize_mcp_instance()

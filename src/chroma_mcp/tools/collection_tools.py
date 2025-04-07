@@ -9,16 +9,8 @@ from mcp.server.fastmcp import FastMCP
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INVALID_PARAMS
 
-from ..utils.logger_setup import LoggerSetup
-from ..utils.client import get_chroma_client, get_embedding_function
+from ..utils.errors import ValidationError, CollectionNotFoundError, raise_validation_error, handle_chroma_error
 from ..utils.config import get_collection_settings, validate_collection_name
-from ..utils.errors import handle_chroma_error, validate_input, raise_validation_error, ValidationError
-
-# Initialize logger
-logger = LoggerSetup.create_logger(
-    "ChromaCollections",
-    log_file="chroma_collections.log"
-)
 
 def _reconstruct_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Helper to reconstruct nested settings dict from flattened metadata."""
@@ -52,22 +44,29 @@ def _reconstruct_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 async def _create_collection_impl(collection_name: str) -> Dict[str, Any]:
     """Implementation logic for creating a collection."""
+    from ..server import get_logger
+    logger = get_logger("tools.collection")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         validate_collection_name(collection_name)
         client = get_chroma_client()
-        settings = get_collection_settings(collection_name)
-        initial_metadata = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in settings.items()}
-        # Await client call
-        collection = await client.create_collection(
-            name=collection_name,
-            metadata=initial_metadata,
-            embedding_function=get_embedding_function()
+        settings = get_collection_settings()
+        collection = client.create_collection(
+            name=collection_name, 
+            metadata=settings,
+            embedding_function=get_embedding_function(),
+            get_or_create=False
         )
-        logger.info(f"Created collection: {collection_name}")
+        logger.info(f"Created collection: {collection_name} with settings: {settings}")
+        count = collection.count()
+        peek = collection.peek()
         return {
             "name": collection.name,
             "id": collection.id,
-            "metadata": _reconstruct_metadata(collection.metadata)
+            "metadata": _reconstruct_metadata(collection.metadata),
+            "count": count,
+            "sample_entries": peek
         }
     except McpError:
         raise
@@ -76,25 +75,32 @@ async def _create_collection_impl(collection_name: str) -> Dict[str, Any]:
 
 async def _list_collections_impl(limit: int = 0, offset: int = 0, name_contains: str = "") -> Dict[str, Any]:
     """Implementation logic for listing collections."""
+    from ..server import get_logger
+    logger = get_logger("tools.collection")
+    from ..utils.client import get_chroma_client
+
     try:
         if limit < 0:
             raise_validation_error("limit cannot be negative")
         if offset < 0:
             raise_validation_error("offset cannot be negative")
         client = get_chroma_client()
-        # Await client call
-        collection_names = await client.list_collections()
+        collection_names = client.list_collections()
+        
         if not isinstance(collection_names, list):
             logger.warning(f"client.list_collections() returned unexpected type: {type(collection_names)}")
             collection_names = []
+            
         if name_contains:
             filtered_names = [name for name in collection_names if name_contains.lower() in name.lower()]
         else:
             filtered_names = collection_names
+            
         total_count = len(filtered_names)
         start_index = offset
         end_index = (start_index + limit) if limit > 0 else None
         paginated_names = filtered_names[start_index:end_index]
+        
         return {
             "collection_names": paginated_names,
             "total_count": total_count,
@@ -106,16 +112,18 @@ async def _list_collections_impl(limit: int = 0, offset: int = 0, name_contains:
 
 async def _get_collection_impl(collection_name: str) -> Dict[str, Any]:
     """Implementation logic for getting collection info."""
+    from ..server import get_logger
+    logger = get_logger("tools.collection")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         client = get_chroma_client()
-        # Await client call
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
-        # Await collection calls
-        count = await collection.count()
-        peek = await collection.peek()
+        count = collection.count()
+        peek = collection.peek()
         return {
             "name": collection.name,
             "id": collection.id,
@@ -128,42 +136,43 @@ async def _get_collection_impl(collection_name: str) -> Dict[str, Any]:
 
 async def _set_collection_description_impl(collection_name: str, description: str) -> Dict[str, Any]:
     """Implementation logic for setting collection description."""
+    from ..server import get_logger
+    logger = get_logger("tools.collection")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         client = get_chroma_client()
-        # Await client call
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
         current_metadata = collection.metadata or {}
         updated_metadata = {**current_metadata, "description": description}
-        # Await collection call
-        await collection.modify(metadata=updated_metadata)
+        collection.modify(metadata=updated_metadata)
         logger.info(f"Set description for collection: {collection_name}")
-        # Await the call to the implementation function
         return await _get_collection_impl(collection_name)
     except Exception as e:
         raise handle_chroma_error(e, f"set_collection_description({collection_name})")
 
 async def _set_collection_settings_impl(collection_name: str, settings: Dict[str, Any]) -> Dict[str, Any]:
     """Implementation logic for setting collection settings."""
+    from ..server import get_logger
+    logger = get_logger("tools.collection")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         client = get_chroma_client()
-        # Await client call
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
         current_metadata = collection.metadata or {}
         if not isinstance(settings, dict):
             raise_validation_error("settings parameter must be a dictionary")
-        # Remove existing settings keys
         metadata_without_settings = {k: v for k, v in current_metadata.items() if not k.startswith("chroma:setting:")}
-        # Add new flattened settings
         flattened_settings = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in settings.items()}
         updated_metadata = {**metadata_without_settings, **flattened_settings}
-        # Await collection call
-        await collection.modify(metadata=updated_metadata)
+        collection.modify(metadata=updated_metadata)
         logger.info(f"Set settings for collection: {collection_name}")
         return await _get_collection_impl(collection_name)
     except Exception as e:
@@ -171,22 +180,23 @@ async def _set_collection_settings_impl(collection_name: str, settings: Dict[str
 
 async def _update_collection_metadata_impl(collection_name: str, metadata_update: Dict[str, Any]) -> Dict[str, Any]:
     """Implementation logic for updating collection metadata."""
+    from ..server import get_logger
+    logger = get_logger("tools.collection")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         client = get_chroma_client()
-        # Await client call
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
         if not isinstance(metadata_update, dict):
             raise_validation_error("metadata_update parameter must be a dictionary")
-        # Prevent modification of reserved keys
         if any(key in ["description", "settings"] or key.startswith("chroma:setting:") for key in metadata_update):
             raise_validation_error("Cannot update reserved keys ('description', 'settings', 'chroma:setting:...') via this tool.")
         current_metadata = collection.metadata or {}
         updated_metadata = {**current_metadata, **metadata_update}
-        # Await collection call
-        await collection.modify(metadata=updated_metadata)
+        collection.modify(metadata=updated_metadata)
         logger.info(f"Updated custom metadata for collection: {collection_name}")
         return await _get_collection_impl(collection_name)
     except Exception as e:
@@ -194,18 +204,19 @@ async def _update_collection_metadata_impl(collection_name: str, metadata_update
 
 async def _rename_collection_impl(collection_name: str, new_name: str) -> Dict[str, Any]:
     """Implementation logic for renaming a collection."""
+    from ..server import get_logger
+    logger = get_logger("tools.collection")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
-        validate_collection_name(new_name) # Validate the new name
+        validate_collection_name(new_name)
         client = get_chroma_client()
-        # Await client call
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
-        # Await collection call
-        await collection.modify(name=new_name)
+        collection.modify(name=new_name)
         logger.info(f"Renamed collection '{collection_name}' to '{new_name}'")
-        # Get the collection info under the new name
         return await _get_collection_impl(new_name)
     except McpError:
         raise
@@ -214,10 +225,13 @@ async def _rename_collection_impl(collection_name: str, new_name: str) -> Dict[s
 
 async def _delete_collection_impl(collection_name: str) -> Dict[str, Any]:
     """Implementation logic for deleting a collection."""
+    from ..server import get_logger
+    logger = get_logger("tools.collection")
+    from ..utils.client import get_chroma_client
+
     try:
         client = get_chroma_client()
-        # Await client call
-        await client.delete_collection(name=collection_name)
+        client.delete_collection(name=collection_name)
         logger.info(f"Deleted collection: {collection_name}")
         return {"success": True, "deleted_collection": collection_name}
     except Exception as e:
@@ -225,21 +239,23 @@ async def _delete_collection_impl(collection_name: str) -> Dict[str, Any]:
 
 async def _peek_collection_impl(collection_name: str, limit: int = 10) -> Dict[str, Any]:
     """Implementation logic for peeking into a collection."""
+    from ..server import get_logger
+    logger = get_logger("tools.collection")
+    from ..utils.client import get_chroma_client, get_embedding_function
+
     try:
         if limit <= 0:
             raise_validation_error("limit must be a positive integer")
         client = get_chroma_client()
-        # Await client call
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
-        # Await collection call
-        peek_result = await collection.peek(limit=limit)
+        peek_result = collection.peek(limit=limit)
         return {
             "collection_name": collection_name,
             "limit": limit,
-            "peek_result": peek_result # Return raw peek result
+            "peek_result": peek_result
         }
     except Exception as e:
         raise handle_chroma_error(e, f"peek_collection({collection_name})")
