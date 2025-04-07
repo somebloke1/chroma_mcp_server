@@ -4,7 +4,7 @@ import pytest
 import uuid
 import re # Import re for validation
 from typing import Dict, Any, List, Optional
-from unittest.mock import patch, AsyncMock, MagicMock, ANY
+from unittest.mock import patch, MagicMock, ANY
 
 from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, ErrorData
@@ -230,34 +230,33 @@ def mcp():
 
 @pytest.fixture
 def mock_chroma_client_collections():
-    """Fixture to mock the Chroma client and its methods for collection tests."""
+    """Fixture to mock the Chroma client and its methods for collection tests (Synchronous)."""
     with patch("src.chroma_mcp.utils.client.get_chroma_client") as mock_get_client, \
          patch("src.chroma_mcp.utils.client.get_embedding_function") as mock_get_embedding_function, \
          patch("src.chroma_mcp.tools.collection_tools.get_collection_settings") as mock_get_settings, \
          patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name:
 
         # Use MagicMock for synchronous behavior
-        mock_client_instance = MagicMock() 
+        mock_client_instance = MagicMock()
         mock_collection_instance = MagicMock()
-        
-        # --- Configure mock methods for collection (now synchronous) --- 
+
+        # Configure mock methods for collection (synchronous)
         mock_collection_instance.name = "mock_collection"
         mock_collection_instance.id = "mock_id_123"
-        mock_collection_instance.metadata = {"hnsw:space": "cosine"} # Example metadata
-        mock_collection_instance.count.return_value = 0 # Sync return
-        mock_collection_instance.peek.return_value = {"ids": [], "documents": []} # Sync return
-        # modify is just tracked, no specific return needed unless tested
-        
-        # --- Configure mock methods for client (now synchronous) --- 
-        mock_client_instance.create_collection.return_value = mock_collection_instance # Sync return
-        mock_client_instance.get_collection.return_value = mock_collection_instance # Sync return
-        mock_client_instance.list_collections.return_value = ["existing_coll1", "existing_coll2"] # Sync return
-        # delete_collection is just tracked
+        # Set more realistic initial metadata
+        mock_collection_instance.metadata = {"description": "Fixture Desc"} 
+        mock_collection_instance.count.return_value = 0
+        mock_collection_instance.peek.return_value = {"ids": [], "documents": []}
+
+        # Configure mock methods for client (synchronous)
+        mock_client_instance.create_collection.return_value = mock_collection_instance
+        mock_client_instance.get_collection.return_value = mock_collection_instance
+        mock_client_instance.list_collections.return_value = ["existing_coll1", "existing_coll2"]
 
         mock_get_client.return_value = mock_client_instance
-        mock_get_embedding_function.return_value = None # Or a mock embedding function if needed
-        mock_get_settings.return_value = {"hnsw:space": "cosine"} # Mock default settings
-        mock_validate_name.return_value = None # Assume validation passes
+        mock_get_embedding_function.return_value = None
+        mock_get_settings.return_value = {"hnsw:space": "cosine"} # Default settings if needed
+        mock_validate_name.return_value = None
 
         yield mock_client_instance, mock_collection_instance, mock_validate_name
 
@@ -434,20 +433,32 @@ class TestCollectionTools:
         collection_name = "settings_coll"
         new_settings = {"hnsw:space": "ip", "hnsw:construction_ef": 200}
         
+        # Set the initial metadata for this test instance (matching fixture)
+        initial_metadata = {"description": "Fixture Desc"}
+        mock_collection.metadata = initial_metadata
         mock_client.get_collection.return_value = mock_collection
         mock_collection.modify.reset_mock()
         
         # Assume _get_collection_impl works
         with patch("src.chroma_mcp.tools.collection_tools._get_collection_impl") as mock_get_impl:
-             mock_get_impl.return_value = {"name": collection_name, "metadata": {"settings": new_settings}}
+             # Mock getter to return the final expected state after settings update
+             mock_get_impl.return_value = {"name": collection_name, "metadata": {"description": "Fixture Desc", "settings": new_settings}}
              
              result = await _set_collection_settings_impl(collection_name, new_settings)
              
         mock_collection.modify.assert_called_once()
         call_args = mock_collection.modify.call_args
-        expected_metadata = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in new_settings.items()}
-        assert call_args.kwargs["metadata"] == expected_metadata # Modify expects flattened
-        assert result["metadata"]["settings"] == new_settings # Return value has reconstructed
+        
+        # Calculate the expected merged metadata that should be passed to modify()
+        initial_non_setting_metadata = {k: v for k, v in initial_metadata.items() if not k.startswith("chroma:setting:")}
+        new_flattened_settings = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in new_settings.items()}
+        expected_metadata_arg = {**initial_non_setting_metadata, **new_flattened_settings}
+
+        # Assert the argument passed to modify is correct
+        assert call_args.kwargs["metadata"] == expected_metadata_arg 
+        # Assert the final result (from mocked _get_collection_impl) is correct
+        assert result["metadata"]["settings"] == new_settings 
+        assert result["metadata"]["description"] == "Fixture Desc"
 
     @pytest.mark.asyncio
     async def test_set_collection_settings_invalid_type(self, mock_chroma_client_collections):

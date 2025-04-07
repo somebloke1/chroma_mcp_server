@@ -133,6 +133,8 @@ Tests are located in the `tests/` directory and use `pytest`. Run tests using th
 
 Note that coverage reports (`terminal`, `XML`, `HTML`) are generated *after* all tests across all configured Python versions have completed.
 
+**Implementation Note:** While the MCP tools exposed via `@mcp.tool()` are asynchronous (handled by the MCP server framework), the underlying implementation functions (e.g., `_add_documents_impl`) that perform the core logic and interact with ChromaDB are synchronous. This design choice simplifies the core logic and ensures compatibility with different execution environments like stdio. The tests (`tests/`) reflect this by calling these synchronous `_impl` functions directly.
+
 ```bash
 # Run specific tests within the Hatch environment
 hatch run test:run tests/tools/test_collection_tools.py::TestCollectionTools::test_create_collection_success

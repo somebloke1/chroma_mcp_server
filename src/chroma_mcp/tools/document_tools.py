@@ -43,7 +43,7 @@ async def _add_documents_impl(
         
         # Get or create collection
         client = get_chroma_client()
-        collection = await client.get_or_create_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
@@ -53,7 +53,7 @@ async def _add_documents_impl(
         final_ids = effective_ids
         if not final_ids:
             generated_ids = True
-            current_count = await collection.count() if increment_index else 0
+            current_count = collection.count() if increment_index else 0
             timestamp = int(time.time())
             final_ids = [f"doc_{timestamp}_{current_count + i}" for i in range(len(documents))]
         
@@ -61,7 +61,7 @@ async def _add_documents_impl(
         final_metadatas = effective_metadatas if effective_metadatas else None
         
         # Add documents
-        await collection.add(
+        collection.add(
             documents=documents,
             metadatas=final_metadatas,
             ids=final_ids
@@ -77,7 +77,7 @@ async def _add_documents_impl(
         }
         
     except Exception as e:
-        raise handle_chroma_error(e, "add_documents")
+        raise handle_chroma_error(e, f"add_documents({collection_name})")
 
 async def _query_documents_impl(
     collection_name: str,
@@ -111,7 +111,7 @@ async def _query_documents_impl(
         
         # Get collection
         client = get_chroma_client()
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
@@ -120,7 +120,7 @@ async def _query_documents_impl(
         final_include = effective_include if effective_include else ["documents", "metadatas", "distances"]
         
         # Query documents
-        results = await collection.query(
+        results = collection.query(
             query_texts=query_texts,
             n_results=n_results,
             where=effective_where if effective_where else None,
@@ -172,7 +172,7 @@ async def _query_documents_impl(
         }
         
     except Exception as e:
-        raise handle_chroma_error(e, "query_documents")
+        raise handle_chroma_error(e, f"query_documents({collection_name})")
 
 async def _get_documents_impl(
     collection_name: str,
@@ -211,7 +211,7 @@ async def _get_documents_impl(
         
         # Get collection
         client = get_chroma_client()
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
@@ -224,7 +224,7 @@ async def _get_documents_impl(
         final_offset = offset if offset > 0 else None
         
         # Get documents
-        results = await collection.get(
+        results = collection.get(
             ids=effective_ids if effective_ids else None,
             where=effective_where if effective_where else None,
             where_document=effective_where_document if effective_where_document else None,
@@ -259,7 +259,7 @@ async def _get_documents_impl(
         }
         
     except Exception as e:
-        raise handle_chroma_error(e, "get_documents")
+        raise handle_chroma_error(e, f"get_documents({collection_name})")
 
 async def _update_documents_impl(
     collection_name: str,
@@ -289,13 +289,13 @@ async def _update_documents_impl(
         
         # Get collection
         client = get_chroma_client()
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
         
         # Update documents
-        await collection.update(
+        collection.update(
             ids=ids,
             documents=effective_documents if effective_documents else None,
             metadatas=effective_metadatas if effective_metadatas else None
@@ -310,7 +310,7 @@ async def _update_documents_impl(
         }
         
     except Exception as e:
-        raise handle_chroma_error(e, "update_documents")
+        raise handle_chroma_error(e, f"update_documents({collection_name})")
 
 async def _delete_documents_impl(
     collection_name: str,
@@ -335,7 +335,7 @@ async def _delete_documents_impl(
             
         # Get collection
         client = get_chroma_client()
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=collection_name,
             embedding_function=get_embedding_function()
         )
@@ -344,7 +344,7 @@ async def _delete_documents_impl(
         delete_by_ids = bool(effective_ids)
         
         # Delete documents
-        deleted_ids = await collection.delete(
+        deleted_ids = collection.delete(
             ids=effective_ids if effective_ids else None,
             where=effective_where if effective_where else None,
             where_document=effective_where_document if effective_where_document else None
@@ -368,7 +368,7 @@ async def _delete_documents_impl(
         }
         
     except Exception as e:
-        raise handle_chroma_error(e, "delete_documents")
+        raise handle_chroma_error(e, f"delete_documents({collection_name})")
 
 # --- Tool Registration ---
 

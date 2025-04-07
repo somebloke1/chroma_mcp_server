@@ -146,8 +146,28 @@ async def _set_collection_description_impl(collection_name: str, description: st
             name=collection_name,
             embedding_function=get_embedding_function()
         )
+
+        # --- Start: Fail Fast Logic (copied from update_collection_metadata) ---
         current_metadata = collection.metadata or {}
-        updated_metadata = {**current_metadata, "description": description}
+        # Define known immutable patterns (adjust if Chroma adds more)
+        immutable_patterns = ["hnsw:"] 
+        has_immutable_settings = any(
+            key.startswith(pattern) 
+            for key in current_metadata 
+            for pattern in immutable_patterns
+        )
+        
+        if has_immutable_settings:
+            raise_validation_error(
+                "Cannot set description on collections with immutable settings (e.g., hnsw:*). "
+                "Collection settings must be finalized at creation."
+            )        
+        # --- End: Fail Fast Logic ---
+
+        # Only proceed if no immutable settings were detected
+        # current_metadata = collection.metadata or {} # Already fetched above
+        updated_metadata = current_metadata.copy()
+        updated_metadata["description"] = description
         collection.modify(metadata=updated_metadata)
         logger.info(f"Set description for collection: {collection_name}")
         return await _get_collection_impl(collection_name)
@@ -194,9 +214,34 @@ async def _update_collection_metadata_impl(collection_name: str, metadata_update
             raise_validation_error("metadata_update parameter must be a dictionary")
         if any(key in ["description", "settings"] or key.startswith("chroma:setting:") for key in metadata_update):
             raise_validation_error("Cannot update reserved keys ('description', 'settings', 'chroma:setting:...') via this tool.")
+        
+        # --- Start: Fail Fast Logic ---
         current_metadata = collection.metadata or {}
-        updated_metadata = {**current_metadata, **metadata_update}
-        collection.modify(metadata=updated_metadata)
+        # Define known immutable patterns (adjust if Chroma adds more)
+        immutable_patterns = ["hnsw:"] 
+        has_immutable_settings = any(
+            key.startswith(pattern) 
+            for key in current_metadata 
+            for pattern in immutable_patterns
+        )
+        
+        if has_immutable_settings:
+            raise_validation_error(
+                "Cannot update metadata on collections with immutable settings (e.g., hnsw:*). "
+                "Set all custom metadata during collection creation if needed."
+            )
+        # --- End: Fail Fast Logic ---
+        
+        # If we reach here, it means no immutable settings were detected.
+        # Proceed with replacing the metadata entirely with the update.
+        # collection.modify(metadata=metadata_update) # Incorrect: Replaces instead of merging
+
+        # Correct logic: Fetch current, merge update, then modify
+        current_metadata_safe = collection.metadata or {} # Fetch again just to be safe
+        merged_metadata = current_metadata_safe.copy()
+        merged_metadata.update(metadata_update)
+        collection.modify(metadata=merged_metadata)
+
         logger.info(f"Updated custom metadata for collection: {collection_name}")
         return await _get_collection_impl(collection_name)
     except Exception as e:
@@ -341,8 +386,11 @@ def register_collection_tools(mcp: FastMCP) -> None:
     async def chroma_update_collection_metadata(collection_name: str, metadata_update: Dict[str, Any]) -> Dict[str, Any]:
         """
         Updates or adds custom key-value pairs to a collection's metadata.
-        This performs a merge, preserving existing keys unless overwritten.
+        Warning: This REPLACES the entire existing custom metadata block with the provided `metadata_update`.
         It does NOT affect the reserved 'description' or 'settings' keys directly.
+        IMPORTANT: This tool will FAIL if the target collection currently has immutable settings 
+        (e.g., 'hnsw:space') defined in its metadata, as ChromaDB prevents modification in such cases.
+        Set all custom metadata during collection creation if immutable settings are used.
 
         Args:
             collection_name: Name of the collection to modify

@@ -4,7 +4,7 @@ import pytest
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import uuid
-from unittest.mock import patch, AsyncMock, ANY
+from unittest.mock import patch, MagicMock, ANY
 
 from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, ErrorData
@@ -29,37 +29,54 @@ def mock_chroma_client_thinking():
     """Fixture to mock Chroma client and collection for thinking tools."""
     with patch("src.chroma_mcp.utils.client.get_chroma_client") as mock_get_client, \
          patch("src.chroma_mcp.utils.client.get_embedding_function") as mock_get_embedding_function:
-        mock_client_instance = AsyncMock()
-        # mock_collection = AsyncMock()
-        # mock_client.get_collection.return_value = mock_collection
-        # mock_client.get_or_create_collection.return_value = mock_collection
+        mock_client_instance = MagicMock()
+        mock_thoughts_collection = MagicMock()
+        mock_sessions_collection = MagicMock() # Separate mock for sessions
+
+        # Configure client mocks to return the correct collection mock based on name
+        def get_collection_side_effect(name, **kwargs):
+            if name == THOUGHTS_COLLECTION:
+                return mock_thoughts_collection
+            elif name == SESSIONS_COLLECTION:
+                return mock_sessions_collection
+            raise CollectionNotFoundError(f"Mock collection not found for {name}")
+        
+        def get_or_create_collection_side_effect(name, **kwargs):
+             if name == THOUGHTS_COLLECTION:
+                return mock_thoughts_collection
+             elif name == SESSIONS_COLLECTION:
+                return mock_sessions_collection
+             raise CollectionNotFoundError(f"Mock collection not found for {name}")
+
+        mock_client_instance.get_collection.side_effect = get_collection_side_effect
+        mock_client_instance.get_or_create_collection.side_effect = get_or_create_collection_side_effect
+        
         mock_get_client.return_value = mock_client_instance
-        # FIX: Return only the client mock
-        yield mock_client_instance
+        mock_get_embedding_function.return_value = None # Assume default embedding function
+        
+        # Yield all mocks needed by the tests
+        yield mock_client_instance, mock_thoughts_collection, mock_sessions_collection
 
 class TestThinkingTools:
     """Test cases for thinking tools implementation functions."""
 
     # --- _sequential_thinking_impl Tests ---
-    @pytest.mark.asyncio
-    async def test_sequential_thinking_success_new_session(self, mock_chroma_client_thinking):
+    def test_sequential_thinking_success_new_session(self, mock_chroma_client_thinking):
         """Test recording the first thought in a new session."""
-        mock_client = mock_chroma_client_thinking
-        mock_collection = AsyncMock()
-        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_client, mock_collection, _ = mock_chroma_client_thinking # Unpack mocks
         
         thought = "Initial idea"
         thought_num = 1
         total_thoughts = 5
         
-        result = await _sequential_thinking_impl(
+        result = _sequential_thinking_impl(
             thought=thought,
             thought_number=thought_num,
             total_thoughts=total_thoughts
         )
         
-        mock_client.get_or_create_collection.assert_awaited_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
-        mock_collection.add.assert_awaited_once()
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+        mock_collection.add.assert_called_once()
         call_args = mock_collection.add.call_args
         assert call_args.kwargs["documents"] == [thought]
         assert len(call_args.kwargs["ids"]) == 1
@@ -78,12 +95,9 @@ class TestThinkingTools:
         assert result["previous_thoughts"] == []
         assert result["next_thought_needed"] is False
 
-    @pytest.mark.asyncio
-    async def test_sequential_thinking_existing_session_with_prev(self, mock_chroma_client_thinking):
+    def test_sequential_thinking_existing_session_with_prev(self, mock_chroma_client_thinking):
         """Test recording a subsequent thought, fetching previous."""
-        mock_client = mock_chroma_client_thinking
-        mock_collection = AsyncMock()
-        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_client, mock_collection, _ = mock_chroma_client_thinking # Unpack mocks
         
         session_id = "existing_session_123"
         thought = "Second idea"
@@ -97,7 +111,7 @@ class TestThinkingTools:
             "metadatas": [{"session_id": session_id, "thought_number": 1, "total_thoughts": 3, "timestamp": 12345}]
         }
         
-        result = await _sequential_thinking_impl(
+        result = _sequential_thinking_impl(
             thought=thought,
             thought_number=thought_num,
             total_thoughts=total_thoughts,
@@ -105,11 +119,11 @@ class TestThinkingTools:
             next_thought_needed=True
         )
         
-        mock_collection.get.assert_awaited_once()
+        mock_collection.get.assert_called_once()
         get_call_args = mock_collection.get.call_args
         assert get_call_args.kwargs["where"] == {"session_id": session_id, "thought_number": {"$lt": 2}}
         
-        mock_collection.add.assert_awaited_once()
+        mock_collection.add.assert_called_once()
         add_call_args = mock_collection.add.call_args
         assert add_call_args.kwargs["metadatas"][0]["session_id"] == session_id
         
@@ -121,19 +135,16 @@ class TestThinkingTools:
         assert result["previous_thoughts"][0]["metadata"]["thought_number"] == 1
         assert result["next_thought_needed"] is True
 
-    @pytest.mark.asyncio
-    async def test_sequential_thinking_with_branch_and_custom(self, mock_chroma_client_thinking):
+    def test_sequential_thinking_with_branch_and_custom(self, mock_chroma_client_thinking):
         """Test recording a branched thought with custom data."""
-        mock_client = mock_chroma_client_thinking
-        mock_collection = AsyncMock()
-        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_client, mock_collection, _ = mock_chroma_client_thinking
         mock_collection.get.return_value = {"ids": [], "documents": [], "metadatas": []}
 
         session_id = "branch_session"
         thought = "Alternative idea"
         custom_data = {"rating": 5, "approved": True}
         
-        result = await _sequential_thinking_impl(
+        result = _sequential_thinking_impl(
             thought=thought,
             thought_number=2,
             total_thoughts=4,
@@ -143,7 +154,7 @@ class TestThinkingTools:
             custom_data=custom_data
         )
         
-        mock_collection.add.assert_awaited_once()
+        mock_collection.add.assert_called_once()
         call_args = mock_collection.add.call_args
         thought_id = call_args.kwargs["ids"][0]
         metadata = call_args.kwargs["metadatas"][0]
@@ -162,28 +173,24 @@ class TestThinkingTools:
         # Mock get returns empty, so previous_thoughts is empty
         assert result["previous_thoughts"] == [] 
 
-    @pytest.mark.asyncio
-    async def test_sequential_thinking_validation_error(self, mock_chroma_client_thinking):
+    def test_sequential_thinking_validation_error(self, mock_chroma_client_thinking):
         """Test validation errors for sequential thinking."""
         with pytest.raises(McpError) as exc_info_no_thought:
-            await _sequential_thinking_impl(thought="", thought_number=1, total_thoughts=1)
+            _sequential_thinking_impl(thought="", thought_number=1, total_thoughts=1)
         assert "Thought content is required" in str(exc_info_no_thought.value)
         
         with pytest.raises(McpError) as exc_info_bad_num:
-            await _sequential_thinking_impl(thought="t", thought_number=0, total_thoughts=1)
+            _sequential_thinking_impl(thought="t", thought_number=0, total_thoughts=1)
         assert "Invalid thought number" in str(exc_info_bad_num.value)
         
         with pytest.raises(McpError) as exc_info_bad_num2:
-            await _sequential_thinking_impl(thought="t", thought_number=3, total_thoughts=2)
+            _sequential_thinking_impl(thought="t", thought_number=3, total_thoughts=2)
         assert "Invalid thought number" in str(exc_info_bad_num2.value)
 
     # --- _find_similar_thoughts_impl Tests ---
-    @pytest.mark.asyncio
-    async def test_find_similar_thoughts_success(self, mock_chroma_client_thinking):
+    def test_find_similar_thoughts_success(self, mock_chroma_client_thinking):
         """Test finding similar thoughts successfully."""
-        mock_client = mock_chroma_client_thinking
-        mock_collection = AsyncMock()
-        mock_client.get_collection.return_value = mock_collection
+        mock_client, mock_collection, _ = mock_chroma_client_thinking
         
         query = "find me similar ideas"
         threshold = 0.7
@@ -196,10 +203,10 @@ class TestThinkingTools:
             "distances": [[0.1, 0.25, 0.4]] # Similarities: 0.9, 0.75, 0.6
         }
         
-        result = await _find_similar_thoughts_impl(query=query, threshold=threshold, n_results=3)
+        result = _find_similar_thoughts_impl(query=query, threshold=threshold, n_results=3)
         
-        mock_client.get_collection.assert_awaited_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
-        mock_collection.query.assert_awaited_once_with(query_texts=[query], n_results=3, where=None, include=ANY)
+        mock_client.get_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+        mock_collection.query.assert_called_once_with(query_texts=[query], n_results=3, where=None, include=ANY)
         
         assert len(result["similar_thoughts"]) == 2 # t3 is below threshold
         assert result["total_found"] == 2
@@ -214,12 +221,9 @@ class TestThinkingTools:
         assert result["similar_thoughts"][1]["metadata"]["session_id"] == "s2"
         assert result["similar_thoughts"][1]["metadata"]["custom_data"] == {"tag": "X"}
 
-    @pytest.mark.asyncio
-    async def test_find_similar_thoughts_with_session_filter(self, mock_chroma_client_thinking):
+    def test_find_similar_thoughts_with_session_filter(self, mock_chroma_client_thinking):
         """Test finding similar thoughts filtered by session ID."""
-        mock_client = mock_chroma_client_thinking
-        mock_collection = AsyncMock()
-        mock_client.get_collection.return_value = mock_collection
+        mock_client, mock_collection, _ = mock_chroma_client_thinking
         
         session_id_to_find = "s1"
         
@@ -231,10 +235,10 @@ class TestThinkingTools:
             "distances": [[0.1, 0.25, 0.4]]
         }
         
-        result = await _find_similar_thoughts_impl(query="find s1", session_id=session_id_to_find, threshold=0.5)
+        result = _find_similar_thoughts_impl(query="find s1", session_id=session_id_to_find, threshold=0.5)
         
         # Check query was called with the where clause
-        mock_collection.query.assert_awaited_once_with(query_texts=[ANY], n_results=ANY, where={"session_id": session_id_to_find}, include=ANY)
+        mock_collection.query.assert_called_once_with(query_texts=[ANY], n_results=ANY, where={"session_id": session_id_to_find}, include=ANY)
         
         # All results are from s1 and above threshold 0.5, but mock query doesn't actually filter internally
         # The test relies on the where clause being passed correctly.
@@ -244,25 +248,21 @@ class TestThinkingTools:
         assert result["similar_thoughts"][0]["metadata"]["session_id"] == "s1"
         assert result["similar_thoughts"][2]["metadata"]["session_id"] == "s1"
 
-    @pytest.mark.asyncio
-    async def test_find_similar_thoughts_collection_not_found(self, mock_chroma_client_thinking):
+    def test_find_similar_thoughts_collection_not_found(self, mock_chroma_client_thinking):
         """Test handling when thoughts collection doesn't exist."""
-        mock_client = mock_chroma_client_thinking
-        mock_client.get_collection.side_effect = Exception("Collection 'thoughts' does not exist.")
+        mock_client, mock_collection, _ = mock_chroma_client_thinking
+        mock_client.get_collection.side_effect = CollectionNotFoundError(f"Collection '{THOUGHTS_COLLECTION}' does not exist.")
         
-        result = await _find_similar_thoughts_impl(query="test")
+        result = _find_similar_thoughts_impl(query="test")
         
         assert result["similar_thoughts"] == []
         assert result["total_found"] == 0
-        assert "Collection 'thoughts' not found" in result["message"]
+        assert f"Collection '{THOUGHTS_COLLECTION}' not found" in result["message"]
 
     # --- _get_session_summary_impl Tests ---
-    @pytest.mark.asyncio
-    async def test_get_session_summary_success(self, mock_chroma_client_thinking):
+    def test_get_session_summary_success(self, mock_chroma_client_thinking):
         """Test getting a session summary successfully."""
-        mock_client = mock_chroma_client_thinking
-        mock_collection = AsyncMock()
-        mock_client.get_collection.return_value = mock_collection
+        mock_client, mock_collection, _ = mock_chroma_client_thinking
         
         session_id = "summary_session"
         
@@ -276,10 +276,10 @@ class TestThinkingTools:
             ]
         }
         
-        result = await _get_session_summary_impl(session_id=session_id)
+        result = _get_session_summary_impl(session_id=session_id)
         
-        mock_client.get_collection.assert_awaited_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
-        mock_collection.get.assert_awaited_once_with(where={"session_id": session_id}, include=ANY)
+        mock_client.get_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+        mock_collection.get.assert_called_once_with(where={"session_id": session_id}, include=ANY)
         
         assert result["session_id"] == session_id
         assert result["total_thoughts_in_session"] == 2
@@ -291,39 +291,25 @@ class TestThinkingTools:
         assert result["session_thoughts"][1]["metadata"]["thought_number"] == 2
         assert result["session_thoughts"][1]["metadata"]["custom_data"] == {"mood": "happy"}
 
-    @pytest.mark.asyncio
-    async def test_get_session_summary_collection_not_found(self, mock_chroma_client_thinking):
+    def test_get_session_summary_collection_not_found(self, mock_chroma_client_thinking):
         """Test getting summary when collection doesn't exist."""
-        mock_client = mock_chroma_client_thinking
-        mock_client.get_collection.side_effect = Exception("Collection 'thoughts' does not exist.")
+        mock_client, mock_collection, _ = mock_chroma_client_thinking
+        mock_client.get_collection.side_effect = CollectionNotFoundError(f"Collection '{THOUGHTS_COLLECTION}' does not exist.")
         
-        result = await _get_session_summary_impl(session_id="any_session")
+        result = _get_session_summary_impl(session_id="any_session")
         
         assert result["session_thoughts"] == []
         assert result["total_thoughts_in_session"] == 0
-        assert "Collection 'thoughts' not found" in result["message"]
+        assert f"Collection '{THOUGHTS_COLLECTION}' not found" in result["message"]
 
     # --- _find_similar_sessions_impl Tests ---
-    @pytest.mark.asyncio
-    async def test_find_similar_sessions_success(self, mock_chroma_client_thinking):
+    def test_find_similar_sessions_success(self, mock_chroma_client_thinking):
         """Test finding similar sessions successfully."""
-        # FIX: Fixture now only returns the client mock
-        mock_client = mock_chroma_client_thinking
+        # Unpack all mocks from the fixture
+        mock_client, mock_thoughts_collection, mock_sessions_collection = mock_chroma_client_thinking
         query = "find related sessions"
         threshold = 0.8
         n_results = 2
-
-        # FIX: Create separate mocks for each collection
-        mock_sessions_collection = AsyncMock()
-        mock_thoughts_collection = AsyncMock()
-
-        # Configure client mocks to return the specific collection mocks
-        def get_collection_side_effect(name, **kwargs):
-            if name == THOUGHTS_COLLECTION:
-                return mock_thoughts_collection
-            return AsyncMock() # Default for other collections if any
-        mock_client.get_collection.side_effect = get_collection_side_effect
-        mock_client.get_or_create_collection.side_effect = lambda name, **kwargs: mock_sessions_collection if name == SESSIONS_COLLECTION else AsyncMock()
 
         # Mock results from thoughts collection get()
         mock_thoughts_collection.get.return_value = {
@@ -343,7 +329,7 @@ class TestThinkingTools:
             "documents": [["s1 summary", "s2 summary"]], # Needed for preview
             "distances": [[0.05, 0.15]] # Similarities: 0.95, 0.85
         }
-        mock_sessions_collection.upsert = AsyncMock() # Mock the upsert call
+        mock_sessions_collection.upsert = MagicMock() # Mock the upsert call
     
         # Mock the _get_session_summary_impl dependency
         with patch("src.chroma_mcp.tools.thinking_tools._get_session_summary_impl") as mock_get_summary:
@@ -360,15 +346,14 @@ class TestThinkingTools:
                     return {"session_id": session_id, "session_thoughts": [], "total_thoughts_in_session": 0}
             mock_get_summary.side_effect = summary_side_effect
     
-            result = await _find_similar_sessions_impl(query=query, threshold=threshold, n_results=n_results)
+            result = _find_similar_sessions_impl(query=query, threshold=threshold, n_results=n_results)
             
         # Assertions
-        mock_client.get_or_create_collection.assert_awaited_with(name=SESSIONS_COLLECTION, embedding_function=ANY)
-        mock_client.get_collection.assert_awaited_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
-        mock_thoughts_collection.get.assert_awaited_once_with(include=["metadatas"])
-        mock_sessions_collection.upsert.assert_awaited_once() # Check upsert was called
-        # FIX: Assert query was awaited on the correct mock collection
-        mock_sessions_collection.query.assert_awaited_once_with(
+        mock_client.get_or_create_collection.assert_called_with(name=SESSIONS_COLLECTION, embedding_function=ANY)
+        mock_client.get_collection.assert_called_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+        mock_thoughts_collection.get.assert_called_once_with(include=["metadatas"])
+        mock_sessions_collection.upsert.assert_called_once() # Check upsert was called
+        mock_sessions_collection.query.assert_called_once_with(
             query_texts=[query],
             n_results=n_results,
             include=["documents", "metadatas", "distances"]
@@ -376,11 +361,10 @@ class TestThinkingTools:
         # Check that _get_session_summary_impl was called correctly.
         # The code calls it first for all unique sessions found (s1, s2, s3) 
         # and then again for the top N results after querying (s1, s2).
-        # FIX: Expect 5 total calls (3 initial + 2 final)
-        assert mock_get_summary.await_count == 5 
-        mock_get_summary.assert_any_await("s1")
-        mock_get_summary.assert_any_await("s2")
-        mock_get_summary.assert_any_await("s3")
+        assert mock_get_summary.call_count == 5 
+        mock_get_summary.assert_any_call("s1")
+        mock_get_summary.assert_any_call("s2")
+        mock_get_summary.assert_any_call("s3")
         
         # It then processes results for s1, s2 based on query
         assert len(result["similar_sessions"]) == 2
@@ -391,14 +375,13 @@ class TestThinkingTools:
         assert result["similar_sessions"][1]["session_id"] == "s2"
         assert result["similar_sessions"][1]["similarity_score"] == 0.85
 
-    @pytest.mark.asyncio
-    async def test_find_similar_sessions_collection_not_found(self, mock_chroma_client_thinking):
+    def test_find_similar_sessions_collection_not_found(self, mock_chroma_client_thinking):
         """Test finding similar sessions when collection missing."""
-        mock_client = mock_chroma_client_thinking
-        mock_client.get_collection.side_effect = Exception("Collection 'thoughts' does not exist.")
+        mock_client, mock_thoughts_collection, mock_sessions_collection = mock_chroma_client_thinking
+        mock_client.get_collection.side_effect = CollectionNotFoundError(f"Collection '{THOUGHTS_COLLECTION}' does not exist.")
         
-        result = await _find_similar_sessions_impl(query="test")
+        result = _find_similar_sessions_impl(query="test")
         
         assert result["similar_sessions"] == []
         assert result["total_found"] == 0
-        assert "Collection 'thoughts' not found" in result["message"] 
+        assert f"Collection '{THOUGHTS_COLLECTION}' not found" in result["message"] 

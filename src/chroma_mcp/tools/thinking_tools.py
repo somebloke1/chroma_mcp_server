@@ -33,7 +33,7 @@ class ThoughtMetadata:
 
 # --- Implementation Functions ---
 
-async def _sequential_thinking_impl(
+def _sequential_thinking_impl(
     thought: str,
     thought_number: int,
     total_thoughts: int,
@@ -70,7 +70,7 @@ async def _sequential_thinking_impl(
         )
         
         client = get_chroma_client()
-        collection = await client.get_or_create_collection(
+        collection = client.get_or_create_collection(
             name=THOUGHTS_COLLECTION,
             embedding_function=get_embedding_function()
         )
@@ -86,7 +86,7 @@ async def _sequential_thinking_impl(
             for ck, cv in custom.items():
                 metadata_dict[f"custom:{ck}"] = cv 
         
-        await collection.add(
+        collection.add(
             documents=[thought],
             metadatas=[metadata_dict],
             ids=[thought_id]
@@ -101,7 +101,7 @@ async def _sequential_thinking_impl(
             if branch_id:
                 where_clause["branch_id"] = branch_id
             
-            results = await collection.get(
+            results = collection.get(
                 where=where_clause,
                 include=["documents", "metadatas"]
             )
@@ -132,7 +132,7 @@ async def _sequential_thinking_impl(
     except Exception as e:
         raise handle_chroma_error(e, "sequential_thinking")
 
-async def _find_similar_thoughts_impl(
+def _find_similar_thoughts_impl(
     query: str,
     n_results: int = 5,
     threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
@@ -146,7 +146,7 @@ async def _find_similar_thoughts_impl(
 
     try:
         client = get_chroma_client()
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=THOUGHTS_COLLECTION,
             embedding_function=get_embedding_function()
         )
@@ -156,7 +156,7 @@ async def _find_similar_thoughts_impl(
             where = {"session_id": session_id}
             # TODO: Add branch filtering logic if needed based on include_branches
         
-        results = await collection.query(
+        results = collection.query(
             query_texts=[query],
             n_results=n_results,
             where=where,
@@ -193,7 +193,7 @@ async def _find_similar_thoughts_impl(
              return {"similar_thoughts": [], "total_found": 0, "threshold": threshold, "message": f"Collection '{THOUGHTS_COLLECTION}' not found."}
         raise handle_chroma_error(e, "find_similar_thoughts")
 
-async def _get_session_summary_impl(
+def _get_session_summary_impl(
     session_id: str,
     include_branches: bool = True # Note: include_branches not currently used
 ) -> Dict[str, Any]:
@@ -204,7 +204,7 @@ async def _get_session_summary_impl(
 
     try:
         client = get_chroma_client()
-        collection = await client.get_collection(
+        collection = client.get_collection(
             name=THOUGHTS_COLLECTION,
             embedding_function=get_embedding_function()
         )
@@ -212,7 +212,7 @@ async def _get_session_summary_impl(
         where_clause = {"session_id": session_id}
         # TODO: Add branch filtering if needed
         
-        results = await collection.get(
+        results = collection.get(
             where=where_clause,
             include=["documents", "metadatas"]
         )
@@ -251,7 +251,7 @@ async def _get_session_summary_impl(
              return {"session_id": session_id, "session_thoughts": [], "total_thoughts_in_session": 0, "message": f"Collection '{THOUGHTS_COLLECTION}' not found or session '{session_id}' has no thoughts."}
         raise handle_chroma_error(e, f"get_session_summary({session_id})")
 
-async def _find_similar_sessions_impl(
+def _find_similar_sessions_impl(
     query: str,
     n_results: int = 3,
     threshold: float = DEFAULT_SIMILARITY_THRESHOLD
@@ -263,23 +263,23 @@ async def _find_similar_sessions_impl(
 
     try:
         client = get_chroma_client()
-        sessions_collection = await client.get_or_create_collection(
+        sessions_collection = client.get_or_create_collection(
             name=SESSIONS_COLLECTION,
             embedding_function=get_embedding_function()
         )
         
-        thought_collection = await client.get_collection(
+        thought_collection = client.get_collection(
             name=THOUGHTS_COLLECTION,
             embedding_function=get_embedding_function()
         )
-        all_thoughts = await thought_collection.get(include=["metadatas"])
+        all_thoughts = thought_collection.get(include=["metadatas"])
         all_session_ids = set(meta['session_id'] for meta in all_thoughts.get('metadatas', []) if meta and 'session_id' in meta)
 
         summaries = []
         session_ids_processed = []
         for session_id in all_session_ids:
             try:
-                summary_data = await _get_session_summary_impl(session_id)
+                summary_data = _get_session_summary_impl(session_id)
                 summary_text = " ".join([t['content'] for t in summary_data.get('session_thoughts', [])])
                 if summary_text:
                     summaries.append(summary_text)
@@ -290,13 +290,13 @@ async def _find_similar_sessions_impl(
         if not summaries:
             return {"similar_sessions": [], "total_found": 0}
 
-        await sessions_collection.upsert(
+        sessions_collection.upsert(
             ids=session_ids_processed,
             documents=summaries,
             metadatas=[{"last_updated": int(time.time())} for _ in session_ids_processed]
         )
 
-        query_results = await sessions_collection.query(
+        query_results = sessions_collection.query(
             query_texts=[query],
             n_results=n_results,
             include=["documents", "metadatas", "distances"]
@@ -320,11 +320,10 @@ async def _find_similar_sessions_impl(
         sorted_sessions = sorted(session_similarities.items(), key=lambda item: item[1]["max_similarity"], reverse=True)
         top_sessions = sorted_sessions[:n_results]
         
-        # Fetch summaries for top sessions (could be optimized)
+        # Fetch summaries for top sessions
         similar_session_summaries = []
         for session_id, data in top_sessions:
-            # Await the call to the implementation function
-            summary = await _get_session_summary_impl(session_id)
+            summary = _get_session_summary_impl(session_id)
             summary["similarity_score"] = data["max_similarity"] # Add score
             similar_session_summaries.append(summary)
             
@@ -416,6 +415,8 @@ async def record_thought(
 ) -> Dict[str, Any]:
     """Record a thought in a sequential thinking process."""
     try:
+        from ..utils.client import get_chroma_client
+
         # Generate session ID if not provided
         if not session_id:
             session_id = str(uuid.uuid4())
