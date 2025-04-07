@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.30"
+version = "0.1.31"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -160,7 +160,9 @@ dependencies = [
 run = "pytest {args:tests}"
 cov = [
   # FIX: Remove --cov-config, keep --cov-report=
-  "pytest --cov-report= --cov=src/chroma_mcp {args:tests}",
+  # "pytest --cov-report= --cov=src/chroma_mcp {args:tests}", # Original, generated no report
+  # Fix: Generate terminal report and XML report
+  "pytest --cov-report=term --cov-report=xml --cov=src/chroma_mcp {args:tests}",
 ]
 html = [
   # FIX: Remove --cov-config, keep --cov-report=

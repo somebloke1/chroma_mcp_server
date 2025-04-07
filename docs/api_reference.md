@@ -105,6 +105,8 @@ A JSON object containing collection details:
 
 Sets or updates the description of a collection. The description is stored within the collection's metadata under the `description` key.
 
+**Note:** This tool will fail if the collection has immutable settings (e.g., `hnsw:space`). Set the description during creation in such cases.
+
 #### Parameters for chroma_set_collection_description
 
 | Name | Type | Required | Description |
@@ -156,6 +158,10 @@ A JSON object containing the updated collection information (same as `chroma_get
 ### `chroma_update_collection_metadata`
 
 Updates or adds custom key-value pairs to a collection's metadata. This performs a merge, preserving existing keys unless overwritten. It does **not** affect the reserved `description` or `settings` keys directly; use the dedicated tools for those.
+
+**Warning:** This REPLACES the entire existing custom metadata block with the provided `metadata_update`.
+
+**Important:** This tool will FAIL if the target collection currently has immutable settings (e.g., `hnsw:space`) defined in its metadata, as ChromaDB prevents modification in such cases. Set all custom metadata during collection creation if immutable settings are used.
 
 #### Parameters for chroma_update_collection_metadata
 

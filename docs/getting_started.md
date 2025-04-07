@@ -125,14 +125,14 @@ After installing, restart the `chroma` server in Cursor.
 ### Development Prerequisites
 
 - Python 3.10+
-- Poetry
+- `hatch` (Install with `pip install hatch`)
 - `just` (optional, for `justfile`)
 - `curl`, `jq` (for `release.sh`)
 
 ### Setup
 
 ```bash
-poetry install --with dev
+hatch shell # Activate the Hatch environment (installs deps if needed)
 cp .cursor/mcp.example.json .cursor/mcp.json
 # Edit .cursor/mcp.json and/or .env as needed
 ```
