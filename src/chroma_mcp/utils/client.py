@@ -17,14 +17,18 @@ from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INTERNAL_ERROR
 
-from .logger_setup import LoggerSetup
+# Remove old logger setup
+# from .logger_setup import LoggerSetup
+# Replace with get_logger from server
+from ..server import get_logger
 from ..types import ChromaClientConfig
 
-# Initialize logger
-logger = LoggerSetup.create_logger(
-    "ChromaClient",
-    log_file="chroma_client.log"
-)
+# Initialize logger using the central function
+# logger = LoggerSetup.create_logger(
+#     "ChromaClient",
+#     log_file="chroma_client.log"
+# )
+logger = get_logger("utils.client")
 
 def should_use_cpu_provider() -> bool:
     """
@@ -108,8 +112,11 @@ def get_chroma_client(config: Optional[ChromaClientConfig] = None) -> Union[chro
     """Get a ChromaDB client based on configuration."""
     global _chroma_client
     
-    if not config:
-        config = ChromaClientConfig(client_type="ephemeral")
+    # FIX: Use global config if no specific config is passed
+    if config is None:
+        # FIX: Import getter locally within the function
+        from ..server import get_server_config
+        config = get_server_config() # Get the config set during server startup
 
     # Initialize embedding function if not already initialized
     if _embedding_function is None:
@@ -158,5 +165,9 @@ def reset_client() -> None:
         try:
             _chroma_client.reset()
         except Exception as e:
-            logger.error(f"Error resetting client: {e}")
+            # Catch the specific reset error or any other exception during reset
+            if "Resetting is not allowed" in str(e):
+                logger.warning(f"Client reset failed gracefully (allow_reset=False): {e}")
+            else:
+                logger.error(f"Error resetting client: {e}")
         _chroma_client = None

@@ -77,7 +77,7 @@ The server primarily uses environment variables for configuration. A `.env` file
 
 - `CHROMA_CLIENT_TYPE`: `persistent` or `ephemeral` (default)
 - `CHROMA_DATA_DIR`: Path for persistent storage (required if `persistent`)
-- `CHROMA_LOG_DIR`: Directory for logs.
+- `CHROMA_LOG_DIR`: Directory where the `chroma_mcp_server.log` file will be created. If not set, logs only go to the console.
 - `LOG_LEVEL`: Standard Python log level (e.g., `DEBUG`, `INFO`).
 
 Cursor uses `.cursor/mcp.json` to configure server launch commands:
@@ -125,14 +125,14 @@ After installing, restart the `chroma` server in Cursor.
 ### Development Prerequisites
 
 - Python 3.10+
-- Poetry
+- `hatch` (Install with `pip install hatch`)
 - `just` (optional, for `justfile`)
 - `curl`, `jq` (for `release.sh`)
 
 ### Setup
 
 ```bash
-poetry install --with dev
+hatch shell # Activate the Hatch environment (installs deps if needed)
 cp .cursor/mcp.example.json .cursor/mcp.json
 # Edit .cursor/mcp.json and/or .env as needed
 ```

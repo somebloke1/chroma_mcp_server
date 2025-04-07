@@ -13,10 +13,6 @@ from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
 from .errors import ValidationError, CollectionNotFoundError
-from .logger_setup import LoggerSetup
-
-# Initialize logger
-logger = LoggerSetup.create_logger("Config")
 
 @dataclass
 class ServerConfig:
@@ -39,6 +35,9 @@ def load_config(env_file: Optional[str] = None) -> ServerConfig:
     Raises:
         McpError: If configuration loading fails
     """
+    from ..server import get_logger
+    logger = get_logger("utils.config")
+
     try:
         # Load environment variables if env_file is provided
         if env_file:
@@ -86,6 +85,9 @@ def get_collection_settings(
     Returns:
         Dictionary of collection settings
     """
+    from ..server import get_logger
+    logger = get_logger("utils.config")
+
     # Default HNSW settings
     default_settings = {
         "hnsw:space": "cosine",
@@ -139,6 +141,9 @@ def validate_collection_name(name: str) -> None:
     Raises:
         McpError: If the collection name is invalid
     """
+    from ..server import get_logger
+    logger = get_logger("utils.config")
+
     if not name:
         logger.warning("Empty collection name provided")
         raise McpError(ErrorData(

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.15"
+version = "0.1.31"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -159,12 +159,14 @@ dependencies = [
 [tool.hatch.envs.test.scripts]
 run = "pytest {args:tests}"
 cov = [
-  "pytest --cov-report=term-missing --cov-report=xml --cov=src/chroma_mcp {args:tests}",
-  "coverage report",
+  # FIX: Remove --cov-config, keep --cov-report=
+  # "pytest --cov-report= --cov=src/chroma_mcp {args:tests}", # Original, generated no report
+  # Fix: Generate terminal report and XML report
+  "pytest --cov-report=term --cov-report=xml --cov=src/chroma_mcp {args:tests}",
 ]
 html = [
-  "pytest --cov-report=html --cov=src/chroma_mcp {args:tests}",
-  "coverage report",
+  # FIX: Remove --cov-config, keep --cov-report=
+  "pytest --cov-report= --cov=src/chroma_mcp {args:tests}", 
 ]
 
 [[tool.hatch.envs.test.matrix]]
@@ -175,7 +177,12 @@ branch = true
 parallel = true
 source = ["src/chroma_mcp"]
 relative_files = true
-dynamic_context = "test_function"
+# Add omit from .coveragerc
+omit = [
+    "*/tests/*",
+    "src/chroma_mcp/__init__.py", # Make path more specific
+    "setup.py", # Keep if relevant, otherwise remove
+]
 
 [tool.coverage.paths]
 source = [
@@ -184,6 +191,9 @@ source = [
 ]
 
 [tool.coverage.report]
+# Keep omit for main
+omit = ["src/chroma_mcp/__main__.py"]
+# Consolidate exclude_lines
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
@@ -191,8 +201,19 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
+    "pass", # from .coveragerc
+    "raise AssertionError", # from .coveragerc
+    "@abstractmethod", # from .coveragerc
 ]
 show_missing = true
+
+# Add html output settings from .coveragerc
+[tool.coverage.html]
+directory = "coverage_html"
+
+# Add xml output settings from .coveragerc (for Codecov)
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.pytest-asyncio]
 mode = "auto"

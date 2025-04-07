@@ -57,12 +57,29 @@ fi
 # Run tests based on options
 echo "Running tests with Hatch..."
 
+# Ensure coverage tool is available for combine step later
+# We might need this if combine is run directly in the script context
+# Consider adding coverage to global path or project dev dependencies
+# pip install coverage # Uncomment if needed, though hatch should manage envs
+
 if [ "$HTML" = true ]; then
+    echo "Running tests across matrix for HTML coverage..."
+    # Run tests, generate parallel data (no report flag needed in pytest call)
+    hatch run test:html # Alias 'html' in hatch config runs pytest
+    echo "Combining parallel coverage data..."
+    # Use hatch run to ensure coverage is available in the correct env
+    hatch run coverage combine
     echo "Generating HTML coverage report..."
-    hatch run test:html
+    hatch run coverage html # Use hatch run to ensure coverage is available
 elif [ "$COVERAGE" = true ]; then
-    echo "Running tests with coverage..."
-    hatch run test:cov
+    echo "Running tests across matrix for coverage..."
+    # Run tests, generate parallel data
+    hatch run test:cov # Alias 'cov' in hatch config runs pytest
+    echo "Combining parallel coverage data..."
+    hatch run coverage combine
+    echo "Generating XML and terminal coverage report..."
+    hatch run coverage xml # Generate XML for Codecov
+    hatch run coverage report -m # Show terminal report
 else
     if [ "$VERBOSE" = true ]; then
         echo "Running tests in verbose mode..."

@@ -150,6 +150,8 @@ print(default_api.mcp_chroma_test_chroma_update_collection_metadata(
 
 *Expected Outcome:* Updated collection info showing the new metadata keys.
 
+**Note:** This step will fail with a `ValidationError` if the collection was created with default immutable settings (e.g., `hnsw:` keys).
+
 ### 12. Set Collection Description
 
 Add a description to the collection.
@@ -162,6 +164,8 @@ print(default_api.mcp_chroma_test_chroma_set_collection_description(
 ```
 
 *Expected Outcome:* Updated collection info showing the description in the metadata.
+
+**Note:** This step will also fail with a `ValidationError` if the collection was created with default immutable settings.
 
 ### 13. Delete Documents by ID
 
