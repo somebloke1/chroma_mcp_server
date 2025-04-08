@@ -354,6 +354,26 @@ def register_thinking_tools(mcp: FastMCP) -> None:
         next_thought_needed: bool = False,
         custom_data: Dict[str, Any] = None
     ) -> Dict[str, Any]:
+        """Records a single thought as part of a sequential thinking process or workflow.
+        
+        Use this tool to log steps, observations, decisions, or intermediate results in a structured manner. 
+        Each thought is linked to a session (automatically created if none provided) and numbered sequentially. 
+        This allows reconstructing the flow of a process or retrieving context from specific points. 
+        Optional branching allows capturing alternative paths or explorations within a session.
+
+        Args:
+            thought: The content of the current thought, step, or observation.
+            thought_number: The sequence number of this thought within the session (1-based).
+            total_thoughts: The total expected number of thoughts in this main sequence.
+            session_id: Identifier for the thinking session. If empty, a new UUID is generated.
+            branch_from_thought: The thought_number this thought branches off from (0 if main sequence).
+            branch_id: A unique identifier for this specific branch path (e.g., 'alternative_approach').
+            next_thought_needed: Flag indicating if a subsequent thought is expected (default: False).
+            custom_data: Optional dictionary for arbitrary metadata related to this thought.
+
+        Returns:
+            Dictionary confirming the recording, including thought_id, session_id, and previous thoughts in the sequence.
+        """
         return await _sequential_thinking_impl(
             thought=thought,
             thought_number=thought_number,
@@ -373,6 +393,22 @@ def register_thinking_tools(mcp: FastMCP) -> None:
         session_id: str = "",
         include_branches: bool = True
     ) -> Dict[str, Any]:
+        """Finds thoughts across one or all sessions that are semantically similar to a given query.
+        
+        Useful for retrieving context from past thinking processes based on conceptual similarity. 
+        For example, finding previous attempts at solving a similar problem or recalling related observations.
+        The search can be restricted to a specific session_id.
+
+        Args:
+            query: The text query representing the concept or thought to search for.
+            n_results: Maximum number of similar thoughts to return.
+            threshold: Minimum similarity score (1 - distance) for a thought to be included.
+            session_id: If provided, restricts the search to only this session.
+            include_branches: Whether to include thoughts from branched paths in the search (currently not implemented in filter).
+
+        Returns:
+            Dictionary containing a list of similar thoughts, their metadata, and similarity scores.
+        """
         return await _find_similar_thoughts_impl(
             query=query,
             n_results=n_results,
@@ -386,6 +422,18 @@ def register_thinking_tools(mcp: FastMCP) -> None:
         session_id: str,
         include_branches: bool = True
     ) -> Dict[str, Any]:
+        """Retrieves all thoughts recorded within a specific thinking session, ordered sequentially.
+        
+        Allows reconstructing the entire flow of a particular thinking process or problem-solving attempt. 
+        Can optionally include thoughts from defined branches.
+
+        Args:
+            session_id: The unique identifier of the thinking session to retrieve.
+            include_branches: Whether to include thoughts from branched paths (currently not implemented in filter).
+
+        Returns:
+            Dictionary containing the session_id and a list of all thoughts belonging to that session.
+        """
         return await _get_session_summary_impl(
             session_id=session_id,
             include_branches=include_branches
@@ -397,6 +445,19 @@ def register_thinking_tools(mcp: FastMCP) -> None:
         n_results: int = 3,
         threshold: float = DEFAULT_SIMILARITY_THRESHOLD
     ) -> Dict[str, Any]:
+        """Finds thinking sessions whose overall content is semantically similar to a given query.
+        
+        This performs a search over *summaries* of entire sessions. Useful for finding past 
+        problem-solving sessions related to a general topic or goal, even if specific steps differ.
+
+        Args:
+            query: The text query representing the topic or goal to search for in past sessions.
+            n_results: Maximum number of similar sessions to return.
+            threshold: Minimum similarity score for a session summary to be included.
+
+        Returns:
+            Dictionary containing a list of similar sessions, each with its summary and similarity score.
+        """
         return await _find_similar_sessions_impl(
             query=query,
             n_results=n_results,

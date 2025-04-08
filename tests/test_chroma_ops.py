@@ -2,10 +2,11 @@
 
 import os
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 import platform
 import chromadb
 from chromadb.api.client import ClientAPI
+from chromadb.config import Settings
 
 # Import the module containing the function under test
 from src.chroma_mcp.utils import client as client_module 
@@ -56,16 +57,31 @@ class TestChromaClient:
 
     def test_get_ephemeral_client(self):
         """Test getting an ephemeral client."""
-        config = ChromaClientConfig(client_type="ephemeral")
-        client = get_chroma_client(config)
-        assert isinstance(client, ClientAPI)
+        with patch("chromadb.EphemeralClient") as mock_ephemeral_client:
+            mock_client = MagicMock(spec=ClientAPI)
+            mock_ephemeral_client.return_value = mock_client
+            
+            config = ChromaClientConfig(client_type="ephemeral")
+            client = get_chroma_client(config)
+            assert isinstance(client, ClientAPI)
+            mock_ephemeral_client.assert_called_once_with(
+                settings=ANY
+            )
 
     def test_get_persistent_client(self, tmp_path):
         """Test getting a persistent client."""
-        data_dir = str(tmp_path / "chroma_data")
-        config = ChromaClientConfig(client_type="persistent", data_dir=data_dir)
-        client = get_chroma_client(config)
-        assert isinstance(client, ClientAPI)
+        with patch("chromadb.PersistentClient") as mock_persistent_client:
+            mock_client = MagicMock(spec=ClientAPI)
+            mock_persistent_client.return_value = mock_client
+            
+            data_dir = str(tmp_path / "chroma_data")
+            config = ChromaClientConfig(client_type="persistent", data_dir=data_dir)
+            client = get_chroma_client(config)
+            assert isinstance(client, ClientAPI)
+            mock_persistent_client.assert_called_once_with(
+                path=data_dir,
+                settings=ANY
+            )
 
     def test_get_http_client(self):
         """Test getting an HTTP client."""
@@ -86,7 +102,8 @@ class TestChromaClient:
                 port="8000",
                 ssl=True,
                 tenant=None,
-                database=None
+                database=None,
+                settings=ANY
             )
 
     @patch('src.chroma_mcp.server.get_server_config')
