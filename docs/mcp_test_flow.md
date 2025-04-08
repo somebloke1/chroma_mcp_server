@@ -137,37 +137,7 @@ print(default_api.mcp_chroma_test_chroma_get_documents(
 
 *Expected Outcome:* Details for `doc2` showing the updated content and metadata.
 
-### 11. Modify Collection Metadata
-
-Add custom metadata to the collection itself.
-
-```tool_code
-print(default_api.mcp_chroma_test_chroma_update_collection_metadata(
-    collection_name="mcp_flow_test_coll",
-    metadata_update={"test_run": "flow_simulation", "status": "testing"}
-))
-```
-
-*Expected Outcome:* Updated collection info showing the new metadata keys.
-
-**Note:** This step will fail with a `ValidationError` if the collection was created with default immutable settings (e.g., `hnsw:` keys).
-
-### 12. Set Collection Description
-
-Add a description to the collection.
-
-```tool_code
-print(default_api.mcp_chroma_test_chroma_set_collection_description(
-    collection_name="mcp_flow_test_coll",
-    description="Collection used for the MCP test flow simulation."
-))
-```
-
-*Expected Outcome:* Updated collection info showing the description in the metadata.
-
-**Note:** This step will also fail with a `ValidationError` if the collection was created with default immutable settings.
-
-### 13. Delete Documents by ID
+### 11. Delete Documents by ID
 
 Remove specific documents.
 
@@ -180,7 +150,7 @@ print(default_api.mcp_chroma_test_chroma_delete_documents(
 
 *Expected Outcome:* Confirmation that 2 documents were deleted, along with their IDs.
 
-### 14. Verify Deletion with Get
+### 12. Verify Deletion with Get
 
 Attempt to retrieve deleted documents (should fail or return empty).
 
@@ -193,7 +163,7 @@ print(default_api.mcp_chroma_test_chroma_get_documents(
 
 *Expected Outcome:* An empty list of documents.
 
-### 15. Delete Collection
+### 13. Delete Collection
 
 Clean up by deleting the test collection.
 
@@ -203,7 +173,7 @@ print(default_api.mcp_chroma_test_chroma_delete_collection(collection_name="mcp_
 
 *Expected Outcome:* Confirmation that the collection was deleted.
 
-### 16. Verify Collection Deletion
+### 14. Verify Collection Deletion
 
 Attempt to list the collection (should not be found).
 

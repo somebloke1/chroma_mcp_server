@@ -122,6 +122,12 @@ def get_chroma_client(config: Optional[ChromaClientConfig] = None) -> Union[chro
     if _embedding_function is None:
         initialize_embedding_function(use_cpu_provider=config.use_cpu_provider)
 
+    # Create ChromaDB settings with telemetry disabled
+    chroma_settings = Settings(
+        anonymized_telemetry=False
+        # Potentially add other settings here if needed, e.g., from config
+    )
+
     # Validate configuration
     if config.client_type == "persistent" and not config.data_dir:
         raise ValueError("data_dir is required for persistent client")
@@ -130,17 +136,22 @@ def get_chroma_client(config: Optional[ChromaClientConfig] = None) -> Union[chro
 
     try:
         if config.client_type == "persistent":
-            _chroma_client = chromadb.PersistentClient(path=config.data_dir)
+            _chroma_client = chromadb.PersistentClient(
+                path=config.data_dir, 
+                settings=chroma_settings
+            )
         elif config.client_type == "http":
             _chroma_client = chromadb.HttpClient(
                 host=config.host,
                 port=config.port,
                 ssl=config.ssl,
                 tenant=config.tenant,
-                database=config.database
+                database=config.database,
+                settings=chroma_settings 
+                # Note: API key might be handled separately or via headers
             )
         else:  # ephemeral
-            _chroma_client = chromadb.EphemeralClient()
+            _chroma_client = chromadb.EphemeralClient(settings=chroma_settings)
 
         # Set the embedding function for the client
         _chroma_client._embedding_function = _embedding_function

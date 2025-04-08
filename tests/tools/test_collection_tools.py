@@ -319,6 +319,35 @@ class TestCollectionTools:
             await _create_collection_impl(collection_name="test_chroma_fail")
         assert "Chroma duplicate error" in str(exc_info.value)
 
+    @pytest.mark.asyncio
+    async def test_create_collection_with_custom_metadata(self, mock_chroma_client_collections):
+        """Test creating a collection with custom metadata provided."""
+        mock_client, _, mock_validate = mock_chroma_client_collections
+        collection_name = "custom_meta_coll"
+        custom_metadata = {"hnsw:space": "ip", "custom_field": "value1"}
+        
+        # Mock the collection returned by create_collection
+        created_collection_mock = MagicMock()
+        created_collection_mock.name = collection_name
+        created_collection_mock.id = str(uuid.uuid4())
+        # Metadata should match what was passed in
+        created_collection_mock.metadata = custom_metadata 
+        mock_client.create_collection.return_value = created_collection_mock
+
+        result = await _create_collection_impl(collection_name=collection_name, metadata=custom_metadata)
+
+        mock_validate.assert_called_once_with(collection_name)
+        mock_client.create_collection.assert_called_once()
+        call_args = mock_client.create_collection.call_args
+        assert call_args.kwargs["name"] == collection_name
+        # Verify the custom metadata was passed to create_collection
+        assert call_args.kwargs["metadata"] == custom_metadata
+        # Verify the result reflects the custom metadata (after reconstruction)
+        assert result["name"] == collection_name
+        assert result["metadata"] == _reconstruct_metadata(custom_metadata) # Check reconstructed
+        assert result["metadata"]["settings"]["hnsw:space"] == "ip"
+        assert result["metadata"]["custom_field"] == "value1"
+
     # --- _list_collections_impl Tests ---
     @pytest.mark.asyncio
     async def test_list_collections_success(self, mock_chroma_client_collections):
@@ -353,7 +382,7 @@ class TestCollectionTools:
     @pytest.mark.asyncio
     async def test_list_collections_validation_error(self, mock_chroma_client_collections):
         """Test validation errors for list parameters."""
-        # Expect McpError because handle_chroma_error wraps ValidationError
+        # These still raise McpError because the validation is outside the _impl
         with pytest.raises(McpError) as exc_info_limit:
             await _list_collections_impl(limit=-1)
         assert "limit cannot be negative" in str(exc_info_limit.value)
@@ -425,6 +454,33 @@ class TestCollectionTools:
         # Check the final returned result (comes from the mocked _get_collection_impl)
         assert result["metadata"]["description"] == new_description 
 
+    @pytest.mark.asyncio
+    async def test_set_collection_description_fail(self, mock_chroma_client_collections):
+        """Test failure when setting collection description."""
+        mock_client, mock_collection, _ = mock_chroma_client_collections
+        mock_client.get_collection.side_effect = CollectionNotFoundError("Collection 'nonexistent' not found")
+        
+        with pytest.raises(McpError) as exc_info:
+            await _set_collection_description_impl(collection_name="nonexistent", description="New Description")
+            
+        assert "Collection 'nonexistent' not found" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_set_collection_description_fail_immutable(self, mock_chroma_client_collections):
+        """Test failure when setting description on a collection with immutable HNSW settings."""
+        mock_client, mock_collection, _ = mock_chroma_client_collections
+        # Simulate collection having immutable HNSW settings
+        mock_collection.metadata = {"hnsw:space": "cosine", "custom": "data"}
+        # Expect error dict return
+        result = await _set_collection_description_impl("test_immutable_description", "New Description")
+        
+        assert result == {
+            "success": False, 
+            "error_code": INVALID_PARAMS, 
+            "message": "Cannot set description on collections with existing immutable settings (e.g., hnsw:*)."
+        }
+        mock_collection.modify.assert_not_called()
+
     # --- _set_collection_settings_impl Tests ---
     @pytest.mark.asyncio
     async def test_set_collection_settings_success(self, mock_chroma_client_collections):
@@ -463,9 +519,46 @@ class TestCollectionTools:
     @pytest.mark.asyncio
     async def test_set_collection_settings_invalid_type(self, mock_chroma_client_collections):
         """Test error when settings are not a dict."""
-        with pytest.raises(McpError) as exc_info:
-            await _set_collection_settings_impl("any_coll", ["not", "a"]) # Pass list
-        assert "settings parameter must be a dictionary" in str(exc_info.value)
+        # This validation happens inside _impl, so expect dict return
+        result = await _set_collection_settings_impl("any_coll", ["not", "a"]) # Pass list
+        assert result == {
+            "success": False, 
+            "error_code": INVALID_PARAMS, 
+            "message": "settings parameter must be a dictionary"
+        }
+
+    @pytest.mark.asyncio
+    async def test_set_collection_settings_fail_immutable(self, mock_chroma_client_collections):
+        """Test failure when setting settings on a collection with immutable HNSW settings."""
+        mock_client, mock_collection, _ = mock_chroma_client_collections
+        # Simulate collection having immutable HNSW settings
+        mock_collection.metadata = {"hnsw:space": "cosine", "custom": "data"}
+        mock_client.get_collection.return_value = mock_collection # Ensure get_collection returns the mocked one
+        # Expect error dict return
+        result = await _set_collection_settings_impl("test_immutable_settings", {"new_setting": True})
+        
+        assert result == {
+            "success": False, 
+            "error_code": INVALID_PARAMS, 
+            "message": "Cannot set settings on collections with existing immutable settings (e.g., hnsw:*)."
+        }
+        mock_collection.modify.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_set_collection_settings_invalid_input(self, mock_chroma_client_collections):
+        """Test validation error when settings are not a dictionary."""
+        mock_client, mock_collection, _ = mock_chroma_client_collections
+        mock_collection.metadata = {} # Assume no immutable settings for this check
+
+        # Expect error dict return
+        result = await _set_collection_settings_impl("test_invalid_settings", "not_a_dict")
+        
+        assert result == {
+            "success": False, 
+            "error_code": INVALID_PARAMS, 
+            "message": "settings parameter must be a dictionary"
+        }
+        mock_collection.modify.assert_not_called()
 
     # --- _update_collection_metadata_impl Tests ---
     @pytest.mark.asyncio
@@ -496,17 +589,44 @@ class TestCollectionTools:
     @pytest.mark.asyncio
     async def test_update_collection_metadata_rejects_reserved(self, mock_chroma_client_collections):
         """Test that updating reserved keys fails."""
-        with pytest.raises(McpError) as exc_info:
-            await _update_collection_metadata_impl("any_coll", {"description": "no!"})
-        assert "Cannot update reserved keys" in str(exc_info.value)
+        # Expect error dict return
+        result_desc = await _update_collection_metadata_impl("any_coll", {"description": "no!"})
+        assert result_desc == {
+            "success": False, 
+            "error_code": INVALID_PARAMS, 
+            "message": "Cannot update reserved keys ('description', 'settings', 'chroma:setting:...') via this tool."
+        }
         
-        with pytest.raises(McpError) as exc_info_settings:
-             await _update_collection_metadata_impl("any_coll", {"settings": {"a":1}})
-        assert "Cannot update reserved keys" in str(exc_info_settings.value)
+        result_settings = await _update_collection_metadata_impl("any_coll", {"settings": {"a":1}})
+        assert result_settings == {
+            "success": False, 
+            "error_code": INVALID_PARAMS, 
+            "message": "Cannot update reserved keys ('description', 'settings', 'chroma:setting:...') via this tool."
+        }
 
-        with pytest.raises(McpError) as exc_info_prefix:
-             await _update_collection_metadata_impl("any_coll", {"chroma:setting:x": "y"})
-        assert "Cannot update reserved keys" in str(exc_info_prefix.value)
+        result_prefix = await _update_collection_metadata_impl("any_coll", {"chroma:setting:x": "y"})
+        assert result_prefix == {
+            "success": False, 
+            "error_code": INVALID_PARAMS, 
+            "message": "Cannot update reserved keys ('description', 'settings', 'chroma:setting:...') via this tool."
+        }
+
+    @pytest.mark.asyncio
+    async def test_update_collection_metadata_fail_immutable(self, mock_chroma_client_collections):
+        """Test failure when updating metadata on a collection with immutable HNSW settings."""
+        mock_client, mock_collection, _ = mock_chroma_client_collections
+        # Simulate collection having immutable HNSW settings
+        mock_collection.metadata = {"hnsw:space": "cosine", "custom": "data"}
+        mock_client.get_collection.return_value = mock_collection # Ensure get_collection returns the mocked one
+        # Expect error dict return
+        result = await _update_collection_metadata_impl("test_immutable_metadata", {"new_custom_key": "value"})
+        
+        assert result == {
+            "success": False, 
+            "error_code": INVALID_PARAMS, 
+            "message": "Cannot update metadata on collections with immutable settings (e.g., hnsw:*)."
+        }
+        mock_collection.modify.assert_not_called()
 
     # --- _rename_collection_impl Tests ---
     @pytest.mark.asyncio

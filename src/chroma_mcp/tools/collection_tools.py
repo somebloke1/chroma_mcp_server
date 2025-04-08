@@ -20,18 +20,16 @@ def _reconstruct_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     reconstructed = {}
     settings = {}
     for key, value in metadata.items():
+        setting_key_to_store = None
         if key.startswith("chroma:setting:"):
-            setting_key = key[len("chroma:setting:"):]
-            # Replace only the first underscore back to colon if needed for keys like hnsw:space
-            if '_' in setting_key:
-                 parts = setting_key.split('_', 1)
-                 if len(parts) == 2 and parts[0] == 'hnsw': # Assume only hnsw keys used colons
-                     original_key = parts[0] + ':' + parts[1]
-                 else:
-                     original_key = setting_key # Keep underscores for other keys
-            else:
-                original_key = setting_key
-            settings[original_key] = value
+            setting_key = key[len("chroma:setting:"):].replace('_', ':') # Simple replacement back
+            setting_key_to_store = setting_key
+        # Also recognize common raw keys like hnsw:*
+        elif key.startswith("hnsw:"):
+            setting_key_to_store = key
+        
+        if setting_key_to_store:
+            settings[setting_key_to_store] = value
         else:
             reconstructed[key] = value
     
@@ -42,7 +40,7 @@ def _reconstruct_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 # --- Implementation Functions ---
 
-async def _create_collection_impl(collection_name: str) -> Dict[str, Any]:
+async def _create_collection_impl(collection_name: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
     """Implementation logic for creating a collection."""
     from ..server import get_logger
     logger = get_logger("tools.collection")
@@ -51,14 +49,35 @@ async def _create_collection_impl(collection_name: str) -> Dict[str, Any]:
     try:
         validate_collection_name(collection_name)
         client = get_chroma_client()
-        settings = get_collection_settings()
+        
+        # Determine metadata to use
+        metadata_to_use = None
+        log_msg_suffix = ""
+        if metadata is not None:
+            # User provided metadata, use it directly
+            # Basic validation (ensure it's a dict)
+            if not isinstance(metadata, dict):
+                # Return error dict for validation failure
+                return {
+                    "success": False, 
+                    "error_code": INVALID_PARAMS, 
+                    "message": "metadata parameter, if provided, must be a dictionary."
+                }
+            metadata_to_use = metadata
+            log_msg_suffix = "with provided metadata."
+        else:
+            # No metadata provided, use defaults
+            from ..utils.config import get_collection_settings # Import locally
+            metadata_to_use = get_collection_settings()
+            log_msg_suffix = "with default settings."
+
         collection = client.create_collection(
             name=collection_name, 
-            metadata=settings,
+            metadata=metadata_to_use, # Use determined metadata
             embedding_function=get_embedding_function(),
             get_or_create=False
         )
-        logger.info(f"Created collection: {collection_name} with settings: {settings}")
+        logger.info(f"Created collection: {collection_name} {log_msg_suffix}")
         count = collection.count()
         peek = collection.peek()
         return {
@@ -142,33 +161,19 @@ async def _set_collection_description_impl(collection_name: str, description: st
 
     try:
         client = get_chroma_client()
-        collection = client.get_collection(
-            name=collection_name,
-            embedding_function=get_embedding_function()
-        )
-
-        # --- Start: Fail Fast Logic (copied from update_collection_metadata) ---
-        current_metadata = collection.metadata or {}
-        # Define known immutable patterns (adjust if Chroma adds more)
-        immutable_patterns = ["hnsw:"] 
-        has_immutable_settings = any(
-            key.startswith(pattern) 
-            for key in current_metadata 
-            for pattern in immutable_patterns
-        )
+        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
         
-        if has_immutable_settings:
-            raise_validation_error(
-                "Cannot set description on collections with immutable settings (e.g., hnsw:*). "
-                "Collection settings must be finalized at creation."
-            )        
-        # --- End: Fail Fast Logic ---
-
-        # Only proceed if no immutable settings were detected
-        # current_metadata = collection.metadata or {} # Already fetched above
-        updated_metadata = current_metadata.copy()
-        updated_metadata["description"] = description
-        collection.modify(metadata=updated_metadata)
+        # Check for immutable settings (example: hnsw)
+        current_metadata = collection.metadata or {}
+        if any(k.startswith("hnsw:") for k in current_metadata):
+            return {
+                "success": False, 
+                "error_code": INVALID_PARAMS,
+                "message": "Cannot set description on collections with existing immutable settings (e.g., hnsw:*)."
+            }
+        
+        # If no immutable settings, proceed with modify
+        collection.modify(metadata={ "description": description })
         logger.info(f"Set description for collection: {collection_name}")
         return await _get_collection_impl(collection_name)
     except Exception as e:
@@ -181,14 +186,26 @@ async def _set_collection_settings_impl(collection_name: str, settings: Dict[str
     from ..utils.client import get_chroma_client, get_embedding_function
 
     try:
-        client = get_chroma_client()
-        collection = client.get_collection(
-            name=collection_name,
-            embedding_function=get_embedding_function()
-        )
-        current_metadata = collection.metadata or {}
         if not isinstance(settings, dict):
-            raise_validation_error("settings parameter must be a dictionary")
+            return {
+                "success": False, 
+                "error_code": INVALID_PARAMS,
+                "message": "settings parameter must be a dictionary"
+            }
+            
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
+        
+        # Check for immutable settings
+        current_metadata = collection.metadata or {}
+        if any(k.startswith("hnsw:") for k in current_metadata):
+            return {
+                "success": False,
+                "error_code": INVALID_PARAMS,
+                "message": "Cannot set settings on collections with existing immutable settings (e.g., hnsw:*)."
+            }
+
+        # If no immutable settings, proceed
         metadata_without_settings = {k: v for k, v in current_metadata.items() if not k.startswith("chroma:setting:")}
         flattened_settings = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in settings.items()}
         updated_metadata = {**metadata_without_settings, **flattened_settings}
@@ -205,43 +222,36 @@ async def _update_collection_metadata_impl(collection_name: str, metadata_update
     from ..utils.client import get_chroma_client, get_embedding_function
 
     try:
-        client = get_chroma_client()
-        collection = client.get_collection(
-            name=collection_name,
-            embedding_function=get_embedding_function()
-        )
         if not isinstance(metadata_update, dict):
-            raise_validation_error("metadata_update parameter must be a dictionary")
+            return {
+                "success": False, 
+                "error_code": INVALID_PARAMS,
+                "message": "metadata_update parameter must be a dictionary"
+            }
         if any(key in ["description", "settings"] or key.startswith("chroma:setting:") for key in metadata_update):
-            raise_validation_error("Cannot update reserved keys ('description', 'settings', 'chroma:setting:...') via this tool.")
+            return {
+                "success": False, 
+                "error_code": INVALID_PARAMS,
+                "message": "Cannot update reserved keys ('description', 'settings', 'chroma:setting:...') via this tool."
+            }
+            
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
         
-        # --- Start: Fail Fast Logic ---
+        # Check for immutable settings
         current_metadata = collection.metadata or {}
-        # Define known immutable patterns (adjust if Chroma adds more)
-        immutable_patterns = ["hnsw:"] 
-        has_immutable_settings = any(
-            key.startswith(pattern) 
-            for key in current_metadata 
-            for pattern in immutable_patterns
-        )
-        
-        if has_immutable_settings:
-            raise_validation_error(
-                "Cannot update metadata on collections with immutable settings (e.g., hnsw:*). "
-                "Set all custom metadata during collection creation if needed."
-            )
-        # --- End: Fail Fast Logic ---
-        
-        # If we reach here, it means no immutable settings were detected.
-        # Proceed with replacing the metadata entirely with the update.
-        # collection.modify(metadata=metadata_update) # Incorrect: Replaces instead of merging
+        if any(k.startswith("hnsw:") for k in current_metadata):
+            return {
+                "success": False, 
+                "error_code": INVALID_PARAMS,
+                "message": "Cannot update metadata on collections with immutable settings (e.g., hnsw:*)."
+            }
 
-        # Correct logic: Fetch current, merge update, then modify
-        current_metadata_safe = collection.metadata or {} # Fetch again just to be safe
+        # If no immutable settings, proceed with merge and modify
+        current_metadata_safe = collection.metadata or {}
         merged_metadata = current_metadata_safe.copy()
         merged_metadata.update(metadata_update)
         collection.modify(metadata=merged_metadata)
-
         logger.info(f"Updated custom metadata for collection: {collection_name}")
         return await _get_collection_impl(collection_name)
     except Exception as e:
@@ -311,19 +321,22 @@ def register_collection_tools(mcp: FastMCP) -> None:
     """Register collection management tools with the MCP server."""
     
     @mcp.tool()
-    async def chroma_create_collection(collection_name: str) -> Dict[str, Any]:
+    async def chroma_create_collection(collection_name: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Create a new ChromaDB collection with default settings.
-        Use other tools like 'chroma_set_collection_description' or 
-        'chroma_set_collection_settings' to modify it after creation.
+        Create a new ChromaDB collection with specific or default settings.
+        If `metadata` is provided, it overrides the default settings (e.g., HNSW parameters). 
+        If `metadata` is None or omitted, default settings are used. 
+        Use other tools like 'chroma_set_collection_description' to modify mutable metadata later.
 
         Args:
             collection_name: Name of the collection to create
+            metadata: Optional dictionary of metadata to associate with the collection at creation. 
+                      Can include custom key-values and settings like `{"hnsw:space": "cosine"}`.
 
         Returns:
             Dictionary containing basic collection information
         """
-        return await _create_collection_impl(collection_name)
+        return await _create_collection_impl(collection_name, metadata=metadata)
     
     @mcp.tool()
     async def chroma_list_collections(limit: int = 0, offset: int = 0, name_contains: str = "") -> Dict[str, Any]:
@@ -372,6 +385,9 @@ def register_collection_tools(mcp: FastMCP) -> None:
         """
         Sets or updates the settings (e.g., HNSW parameters) of a collection.
         Warning: This replaces the existing 'settings' sub-dictionary in the metadata.
+        IMPORTANT: This tool will FAIL if the target collection currently has immutable settings 
+        (e.g., 'hnsw:space') defined in its metadata, as ChromaDB prevents modification in such cases.
+        Collection settings must be finalized at creation.
 
         Args:
             collection_name: Name of the collection to modify

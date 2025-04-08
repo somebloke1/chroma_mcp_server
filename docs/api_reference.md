@@ -4,6 +4,8 @@ This document provides detailed information about the tools available in the Chr
 
 > **Note**: The Chroma MCP Server has been optimized with minimal dependencies. For full functionality including embedding models, install with `pip install chroma-mcp-server[full]`.
 
+**Important Note on Modifying Collection Metadata:** Due to limitations in ChromaDB's handling of immutable settings (like the default `hnsw:*` parameters), tools attempting to modify a collection's metadata after creation (`chroma_set_collection_description`, `chroma_set_collection_settings`, `chroma_update_collection_metadata`) will **fail** if the collection contains such immutable settings. It is **strongly recommended** to set all desired metadata, including custom keys, description, and specific HNSW parameters, using the `metadata` argument during the initial `chroma_create_collection` call.
+
 ## Tool Categories
 
 The Chroma MCP Server provides 15 tools across three categories:
@@ -25,6 +27,7 @@ Creates a new ChromaDB collection with default settings. Use other tools like `c
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection to create |
+| `metadata` | object | No | Dictionary containing initial collection metadata (including custom keys, description, and HNSW settings) |
 
 #### Returns from chroma_create_collection
 
@@ -38,7 +41,15 @@ A JSON object containing basic collection information:
 
 ```json
 {
-  "collection_name": "my_documents"
+  "collection_name": "my_documents",
+  "metadata": {
+    "description": "Documents related to project Alpha.",
+    "settings": {
+      "hnsw:space": "cosine",
+      "hnsw:construction_ef": 128,
+      "hnsw:search_ef": 64
+    }
+  }
 }
 ```
 
@@ -105,7 +116,7 @@ A JSON object containing collection details:
 
 Sets or updates the description of a collection. The description is stored within the collection's metadata under the `description` key.
 
-**Note:** This tool will fail if the collection has immutable settings (e.g., `hnsw:space`). Set the description during creation in such cases.
+**Note:** Due to ChromaDB limitations, this tool will almost always **fail** on existing collections because they contain immutable settings (like `hnsw:space`). **Set the description using the `metadata` parameter during `chroma_create_collection` instead.**
 
 #### Parameters for chroma_set_collection_description
 
@@ -130,6 +141,8 @@ A JSON object containing the updated collection information (same as `chroma_get
 ### `chroma_set_collection_settings`
 
 Sets or updates the settings (e.g., HNSW parameters) of a collection. The settings are stored within the collection's metadata under the `settings` key. **Warning:** This replaces the entire existing `settings` sub-dictionary.
+
+**Since collections typically always have immutable settings (like defaults), this tool will likely always fail.** **Define all settings using the `metadata` parameter during `chroma_create_collection`.**
 
 #### Parameters for chroma_set_collection_settings
 
@@ -161,7 +174,7 @@ Updates or adds custom key-value pairs to a collection's metadata. This performs
 
 **Warning:** This REPLACES the entire existing custom metadata block with the provided `metadata_update`.
 
-**Important:** This tool will FAIL if the target collection currently has immutable settings (e.g., `hnsw:space`) defined in its metadata, as ChromaDB prevents modification in such cases. Set all custom metadata during collection creation if immutable settings are used.
+**Since collections typically always have immutable settings (like defaults), this tool will likely always fail.** **Set all custom metadata using the `metadata` parameter during `chroma_create_collection`.**
 
 #### Parameters for chroma_update_collection_metadata
 
