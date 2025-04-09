@@ -364,7 +364,7 @@ class TestThinkingTools:
 
         # Assertions on mocks
         mock_client.get_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
-        mock_collection.get.assert_called_once_with(where={"session_id": session_id}, include=["documents", "metadatas"])
+        mock_collection.get.assert_called_once_with(where={"session_id": session_id}, include=["documents", "metadatas", "ids"])
 
         # Assertions on result data
         assert result_data.get("session_id") == session_id

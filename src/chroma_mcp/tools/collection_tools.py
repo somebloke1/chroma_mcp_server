@@ -192,17 +192,17 @@ async def _create_collection_impl(collection_name: str, metadata: Dict[str, Any]
         )
 
 @mcp.tool(name="chroma_list_collections", description="List all collections with optional filtering and pagination.")
-async def _list_collections_impl(limit: Optional[int] = 0, offset: Optional[int] = 0, name_contains: Optional[str] = "") -> types.CallToolResult:
+async def _list_collections_impl(limit: Optional[int] = None, offset: Optional[int] = None, name_contains: Optional[str] = None) -> types.CallToolResult:
     """Lists available ChromaDB collections.
 
     Args:
         limit: The maximum number of collection names to return. 0 means no limit.
-               Defaults to 0. Must be non-negative.
+               Defaults to 0 (no limit). Must be non-negative.
         offset: The number of collection names to skip from the beginning.
                 Defaults to 0. Must be non-negative.
         name_contains: An optional string to filter collections by name (case-insensitive).
                        Only collections whose names contain this string will be returned.
-                       Defaults to an empty string (no filtering).
+                       Defaults to None (no filtering).
 
     Returns:
         A CallToolResult object.
@@ -214,39 +214,55 @@ async def _list_collections_impl(limit: Optional[int] = 0, offset: Optional[int]
     """
 
     try:
+        # Assign effective defaults if None
+        effective_limit = 0 if limit is None else limit
+        effective_offset = 0 if offset is None else offset
+
         # Input validation
-        if limit < 0:
+        if effective_limit < 0:
             raise ValidationError("limit cannot be negative")
-        if offset < 0:
+        if effective_offset < 0:
             raise ValidationError("offset cannot be negative")
             
         client = get_chroma_client()
         # In ChromaDB v0.5+, list_collections returns Collection objects
-        # We might need to adjust if upgrading, but for now assume names
+        # The code needs to handle this correctly.
         all_collections = client.list_collections()
-        collection_names = [col.name for col in all_collections]
         
-        # Safety check, though Chroma client should return a list of Collections
-        if not isinstance(collection_names, list):
-            logger.warning(f"client.list_collections() yielded unexpected structure, processing as empty list.")
-            collection_names = []
+        # Correctly extract names from Collection objects
+        collection_names = []
+        if isinstance(all_collections, list):
+            for col in all_collections:
+                try:
+                    # Access the name attribute of the Collection object
+                    collection_names.append(col.name)
+                except AttributeError:
+                    logger.warning(f"Object in list_collections result does not have a .name attribute: {type(col)}")
+        else:
+             logger.warning(f"client.list_collections() returned unexpected type: {type(all_collections)}")
             
-        if name_contains:
+        # Safety check, though Chroma client should return a list of Collections (already handled above)
+        # if not isinstance(collection_names, list): # This check is redundant now
+        #     logger.warning(f"client.list_collections() yielded unexpected structure, processing as empty list.")
+        #     collection_names = []
+            
+        # Explicitly check for None before filtering
+        if name_contains is not None:
             filtered_names = [name for name in collection_names if name_contains.lower() in name.lower()]
         else:
             filtered_names = collection_names
             
         total_count = len(filtered_names)
-        start_index = offset
+        start_index = effective_offset
         # Apply limit only if it's positive; 0 means no limit
-        end_index = (start_index + limit) if limit > 0 else len(filtered_names)
+        end_index = (start_index + effective_limit) if effective_limit > 0 else len(filtered_names)
         paginated_names = filtered_names[start_index:end_index]
         
         result_data = {
             "collection_names": paginated_names,
             "total_count": total_count,
-            "limit": limit, # Return the requested limit
-            "offset": offset # Return the requested offset
+            "limit": effective_limit, # Return the effective limit used
+            "offset": effective_offset # Return the effective offset used
         }
         result_json = json.dumps(result_data, indent=2)
         return types.CallToolResult(
@@ -296,13 +312,24 @@ async def _get_collection_impl(collection_name: str) -> types.CallToolResult:
         # Limit peek results
         peek_results = collection.peek(limit=5) 
 
+        # Process peek_results to ensure JSON serializability (convert ndarrays)
+        processed_peek = peek_results.copy() if peek_results else {}
+        if processed_peek.get("embeddings"):
+            # Convert numpy arrays (or anything with a tolist() method) to lists
+            processed_peek["embeddings"] = [
+                arr.tolist() if hasattr(arr, 'tolist') and callable(arr.tolist) else arr 
+                for arr in processed_peek["embeddings"] if arr is not None
+            ]
+
         result_data = {
             "name": collection.name,
             "id": str(collection.id), # Ensure ID is string
             "metadata": _reconstruct_metadata(collection.metadata),
             "count": count,
-            "sample_entries": peek_results
+            "sample_entries": processed_peek # Use processed results
         }
+        # Convert dict containing potentially non-serializable items to JSON
+        # Using a custom handler might be more robust if other types arise
         result_json = json.dumps(result_data, indent=2)
         return types.CallToolResult(
             content=[types.TextContent(type="text", text=result_json)]
@@ -724,7 +751,7 @@ async def _delete_collection_impl(collection_name: str) -> types.CallToolResult:
         )
 
 @mcp.tool(name="chroma_peek_collection", description="Get a sample of documents from a collection.")
-async def _peek_collection_impl(collection_name: str, limit: Optional[int] = 5) -> types.CallToolResult:
+async def _peek_collection_impl(collection_name: str, limit: Optional[int] = None) -> types.CallToolResult:
     """Retrieves a small sample of entries from a collection.
 
     Args:
@@ -741,6 +768,9 @@ async def _peek_collection_impl(collection_name: str, limit: Optional[int] = 5) 
     """
 
     try:
+        # Assign effective default if None
+        effective_limit = 5 if limit is None else limit
+        
         client = get_chroma_client()
 
         # 1. Get the collection, handle not found
@@ -760,9 +790,9 @@ async def _peek_collection_impl(collection_name: str, limit: Optional[int] = 5) 
                 # Re-raise other ValueErrors from get_collection
                 raise e
 
-        # 2. Perform the peek operation
+        # 2. Perform the peek operation using effective_limit
         try:
-            peek_results = collection.peek(limit=limit)
+            peek_results = collection.peek(limit=effective_limit)
             logger.info(f"Peeked {len(peek_results.get('ids', []))} items from collection: {collection_name}")
             # Serialize peek results to JSON
             result_json = json.dumps(peek_results, indent=2)
@@ -770,7 +800,7 @@ async def _peek_collection_impl(collection_name: str, limit: Optional[int] = 5) 
                 content=[types.TextContent(type="text", text=result_json)]
             )
         except ValueError as e: # Catch potential errors from peek itself (e.g., invalid limit if not caught by schema)
-            logger.warning(f"ValueError during peek for collection '{collection_name}' with limit={limit}: {e}")
+            logger.warning(f"ValueError during peek for collection '{collection_name}' with limit={effective_limit}: {e}")
             return types.CallToolResult(
                 isError=True,
                 content=[types.TextContent(type="text", text=f"ChromaDB Value Error during peek: {str(e)}")]

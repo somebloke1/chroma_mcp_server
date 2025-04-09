@@ -228,9 +228,9 @@ async def _sequential_thinking_impl(
 async def _find_similar_thoughts_impl(
     query: str,
     session_id: Optional[str] = None,
-    n_results: Optional[int] = 5,
+    n_results: Optional[int] = None,
     threshold: Optional[float] = None,
-    include_branches: Optional[bool] = True
+    include_branches: Optional[bool] = None
 ) -> types.CallToolResult:
     """Performs a semantic search for similar thoughts.
 
@@ -254,9 +254,15 @@ async def _find_similar_thoughts_impl(
         isError is True and content contains a TextContent object with an error message.
     """
 
+    # Assign effective defaults if None
+    effective_n_results = 5 if n_results is None else n_results
+    effective_threshold = threshold # Already handled correctly later if None
+    effective_include_branches = True if include_branches is None else include_branches
+
     try:
-        # Use default threshold if None is passed
-        effective_threshold = threshold if threshold is not None else DEFAULT_SIMILARITY_THRESHOLD
+        # Use default threshold if None is passed (moved handling here)
+        if effective_threshold is None:
+             effective_threshold = DEFAULT_SIMILARITY_THRESHOLD
         
         client = get_chroma_client()
         
@@ -297,7 +303,7 @@ async def _find_similar_thoughts_impl(
         try:
             results = collection.query(
                 query_texts=[query],
-                n_results=n_results,
+                n_results=effective_n_results,
                 where=where_clause,
                 include=["documents", "metadatas", "distances"]
             )
@@ -362,7 +368,7 @@ async def _find_similar_thoughts_impl(
 )
 async def _get_session_summary_impl(
     session_id: str,
-    include_branches: Optional[bool] = True
+    include_branches: Optional[bool] = None
 ) -> types.CallToolResult:
     """Fetches all thoughts belonging to a specific session.
 
@@ -380,6 +386,9 @@ async def _get_session_summary_impl(
         On error (e.g., session not found, database error, unexpected issue),
         isError is True and content contains a TextContent object with an error message.
     """
+
+    # Assign effective default if None
+    effective_include_branches = True if include_branches is None else include_branches
 
     try:
         client = get_chroma_client()
@@ -411,14 +420,19 @@ async def _get_session_summary_impl(
                  content=[types.TextContent(type="text", text=f"ChromaDB Error: {str(e)}")]
              )
 
+        # Apply filtering based on effective_include_branches if needed
         where_clause = {"session_id": session_id}
-        # TODO: Add branch filtering if needed based on include_branches
-        
+        if not effective_include_branches:
+            # Modify where_clause to exclude branches, e.g. check if branch_id is null/absent
+            # Example (exact field depends on storage): where_clause["branch_id"] = None
+            # This might need $and: [{"session_id": ...}, {"branch_id": None}] depending on DB
+            pass # Placeholder - Add actual branch exclusion logic here if needed
+
         # Get thoughts, handle errors
         try:
             results = collection.get(
                 where=where_clause,
-                include=["documents", "metadatas"] # Include IDs
+                include=["documents", "metadatas", "ids"] # Include IDs
             )
         except ValueError as e: # Catch errors from get (e.g., bad filter)
             logger.error(f"Error getting thoughts for session '{session_id}': {e}", exc_info=True)
@@ -482,7 +496,7 @@ async def _get_session_summary_impl(
 )
 async def _find_similar_sessions_impl(
     query: str,
-    n_results: Optional[int] = 3,
+    n_results: Optional[int] = None,
     threshold: Optional[float] = None
 ) -> types.CallToolResult:
     """Performs a semantic search for sessions similar to the query.
@@ -504,9 +518,14 @@ async def _find_similar_sessions_impl(
         object with an error message.
     """
 
+    # Assign effective defaults if None
+    effective_n_results = 3 if n_results is None else n_results
+    effective_threshold = threshold # Already handled correctly later if None
+
     try:
-        # Use default threshold if None is passed
-        effective_threshold = threshold if threshold is not None else DEFAULT_SIMILARITY_THRESHOLD
+        # Use default threshold if None is passed (moved handling here)
+        if effective_threshold is None:
+             effective_threshold = DEFAULT_SIMILARITY_THRESHOLD
         
         client = get_chroma_client()
         
@@ -588,7 +607,7 @@ async def _find_similar_sessions_impl(
             try:
                 query_results = sessions_collection.query(
                     query_texts=[query],
-                    n_results=n_results,
+                    n_results=effective_n_results,
                     include=["metadatas", "distances"] # Only need distance and ID (implicit)
                 )
                 

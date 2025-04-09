@@ -57,7 +57,7 @@ async def _add_documents_impl(
     documents: List[str],
     ids: Optional[List[str]] = None,
     metadatas: Optional[List[Dict]] = None,
-    increment_index: Optional[bool] = True # Default Chroma behavior
+    increment_index: Optional[bool] = None # Default changed to None
 ) -> types.CallToolResult:
     """Adds documents to the specified ChromaDB collection.
 
@@ -81,6 +81,9 @@ async def _add_documents_impl(
         validation error, unexpected issue), isError is True and content contains
         a TextContent object with an error message.
     """
+
+    # Assign effective default if None
+    effective_increment_index = True if increment_index is None else increment_index
 
     try:
         # Handle None defaults for lists
@@ -107,7 +110,7 @@ async def _add_documents_impl(
         final_ids = effective_ids
         if not final_ids:
             generated_ids = True
-            current_count = collection.count() if increment_index else 0
+            current_count = collection.count() if effective_increment_index else 0
             timestamp = int(time.time())
             final_ids = [f"doc_{timestamp}_{current_count + i}" for i in range(len(documents))]
         
@@ -121,7 +124,7 @@ async def _add_documents_impl(
             ids=final_ids
         )
         
-        logger.info(f"Added {len(documents)} documents to collection {collection_name}")
+        logger.info(f"Added {len(documents)} documents to collection '{collection_name}'. Indexing: {effective_increment_index}")
         result_data = {
             "status": "success",
             "added_count": len(documents),
@@ -151,7 +154,7 @@ async def _add_documents_impl(
 async def _query_documents_impl(
     collection_name: str,
     query_texts: List[str],
-    n_results: Optional[int] = 10,
+    n_results: Optional[int] = None, # Default changed to None
     where: Optional[Dict] = None,
     where_document: Optional[Dict] = None,
     include: Optional[List[str]] = None
@@ -180,6 +183,9 @@ async def _query_documents_impl(
         object with an error message.
     """
 
+    # Assign effective default if None
+    effective_n_results = 10 if n_results is None else n_results
+
     try:
         # Handle None defaults for dicts/lists
         effective_where = where if where is not None else None # Use None if empty for Chroma query
@@ -189,7 +195,7 @@ async def _query_documents_impl(
         # Input validation (raises ValidationError)
         if not query_texts:
             raise ValidationError("No query texts provided")
-        if n_results <= 0:
+        if effective_n_results <= 0:
             raise ValidationError("n_results must be a positive integer")
 
         # Validate include values if provided
@@ -238,7 +244,7 @@ async def _query_documents_impl(
         try:
             results = collection.query(
                 query_texts=query_texts,
-                n_results=n_results,
+                n_results=effective_n_results,
                 where=effective_where, # Pass None if originally None/empty
                 where_document=effective_where_document, # Pass None if originally None/empty
                 include=final_include
