@@ -48,18 +48,48 @@ logger = get_logger("tools.thinking")
 
 # --- Implementation Functions ---
 
-@mcp.tool(name="chroma_sequential_thinking", description="Records a single thought as part of a sequential thinking process or workflow.")
+@mcp.tool(
+    name="chroma_sequential_thinking",
+    description="Records a single thought as part of a sequential thinking process or workflow."
+)
 async def _sequential_thinking_impl(
     thought: str,
     thought_number: int,
     total_thoughts: int,
     session_id: Optional[str] = None,
-    branch_from_thought: Optional[int] = None,
     branch_id: Optional[str] = None,
-    next_thought_needed: Optional[bool] = False,
+    branch_from_thought: Optional[int] = None,
+    next_thought_needed: Optional[bool] = None,
     custom_data: Optional[Dict[str, Any]] = None
 ) -> types.CallToolResult:
-    """Implementation logic for recording a thought."""
+    """Records a thought within a thinking session, potentially in a branch.
+
+    Args:
+        thought: The content of the thought being recorded.
+        thought_number: The sequential number of this thought within its sequence
+                        (main session or branch).
+        total_thoughts: The total anticipated number of thoughts in this sequence.
+        session_id: An optional unique identifier for the thinking session.
+                    If None, a new session ID will be generated and returned.
+        branch_id: An optional identifier for a specific branch within the session.
+                   If None, the thought is added to the main session sequence.
+        branch_from_thought: If creating a new branch (branch_id provided for the first
+                             time for this thought number), this specifies the thought
+                             number in the parent sequence (main or another branch)
+                             from which this branch originates.
+        next_thought_needed: An optional boolean flag indicating if a subsequent
+                             thought is expected in this sequence.
+        custom_data: An optional dictionary for storing arbitrary metadata associated
+                     with this thought.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        including the 'session_id' (either provided or newly generated) and potentially
+        the ID of the recorded thought document.
+        On error (e.g., invalid parameters, database error, unexpected issue),
+        isError is True and content contains a TextContent object with an error message.
+    """
 
     try:
         if custom_data is None:
@@ -191,15 +221,38 @@ async def _sequential_thinking_impl(
             content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while recording thought. Details: {str(e)}")]
         )
 
-@mcp.tool(name="chroma_find_similar_thoughts", description="Finds thoughts across one or all sessions that are semantically similar to a given query.")
+@mcp.tool(
+    name="chroma_find_similar_thoughts",
+    description="Finds thoughts across one or all sessions that are semantically similar to a given query."
+)
 async def _find_similar_thoughts_impl(
     query: str,
-    n_results: Optional[int] = 5,
-    threshold: Optional[float] = DEFAULT_SIMILARITY_THRESHOLD,
     session_id: Optional[str] = None,
+    n_results: Optional[int] = 5,
+    threshold: Optional[float] = None,
     include_branches: Optional[bool] = True
 ) -> types.CallToolResult:
-    """Implementation logic for finding similar thoughts."""
+    """Performs a semantic search for similar thoughts.
+
+    Args:
+        query: The text to search for similar thoughts.
+        session_id: If provided, limits the search to thoughts within this specific session.
+                    If None, searches across all sessions.
+        n_results: The maximum number of similar thoughts to return. Defaults to 5.
+        threshold: An optional minimum similarity score (distance threshold) for results.
+                   ChromaDB distances are typically cosines, so lower is more similar.
+                   Filtering is applied *after* retrieving n_results.
+        include_branches: If True (default), includes thoughts from branches in the search.
+                          If False, only searches thoughts in the main session sequences.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string representing
+        the query results (similar to ChromaDB query results, including lists for ids,
+        documents/thoughts, metadatas, distances).
+        On error (e.g., invalid parameters, collection not found, unexpected issue),
+        isError is True and content contains a TextContent object with an error message.
+    """
 
     try:
         # Use default threshold if None is passed
@@ -303,12 +356,30 @@ async def _find_similar_thoughts_impl(
             content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while finding similar thoughts. Details: {str(e)}")]
         )
 
-@mcp.tool(name="chroma_get_session_summary", description="Retrieves all thoughts recorded within a specific thinking session, ordered sequentially.")
+@mcp.tool(
+    name="chroma_get_session_summary",
+    description="Retrieves all thoughts recorded within a specific thinking session, ordered sequentially."
+)
 async def _get_session_summary_impl(
     session_id: str,
     include_branches: Optional[bool] = True
 ) -> types.CallToolResult:
-    """Implementation logic for getting session summary."""
+    """Fetches all thoughts belonging to a specific session.
+
+    Args:
+        session_id: The unique identifier of the thinking session to retrieve.
+        include_branches: If True (default), includes thoughts from branches associated
+                          with this session. If False, retrieves only thoughts from the
+                          main session sequence.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string containing
+        a list of thoughts (documents/metadata), ordered sequentially by thought_number
+        (and potentially by branch structure if included).
+        On error (e.g., session not found, database error, unexpected issue),
+        isError is True and content contains a TextContent object with an error message.
+    """
 
     try:
         client = get_chroma_client()
@@ -405,13 +476,33 @@ async def _get_session_summary_impl(
             content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while getting session summary for '{session_id}'. Details: {str(e)}")]
         )
 
-@mcp.tool(name="chroma_find_similar_sessions", description="Finds thinking sessions whose overall content is semantically similar to a given query.")
+@mcp.tool(
+    name="chroma_find_similar_sessions",
+    description="Finds thinking sessions whose overall content is semantically similar to a given query."
+)
 async def _find_similar_sessions_impl(
     query: str,
     n_results: Optional[int] = 3,
-    threshold: Optional[float] = DEFAULT_SIMILARITY_THRESHOLD
+    threshold: Optional[float] = None
 ) -> types.CallToolResult:
-    """Implementation logic for finding similar sessions."""
+    """Performs a semantic search for sessions similar to the query.
+
+    (Note: This functionality might require pre-calculating session embeddings
+     or performing aggregation queries, depending on the implementation.)
+
+    Args:
+        query: The text to search for similar sessions.
+        n_results: The maximum number of similar sessions to return. Defaults to 3.
+        threshold: An optional minimum similarity score (distance threshold) for results.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string listing
+        similar session IDs and potentially their similarity scores.
+        On error (e.g., supporting collection/index not found, invalid query,
+        unexpected issue), isError is True and content contains a TextContent
+        object with an error message.
+    """
 
     try:
         # Use default threshold if None is passed

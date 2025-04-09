@@ -55,11 +55,32 @@ logger = get_logger("tools.document")
 async def _add_documents_impl(
     collection_name: str,
     documents: List[str],
-    increment_index: Optional[bool] = True, # Made optional with default
-    metadatas: Optional[List[Dict[str, Any]]] = None,
-    ids: Optional[List[str]] = None
+    ids: Optional[List[str]] = None,
+    metadatas: Optional[List[Dict]] = None,
+    increment_index: Optional[bool] = True # Default Chroma behavior
 ) -> types.CallToolResult:
-    """Implementation logic for adding documents."""
+    """Adds documents to the specified ChromaDB collection.
+
+    Args:
+        collection_name: The name of the collection to add documents to.
+        documents: A list of strings, where each string is the content of a document.
+        ids: An optional list of unique string IDs for each document. If not provided,
+             ChromaDB will generate UUIDs. Must be the same length as 'documents'.
+        metadatas: An optional list of dictionaries, where each dictionary contains
+                   metadata for the corresponding document. Must be the same length
+                   as 'documents'.
+        increment_index: Whether to immediately index the added documents. Defaults to True.
+                         Setting to False can speed up bulk additions but requires manual
+                         index building later for querying.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        confirming the addition, typically including the number of items added.
+        On error (e.g., collection not found, ID conflict, mismatched list lengths,
+        validation error, unexpected issue), isError is True and content contains
+        a TextContent object with an error message.
+    """
 
     try:
         # Handle None defaults for lists
@@ -130,12 +151,34 @@ async def _add_documents_impl(
 async def _query_documents_impl(
     collection_name: str,
     query_texts: List[str],
-    n_results: Optional[int] = 10, # Made optional with default
-    where: Optional[Dict[str, Any]] = None,
-    where_document: Optional[Dict[str, Any]] = None,
-    include: Optional[List[str]] = None # Default include handled in impl
+    n_results: Optional[int] = 10,
+    where: Optional[Dict] = None,
+    where_document: Optional[Dict] = None,
+    include: Optional[List[str]] = None
 ) -> types.CallToolResult:
-    """Implementation logic for querying documents."""
+    """Performs semantic search within a ChromaDB collection.
+
+    Args:
+        collection_name: The name of the collection to query.
+        query_texts: A list of strings representing the search queries.
+        n_results: The number of results to return for each query. Defaults to 10.
+        where: An optional dictionary for filtering results based on metadata.
+               Example: {"source": "test"}.
+        where_document: An optional dictionary for filtering results based on document content.
+                        Example: {"$contains": "search term"}.
+        include: An optional list of fields to include in the results (e.g.,
+                 ["metadatas", "documents", "distances"]). Defaults to ChromaDB's
+                 standard return fields.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        representing the QueryResult (containing lists for ids, documents,
+        metadatas, distances, etc., corresponding to each query).
+        On error (e.g., collection not found, invalid filter format,
+        unexpected issue), isError is True and content contains a TextContent
+        object with an error message.
+    """
 
     try:
         # Handle None defaults for dicts/lists
@@ -273,13 +316,38 @@ async def _query_documents_impl(
 async def _get_documents_impl(
     collection_name: str,
     ids: Optional[List[str]] = None,
-    where: Optional[Dict[str, Any]] = None,
+    where: Optional[Dict] = None,
     limit: Optional[int] = None,
     offset: Optional[int] = None,
-    where_document: Optional[Dict[str, Any]] = None,
-    include: Optional[List[str]] = None # Default include handled in impl
+    where_document: Optional[Dict] = None,
+    include: Optional[List[str]] = None
 ) -> types.CallToolResult:
-    """Implementation logic for getting documents."""
+    """Retrieves documents from a collection by ID or using filters.
+
+    Args:
+        collection_name: The name of the collection to retrieve from.
+        ids: An optional list of document IDs to retrieve. If provided, 'where' and
+             'where_document' filters are typically ignored by ChromaDB.
+        where: An optional dictionary for filtering documents based on metadata.
+               Example: {"topic": "specific"}.
+        limit: An optional integer limiting the number of documents returned when
+               using 'where' or 'where_document' filters.
+        offset: An optional integer specifying the starting offset when using filters.
+        where_document: An optional dictionary for filtering documents based on content.
+                        Example: {"$contains": "test"}.
+        include: An optional list of fields to include in the results (e.g.,
+                 ["metadatas", "documents"]).
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        representing the GetResult (containing lists for ids, documents,
+        metadatas, etc.). If IDs are provided and some are not found, they
+        will be omitted from the results without an error.
+        On error (e.g., collection not found, invalid filter format,
+        unexpected issue), isError is True and content contains a TextContent
+        object with an error message.
+    """
 
     try:
         # Handle None defaults
@@ -400,9 +468,26 @@ async def _update_documents_impl(
     collection_name: str,
     ids: List[str],
     documents: Optional[List[str]] = None,
-    metadatas: Optional[List[Dict[str, Any]]] = None
+    metadatas: Optional[List[Dict]] = None
 ) -> types.CallToolResult:
-    """Implementation logic for updating documents."""
+    """Updates the content and/or metadata of existing documents.
+
+    Args:
+        collection_name: The name of the collection containing the documents.
+        ids: A list of IDs for the documents to update.
+        documents: An optional list of new document content strings. Must be the same
+                   length as 'ids' if provided.
+        metadatas: An optional list of new metadata dictionaries. Must be the same
+                   length as 'ids' if provided.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        confirming the update, potentially indicating the number of documents affected.
+        On error (e.g., collection not found, ID not found, mismatched list lengths,
+        validation error, unexpected issue), isError is True and content contains
+        a TextContent object with an error message.
+    """
 
     try:
         # Handle None defaults for lists
@@ -501,10 +586,29 @@ async def _update_documents_impl(
 async def _delete_documents_impl(
     collection_name: str,
     ids: Optional[List[str]] = None,
-    where: Optional[Dict[str, Any]] = None,
-    where_document: Optional[Dict[str, Any]] = None
+    where: Optional[Dict] = None,
+    where_document: Optional[Dict] = None
 ) -> types.CallToolResult:
-    """Implementation logic for deleting documents."""
+    """Deletes documents from a collection by ID or using filters.
+
+    Note: Provide either 'ids' or filtering criteria ('where'/'where_document'), not both.
+
+    Args:
+        collection_name: The name of the collection to delete from.
+        ids: An optional list of document IDs to delete.
+        where: An optional dictionary for filtering documents to delete based on metadata.
+               Example: {"source": "old_data"}.
+        where_document: An optional dictionary for filtering documents to delete based on content.
+                        Example: {"$contains": "to be deleted"}.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        containing the list of IDs that were actually deleted.
+        On error (e.g., collection not found, invalid filter format,
+        unexpected issue), isError is True and content contains a TextContent
+        object with an error message.
+    """
 
     try:
         # Handle None defaults

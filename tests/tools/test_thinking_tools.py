@@ -130,7 +130,7 @@ class TestThinkingTools:
         assert result_data.get("thought_number") == thought_num
         assert result_data.get("total_thoughts") == total_thoughts
         assert result_data.get("previous_thoughts") == []
-        assert result_data.get("next_thought_needed") is False
+        assert result_data.get("next_thought_needed") is None
 
     @pytest.mark.asyncio # Mark as async
     async def test_sequential_thinking_existing_session_with_prev(self, mock_chroma_client_thinking):

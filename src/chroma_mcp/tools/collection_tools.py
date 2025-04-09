@@ -8,6 +8,7 @@ import chromadb
 import chromadb.errors as chroma_errors
 from chromadb.api.client import ClientAPI
 from chromadb.errors import InvalidDimensionException
+import numpy as np
 
 from typing import Any, Dict, List, Optional, Union, cast
 from dataclasses import dataclass
@@ -82,7 +83,24 @@ logger = get_logger("tools.collection")
 
 @mcp.tool(name="chroma_create_collection", description="Create a new ChromaDB collection with specific or default settings. If `metadata` is provided, it overrides the default settings (e.g., HNSW parameters). If `metadata` is None or omitted, default settings are used. Use other tools like 'set_collection_description' to modify mutable metadata later.")
 async def _create_collection_impl(collection_name: str, metadata: Dict[str, Any] = None) -> types.CallToolResult:
-    """Implementation logic for creating a collection."""
+    """Creates a new ChromaDB collection.
+
+    Args:
+        collection_name: The name for the new collection. Must adhere to ChromaDB
+                         naming conventions (e.g., length, allowed characters).
+        metadata: An optional dictionary containing metadata and settings.
+                  Keys like 'description' or 'settings' (containing HNSW params like 'hnsw:space')
+                  can be provided. If omitted, default settings are used.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        detailing the created collection's name, id, metadata, count, and
+        sample entries (up to 5).
+        On error (e.g., validation error, collection exists, unexpected issue),
+        isError is True and content contains a TextContent object with an
+        error message.
+    """
 
     try:
         validate_collection_name(collection_name)
@@ -167,7 +185,25 @@ async def _create_collection_impl(collection_name: str, metadata: Dict[str, Any]
 
 @mcp.tool(name="chroma_list_collections", description="List all collections with optional filtering and pagination.")
 async def _list_collections_impl(limit: Optional[int] = 0, offset: Optional[int] = 0, name_contains: Optional[str] = "") -> types.CallToolResult:
-    """Implementation logic for listing collections."""
+    """Lists available ChromaDB collections.
+
+    Args:
+        limit: The maximum number of collection names to return. 0 means no limit.
+               Defaults to 0. Must be non-negative.
+        offset: The number of collection names to skip from the beginning.
+                Defaults to 0. Must be non-negative.
+        name_contains: An optional string to filter collections by name (case-insensitive).
+                       Only collections whose names contain this string will be returned.
+                       Defaults to an empty string (no filtering).
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        containing a list of 'collection_names', the 'total_count' (before pagination),
+        and the requested 'limit' and 'offset'.
+        On error (e.g., validation error, unexpected issue), isError is True and
+        content contains a TextContent object with an error message.
+    """
 
     try:
         # Input validation
@@ -227,7 +263,19 @@ async def _list_collections_impl(limit: Optional[int] = 0, offset: Optional[int]
 
 @mcp.tool(name="chroma_get_collection", description="Get information about a specific collection.")
 async def _get_collection_impl(collection_name: str) -> types.CallToolResult:
-    """Implementation logic for getting collection info."""
+    """Retrieves details about a specific ChromaDB collection.
+
+    Args:
+        collection_name: The name of the collection to retrieve.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        detailing the collection's name, id, metadata, count, and sample
+        entries (up to 5).
+        On error (e.g., collection not found, unexpected issue), isError is True
+        and content contains a TextContent object with an error message.
+    """
 
     try:
         client = get_chroma_client()
@@ -275,7 +323,23 @@ async def _get_collection_impl(collection_name: str) -> types.CallToolResult:
 
 @mcp.tool(name="chroma_set_collection_description", description="Sets or updates the description of a collection. Note: Due to ChromaDB limitations, this tool will likely fail on existing collections. Set description during creation via metadata instead.")
 async def _set_collection_description_impl(collection_name: str, description: str) -> types.CallToolResult:
-    """Implementation logic for setting collection description."""
+    """Sets the description metadata field for a collection.
+
+    Warning: This operation might fail if the collection has immutable settings
+             (like HNSW parameters) already defined.
+
+    Args:
+        collection_name: The name of the collection to modify.
+        description: The new description string to set.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        detailing the updated collection's info (name, id, metadata, etc.).
+        On error (e.g., collection not found, immutable settings conflict,
+        unexpected issue), isError is True and content contains a TextContent
+        object with an error message.
+    """
 
     try:
         client = get_chroma_client()
@@ -330,7 +394,25 @@ async def _set_collection_description_impl(collection_name: str, description: st
 
 @mcp.tool(name="chroma_set_collection_settings", description="Sets or updates the settings (e.g., HNSW parameters) of a collection. Warning: This replaces existing settings. This will likely fail on existing collections due to immutable settings. Define settings during creation via metadata.")
 async def _set_collection_settings_impl(collection_name: str, settings: Dict[str, Any]) -> types.CallToolResult:
-    """Implementation logic for setting collection settings."""
+    """Sets the 'settings' metadata block for a collection.
+
+    Warning: This replaces any existing 'settings' and might fail if the
+             collection has immutable settings (like HNSW parameters) already defined.
+
+    Args:
+        collection_name: The name of the collection to modify.
+        settings: A dictionary containing the settings key-value pairs (e.g.,
+                  {'hnsw:space': 'cosine'}).
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        detailing the updated collection's info (name, id, metadata including
+        the new settings, etc.).
+        On error (e.g., collection not found, invalid settings format, immutable
+        settings conflict, unexpected issue), isError is True and content contains
+        a TextContent object with an error message.
+    """
 
     try:
         # Input validation for settings type
@@ -403,7 +485,26 @@ async def _set_collection_settings_impl(collection_name: str, settings: Dict[str
 
 @mcp.tool(name="chroma_update_collection_metadata", description="Updates or adds custom key-value pairs to a collection's metadata (merge). Warning: This REPLACES the entire existing custom metadata block. This will likely fail on existing collections due to immutable settings. Set metadata during creation.")
 async def _update_collection_metadata_impl(collection_name: str, metadata_update: Dict[str, Any]) -> types.CallToolResult:
-    """Implementation logic for updating collection metadata."""
+    """Updates custom key-value pairs in a collection's metadata.
+
+    Warning: This merges the provided dictionary with existing custom metadata.
+             It cannot modify reserved keys like 'description' or 'settings'.
+             It might fail if the collection has immutable settings (like HNSW).
+
+    Args:
+        collection_name: The name of the collection to modify.
+        metadata_update: A dictionary containing the custom key-value pairs
+                         to add or update. Keys must not be reserved ('description',
+                         'settings', etc.).
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        detailing the updated collection's info (name, id, merged metadata, etc.).
+        On error (e.g., collection not found, attempt to update reserved keys,
+        immutable settings conflict, unexpected issue), isError is True and
+        content contains a TextContent object with an error message.
+    """
 
     try:
         # Input validation for metadata_update type
@@ -483,7 +584,21 @@ async def _update_collection_metadata_impl(collection_name: str, metadata_update
 
 @mcp.tool(name="chroma_rename_collection", description="Renames an existing collection.")
 async def _rename_collection_impl(collection_name: str, new_name: str) -> types.CallToolResult:
-    """Implementation logic for renaming a collection."""
+    """Renames an existing ChromaDB collection.
+
+    Args:
+        collection_name: The current name of the collection.
+        new_name: The desired new name for the collection. Must be valid according
+                  to ChromaDB naming rules and not already exist.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        detailing the collection's info under its *new* name.
+        On error (e.g., original collection not found, new name invalid or exists,
+        unexpected issue), isError is True and content contains a TextContent
+        object with an error message.
+    """
 
     try:
         # 1. Validate the new name first
@@ -549,7 +664,18 @@ async def _rename_collection_impl(collection_name: str, new_name: str) -> types.
 
 @mcp.tool(name="chroma_delete_collection", description="Delete a collection.")
 async def _delete_collection_impl(collection_name: str) -> types.CallToolResult:
-    """Implementation logic for deleting a collection."""
+    """Deletes a ChromaDB collection.
+
+    Args:
+        collection_name: The name of the collection to delete.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        confirming deletion: {"status": "deleted", "collection_name": ...}.
+        On error (e.g., collection not found, unexpected issue), isError is True
+        and content contains a TextContent object with an error message.
+    """
 
     try:
         client = get_chroma_client()
@@ -591,7 +717,20 @@ async def _delete_collection_impl(collection_name: str) -> types.CallToolResult:
 
 @mcp.tool(name="chroma_peek_collection", description="Get a sample of documents from a collection.")
 async def _peek_collection_impl(collection_name: str, limit: Optional[int] = 5) -> types.CallToolResult:
-    """Implementation logic for peeking into a collection."""
+    """Retrieves a small sample of entries from a collection.
+
+    Args:
+        collection_name: The name of the collection to peek into.
+        limit: The maximum number of entries to retrieve. Defaults to 5.
+
+    Returns:
+        A CallToolResult object.
+        On success, content contains a TextContent object with a JSON string
+        representing the peek results (containing lists for ids, embeddings,
+        documents, metadatas). Embeddings are returned as lists of floats.
+        On error (e.g., collection not found, invalid limit, unexpected issue),
+        isError is True and content contains a TextContent object with an error message.
+    """
 
     try:
         client = get_chroma_client()
@@ -642,3 +781,35 @@ async def _peek_collection_impl(collection_name: str, limit: Optional[int] = 5) 
             isError=True,
             content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while peeking collection '{collection_name}'. Details: {str(e)}")]
         )
+
+def _get_collection_info(collection) -> dict:
+    """Helper to get structured info about a collection."""
+    # Use the passed collection object directly
+    # Reconstruct metadata first
+    reconstructed_meta = _reconstruct_metadata(collection.metadata or {})
+    
+    # Get sample entries, handle potential errors during peek
+    try:
+        # Peek might return embeddings as ndarray, convert to list for JSON
+        sample_entries = collection.peek(limit=5)
+        if isinstance(sample_entries.get('embeddings'), np.ndarray):
+             sample_entries['embeddings'] = sample_entries['embeddings'].tolist()
+        # Also handle embeddings within lists if peek returns list of lists
+        elif isinstance(sample_entries.get('embeddings'), list):
+             sample_entries['embeddings'] = [
+                 emb.tolist() if isinstance(emb, np.ndarray) else emb 
+                 for emb in sample_entries['embeddings']
+             ]
+    except Exception as peek_err:
+        # Log the error if possible, return a placeholder
+        # logger = get_logger("collection_tools") # Need to import get_logger if used here
+        # logger.warning(f"Could not peek collection '{collection.name}': {peek_err}")
+        sample_entries = {"error": f"Could not peek collection: {peek_err}"}
+
+    return {
+        "name": collection.name,
+        "id": str(collection.id), # Ensure ID is string
+        "metadata": reconstructed_meta,
+        "count": collection.count(),
+        "sample_entries": sample_entries
+    }

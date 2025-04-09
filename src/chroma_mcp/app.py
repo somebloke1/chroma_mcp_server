@@ -1,14 +1,18 @@
+"""
+Application setup for the Chroma MCP Server.
+
+This module initializes the shared FastMCP instance (`mcp`) used throughout the
+application. It also registers a basic server utility tool (`chroma_get_server_version`)
+directly via the decorator.
+
+Crucially, it imports the tool modules (`.tools.collection_tools`, etc.) AFTER
+the `mcp` instance is created. This allows the `@mcp.tool` decorators within
+those modules to automatically register themselves with the shared `mcp` instance.
+"""
 import importlib.metadata
 from typing import Dict
 
 from mcp.server.fastmcp import FastMCP
-
-# It's crucial that logging is configured *before* this runs
-# if we want these initial logs. Assuming config_server runs first.
-# from .utils.logging_utils import get_logger
-# logger = get_logger("app") # Get a logger specific to app initialization
-
-# logger.info("Creating shared FastMCP instance...")
 
 # Create the single, shared FastMCP instance
 mcp = FastMCP()
@@ -18,7 +22,15 @@ mcp = FastMCP()
 # Register server utility tools directly here if they are simple
 @mcp.tool(name="chroma_get_server_version", description="Return the installed version of the chroma-mcp-server package.")
 def get_version_tool() -> Dict[str, str]:
-     """Return the installed version of the chroma-mcp-server package."""
+     """Return the installed version of the chroma-mcp-server package.
+
+     This tool takes no arguments.
+
+     Returns:
+         A dictionary containing the package name ('chroma-mcp-server') and its
+         installed version string. Returns 'unknown (not installed)' or 'error (...)'
+         if the version cannot be determined.
+     """
      try:
          version = importlib.metadata.version('chroma-mcp-server')
          return {"package": "chroma-mcp-server", "version": version}
@@ -33,8 +45,6 @@ def get_version_tool() -> Dict[str, str]:
 # Import tool modules AFTER mcp instance is created.
 # This allows the @mcp.tool decorators within these modules to
 # find and register themselves with the 'mcp' instance above.
-# logger.info("Importing tool modules to trigger decorator registration...")
 from .tools import collection_tools
 from .tools import document_tools
 from .tools import thinking_tools
-# logger.info("Tool module import complete.")

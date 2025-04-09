@@ -27,10 +27,7 @@ from .app import mcp
 from .types import ThoughtMetadata, ChromaClientConfig 
 # Import config loading and tool registration
 from .utils.config import load_config
-# REMOVE unused tool registration imports
-# from .tools.collection_tools import register_collection_tools
-# from .tools.document_tools import register_document_tools
-# from .tools.thinking_tools import register_thinking_tools
+
 # Import errors and specific utils (setters/getters for globals)
 from .utils import (
     get_logger, 
@@ -61,50 +58,28 @@ except ImportError:
     # We will log this warning properly within config_server
     pass
 
-# Initialize logger - will be properly configured in config_server
-# logger = None # Removed: Managed via get_logger/set_main_logger in utils
-
-# Add a base logger name
-# BASE_LOGGER_NAME = "chromamcp" # Removed: Moved to utils
-
-# Remove handler initializations and related global variables
-# _collection_handler = None
-# _document_handler = None
-# _thinking_handler = None
-# _mcp_instance = None
-
-# Add this near the top with other globals
-# _global_client_config: Optional[ChromaClientConfig] = None # Removed: Moved to utils
-
-# Add the get_logger function here
-# _main_logger_instance = None # Removed: Moved to utils
-
-# ADD simple module imports instead
-# from . import tools # Or import specific modules if preferred
-# from .tools import collection_tools
-# from .tools import document_tools
-# from .tools import thinking_tools
-
-# REMOVE _initialize_mcp_instance function
-# def _initialize_mcp_instance(config) -> FastMCP:
-#     ...
-
-# REMOVE get_mcp function
-# def get_mcp() -> FastMCP:
-#     ...
-
 def config_server(args: argparse.Namespace) -> None:
     """
-    Configure the server with the provided configuration.
-    
-    Args:
-        args: Parsed command line arguments
-        
-    Raises:
-        McpError: If configuration fails
-    """
-    # global _main_logger_instance, _global_client_config # Removed globals
+    Configures the Chroma MCP server based on parsed command-line arguments.
 
+    This involves:
+    - Loading environment variables from a specified .env file (if it exists).
+    - Setting up logging (console and optional file handlers) with the specified level.
+    - Creating a ChromaClientConfig object based on client type, connection details,
+      and other settings provided in `args`.
+    - Storing the logger and client configuration globally for access by other modules.
+    - Logging configuration details and warnings about missing optional dependencies
+      (chromadb, fastmcp).
+
+    Args:
+        args: An argparse.Namespace object containing the parsed command-line
+              arguments from `cli.py`.
+
+    Raises:
+        McpError: Wraps any exception that occurs during configuration, ensuring
+                  a consistent error format is propagated upwards. Logs critical
+                  errors before raising.
+    """
     logger = None # Initialize logger to None before try block
     try:
         # Load environment variables if dotenv file exists
@@ -146,12 +121,8 @@ def config_server(args: argparse.Namespace) -> None:
                 logger.addHandler(file_handler)
 
         # Store the configured logger instance globally via setter
-        # _main_logger_instance = logger # Removed
         set_main_logger(logger)
         # --- End: Logger Configuration ---
-
-        # Get the logger instance for use within *this* function scope
-        # logger = get_logger() # This is redundant now, logger is already assigned above
         
         # Handle CPU provider setting
         use_cpu_provider = None  # Auto-detect
@@ -172,7 +143,6 @@ def config_server(args: argparse.Namespace) -> None:
         )
         
         # Store the config globally via setter
-        # _global_client_config = client_config # Removed
         set_server_config(client_config)
 
         # This will initialize our configurations for later use
@@ -213,14 +183,22 @@ def config_server(args: argparse.Namespace) -> None:
         ))
 
 def main() -> None:
-    """Entry point for the Chroma MCP server."""
+    """Main execution function for the Chroma MCP server.
+
+    Assumes that `config_server` has already been called (typically by `cli.py`).
+    Retrieves the globally configured logger.
+    Logs the server start event, including the package version.
+    Initiates the MCP server run loop using the configured stdio transport
+    and the shared `mcp` instance from `app.py`.
+
+    Catches and logs `McpError` exceptions specifically.
+    Catches any other exceptions, logs them as critical errors, and wraps them
+    in an `McpError` before raising to ensure a consistent exit status via the CLI.
+    """
     logger = None # Initialize logger variable for this scope
     try:
         # Configuration should have been done by cli.py calling config_server
         logger = get_logger()
-
-        # REMOVE Ensure MCP instance is initialized (idempotent)
-        # mcp_instance = get_mcp()
 
         if logger:
             try:

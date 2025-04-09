@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-CLI entry point for the Chroma MCP Server.
-This module provides a command-line interface for running the Chroma MCP server.
+Command-line interface entry point for the Chroma MCP Server.
+
+This module provides a command-line interface (CLI) to configure and run the
+Chroma MCP server, which facilitates interaction with ChromaDB via the
+Model Context Protocol (MCP).
 """
 
 import os
@@ -11,7 +14,20 @@ from typing import List, Optional
 
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
-    """Parse command line arguments."""
+    """Parses command line arguments for the server configuration.
+
+    Sets up the argument parser with options for client type, data/log directories,
+    logging level, connection details (HTTP/Cloud), embedding function behavior,
+    and dotenv file path. Defaults are sourced from environment variables where
+    applicable.
+
+    Args:
+        args: A list of strings representing the command line arguments.
+              If None, arguments are taken from sys.argv.
+
+    Returns:
+        An argparse.Namespace object containing the parsed arguments.
+    """
     parser = argparse.ArgumentParser(description='Chroma MCP Server')
     
     # Client configuration
@@ -76,7 +92,15 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
 
 
 def main() -> int:
-    """Main entry point for the Chroma MCP server CLI."""
+    """Main entry point for the Chroma MCP server CLI.
+
+    Parses command-line arguments, loads the server configuration based on them,
+    and runs the main server loop. Handles graceful shutdown on KeyboardInterrupt
+    and logs other exceptions.
+
+    Returns:
+        0 on successful execution or graceful shutdown, 1 on error.
+    """
     # Parse arguments
     args = parse_args()
     
