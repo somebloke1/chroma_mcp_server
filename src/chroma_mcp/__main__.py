@@ -7,7 +7,7 @@ python -m chroma_mcp
 """
 
 import sys
-from chroma_mcp.server import main
+from chroma_mcp.cli import main
 
 if __name__ == "__main__":
     sys.exit(main()) 

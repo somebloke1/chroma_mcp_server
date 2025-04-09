@@ -87,6 +87,15 @@ The project includes several utility scripts in the `scripts/` directory to stre
 1. **Activate Environment:** Run `./scripts/develop.sh` or `hatch shell`.
 2. **Make Code Changes:** Edit the source code in the `src/` directory.
 3. **Run Tests:** Execute `./scripts/test.sh` to run the test suite. Add `--coverage` for a coverage report or `--clean` to force a rebuild of the test environment.
+
+    ```bash
+    # Using the script (recommended for matrix testing & coverage)
+    ./scripts/test.sh # Runs test matrix
+
+    # Or using hatch directly for the default environment
+    hatch run test
+    ```
+
 4. **Build (Optional):** Run `./scripts/build.sh` to create a package wheel locally.
 5. **Test Local Install (Optional):** Run `./scripts/test_uvx_install.sh` to verify the locally built wheel installs correctly via `uv pip install`.
 
@@ -111,8 +120,12 @@ Tests are located in the `tests/` directory and use `pytest`. Run tests using th
 
 ```bash
 # Run all tests across the Python matrix (defined in pyproject.toml)
-# This uses hatch run test:run internally.
-./scripts/test.sh
+# Using the script (recommended for matrix testing & coverage)
+# This uses hatch run test:run internally for matrix.
+./scripts/test.sh # Runs test matrix
+
+# Or run tests only for the default environment using Hatch
+hatch run test
 
 # Run tests across the matrix and generate coverage reports.
 # This runs tests first, then combines data, then generates:
@@ -132,8 +145,6 @@ Tests are located in the `tests/` directory and use `pytest`. Run tests using th
 ```
 
 Note that coverage reports (`terminal`, `XML`, `HTML`) are generated *after* all tests across all configured Python versions have completed.
-
-**Implementation Note:** While the MCP tools exposed via `@mcp.tool()` are asynchronous (handled by the MCP server framework), the underlying implementation functions (e.g., `_add_documents_impl`) that perform the core logic and interact with ChromaDB are synchronous. This design choice simplifies the core logic and ensures compatibility with different execution environments like stdio. The tests (`tests/`) reflect this by calling these synchronous `_impl` functions directly.
 
 ```bash
 # Run specific tests within the Hatch environment

@@ -8,6 +8,7 @@ import time
 import logging
 import logging.handlers
 import os
+import warnings
 
 # Import the server module to access its globals
 from src.chroma_mcp import server
@@ -22,13 +23,43 @@ from chromadb.types import Collection
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
-from src.chroma_mcp.tools.thinking_tools import register_thinking_tools
-from src.chroma_mcp.tools.collection_tools import register_collection_tools
-from src.chroma_mcp.tools.document_tools import register_document_tools
-
 from src.chroma_mcp.types import ChromaClientConfig, ThoughtMetadata
+from src.chroma_mcp.utils import (
+    get_chroma_client, 
+    get_embedding_function, 
+    validate_input,
+    ValidationError
+)
+
+from unittest.mock import MagicMock, patch
+from dotenv import load_dotenv
+
+# Import necessary components for testing server configuration and setup
+from src.chroma_mcp.server import config_server
+
+# Import functions/classes needed for tool tests
 from src.chroma_mcp.utils.client import get_chroma_client, get_embedding_function
-from src.chroma_mcp.utils.errors import handle_chroma_error, validate_input, raise_validation_error
+from src.chroma_mcp.utils.errors import McpError, ValidationError
+from src.chroma_mcp.types import (
+    ChromaClientConfig,
+    ThoughtMetadata,
+    DocumentMetadata # Ensure DocumentMetadata is imported
+)
+from src.chroma_mcp.tools.collection_tools import (
+    _create_collection_impl,
+    _list_collections_impl,
+    _get_collection_impl,
+    _set_collection_description_impl,
+    _set_collection_settings_impl,
+    _update_collection_metadata_impl,
+    _rename_collection_impl,
+    _delete_collection_impl,
+    _peek_collection_impl
+)
+from src.chroma_mcp.tools.thinking_tools import (
+    _sequential_thinking_impl,
+    _find_similar_thoughts_impl,
+)
 
 # --- Start: Logger Configuration for Tests --- 
 TEST_LOG_DIR = "logs"
@@ -222,7 +253,7 @@ class MockMCP:
         """Add documents to a collection."""
         # Validate inputs
         if not documents:
-            raise_validation_error("No documents provided")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message="No documents provided"))
             
         return {
             "status": "success",
@@ -446,9 +477,9 @@ class MockMCP:
         """Process sequential thoughts."""
         # Validate inputs
         if not thought:
-            raise_validation_error("Thought content is required")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message="Thought content is required"))
         if thought_number < 1:
-            raise_validation_error(f"Invalid thought number: {thought_number}")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid thought number: {thought_number}"))
             
         response = {
             "status": "success",

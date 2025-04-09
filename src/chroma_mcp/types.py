@@ -14,18 +14,19 @@ class ErrorData(BaseModel):
     message: str
     data: Optional[Dict[str, Any]] = None
 
+# Moved from utils/client.py
 @dataclass
 class ChromaClientConfig:
-    """Configuration for ChromaDB client."""
-    client_type: str  # "ephemeral" or "persistent"
-    data_dir: Optional[str] = None  # Directory for persistent storage
-    host: Optional[str] = None  # Host for remote ChromaDB
-    port: Optional[int] = None  # Port for remote ChromaDB
-    ssl: bool = True  # Use SSL for remote connections
-    tenant: Optional[str] = None  # Tenant ID for multi-tenant setups
-    database: Optional[str] = None  # Database name
-    api_key: Optional[str] = None  # API key for authentication
-    use_cpu_provider: bool = False  # Use CPU provider instead of GPU
+    """Configuration for the ChromaDB client."""
+    client_type: str
+    data_dir: Optional[str] = None
+    host: Optional[str] = None
+    port: Optional[int] = None # Corrected type hint to int
+    ssl: bool = False
+    tenant: Optional[str] = None
+    database: Optional[str] = None
+    api_key: Optional[str] = None
+    use_cpu_provider: Optional[bool] = None # None means auto-detect
 
 @dataclass
 class ThoughtMetadata:
@@ -38,6 +39,7 @@ class ThoughtMetadata:
     branch_id: Optional[str] = None  # Identifier for the branch
     next_thought_needed: bool = False  # Whether another thought is needed
     custom_data: Optional[Dict[str, Any]] = None  # Additional metadata
+    tags: Optional[List[str]] = None  # Make tags optional too for consistency
 
 @dataclass
 class DocumentMetadata:

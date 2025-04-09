@@ -163,6 +163,19 @@ print(default_api.mcp_chroma_test_chroma_get_documents(
 
 *Expected Outcome:* An empty list of documents.
 
+### 12b. Attempt Get on Non-Existent Document (Error Case)
+
+Attempt to retrieve a document ID that never existed.
+
+```tool_code
+print(default_api.mcp_chroma_test_chroma_get_documents(
+    collection_name="mcp_flow_test_coll",
+    ids=["non_existent_doc"]
+))
+```
+
+*Expected Outcome:* An empty list of documents (as ChromaDB `get` with non-existent IDs doesn't typically error, but returns empty).
+
 ### 13. Delete Collection
 
 Clean up by deleting the test collection.

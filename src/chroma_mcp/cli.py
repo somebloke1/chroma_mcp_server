@@ -28,6 +28,12 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
                        default=os.getenv('CHROMA_LOG_DIR'),
                        help='Directory for log files (default: current directory)')
     
+    # Logging level
+    parser.add_argument('--log-level',
+                       choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                       default=os.getenv('LOG_LEVEL', 'INFO').upper(),
+                       help='Set the logging level (overrides LOG_LEVEL env var)')
+    
     # HTTP client options
     parser.add_argument('--host',
                        default=os.getenv('CHROMA_HOST'),
