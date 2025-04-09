@@ -106,23 +106,21 @@ async def _create_collection_impl(collection_name: str, metadata: Dict[str, Any]
         validate_collection_name(collection_name)
         client = get_chroma_client()
         
+        # Determine metadata: Use provided or get defaults
         metadata_to_use = None
         log_msg_suffix = ""
         if metadata is not None:
             if not isinstance(metadata, dict):
-                # Return MCP-compliant error for validation failure
-                logger.warning(f"Invalid metadata type provided for create_collection: {type(metadata)}")
-                return types.CallToolResult(
-                    isError=True,
-                    content=[types.TextContent(type="text", text="Tool Error: metadata parameter, if provided, must be a dictionary.")]
-                )
+                logger.warning(f"Invalid metadata type provided: {type(metadata)}")
+                return types.CallToolResult(isError=True, content=[types.TextContent(type="text", text="Tool Error: metadata must be a dictionary.")])
             metadata_to_use = metadata
             log_msg_suffix = "with provided metadata."
         else:
             metadata_to_use = get_collection_settings()
             log_msg_suffix = "with default settings."
 
-        # Explicitly set get_or_create to False to ensure DuplicateCollectionError is raised
+        # Call create_collection directly with embedding function and target metadata
+        logger.debug(f"Attempting to create collection '{collection_name}' with embedding function and metadata: {metadata_to_use}")
         collection = client.create_collection(
             name=collection_name,
             metadata=metadata_to_use,
@@ -130,16 +128,26 @@ async def _create_collection_impl(collection_name: str, metadata: Dict[str, Any]
             get_or_create=False
         )
         logger.info(f"Created collection: {collection_name} {log_msg_suffix}")
+
+        # Get the count (should be 0)
         count = collection.count()
-        # Peek might be expensive, consider removing or making optional if performance is key
-        peek_results = collection.peek(limit=5) # Limit peek for efficiency
+        # REMOVED: peek_results = collection.peek(limit=5) # Useless on a new collection
+
+        # REMOVED: Process peek_results logic is no longer needed here
+        # processed_peek = peek_results.copy() if peek_results else {}
+        # if processed_peek.get("embeddings"):
+        #     # Convert numpy arrays (or anything with a tolist() method) to lists
+        #     processed_peek["embeddings"] = [
+        #         arr.tolist() if hasattr(arr, 'tolist') and callable(arr.tolist) else arr 
+        #         for arr in processed_peek["embeddings"] if arr is not None # Added check for None elements
+        #     ]
 
         result_data = {
             "name": collection.name,
             "id": str(collection.id), # Ensure ID is string if it's UUID
             "metadata": _reconstruct_metadata(collection.metadata),
             "count": count,
-            "sample_entries": peek_results # Use limited peek results
+            # REMOVED: "sample_entries": processed_peek
         }
         # Serialize success result to JSON
         result_json = json.dumps(result_data, indent=2)

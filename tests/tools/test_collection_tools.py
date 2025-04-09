@@ -156,8 +156,6 @@ class TestCollectionTools:
         expected_reconstructed_settings = {k.replace("_", ":"): v for k, v in actual_default_settings.items()}
         assert result_data["metadata"].get("settings") == expected_reconstructed_settings
         assert result_data.get("count") == 0 # Based on mock count
-        assert "sample_entries" in result_data # Check peek results structure
-        assert result_data["sample_entries"] == mock_peek_result
 
     @pytest.mark.asyncio
     async def test_create_collection_invalid_name(self, mock_chroma_client_collections):
@@ -222,7 +220,6 @@ class TestCollectionTools:
         assert result_data["metadata"].get("settings", {}).get("hnsw:space") == "ip"
         assert result_data["metadata"].get("custom_field") == "value1"
         assert result_data.get("count") == 0
-        assert result_data.get("sample_entries") == mock_peek_result
 
     @pytest.mark.asyncio
     async def test_create_collection_chroma_duplicate_error(self, mock_chroma_client_collections):
