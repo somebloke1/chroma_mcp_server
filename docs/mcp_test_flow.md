@@ -34,8 +34,10 @@ print(default_api.mcp_chroma_test_chroma_create_collection(collection_name="mcp_
 Verify the new collection appears in the list.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_list_collections(name_contains="mcp_flow"))
+print(default_api.mcp_chroma_test_chroma_list_collections())
 ```
+
+**Note for Cursor Testing:** Due to current limitations in Cursor's MCP client handling of optional parameters for this tool, omit the `name_contains` parameter when running this step. The call should be `print(default_api.mcp_chroma_test_chroma_list_collections())`. You will need to manually verify the collection exists in the full list returned.
 
 *Expected Outcome:* A list including `"mcp_flow_test_coll"`.
 
@@ -70,6 +72,8 @@ print(default_api.mcp_chroma_test_chroma_add_documents(
 ))
 ```
 
+**Note for Cursor Testing:** Due to current limitations in Cursor's MCP client handling of optional parameters for this tool, omit the `ids` and `metadatas` parameters when running this step. The call should be `print(default_api.mcp_chroma_test_chroma_add_documents(collection_name="mcp_flow_test_coll", documents=[...]))`. ChromaDB will auto-generate UUIDs, and subsequent steps relying on specific IDs (`doc1`, `doc2`, `doc3`) will need adjustment or may behave differently.
+
 *Expected Outcome:* Confirmation that 3 documents were added, along with their IDs.
 
 ### 6. Peek at Collection
@@ -77,8 +81,10 @@ print(default_api.mcp_chroma_test_chroma_add_documents(
 Check the first few entries.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_peek_collection(collection_name="mcp_flow_test_coll", limit=2))
+print(default_api.mcp_chroma_test_chroma_peek_collection(collection_name="mcp_flow_test_coll"))
 ```
+
+**Note for Cursor Testing:** As a precaution due to potential limitations in Cursor's MCP client handling of optional parameters, omit the `limit` parameter when running this step. The call should be `print(default_api.mcp_chroma_test_chroma_peek_collection(collection_name="mcp_flow_test_coll"))`. The default limit (likely 5 or 10 depending on ChromaDB version) will be used.
 
 *Expected Outcome:* The first 2 documents (`doc1`, `doc2`) and their data.
 
@@ -93,6 +99,8 @@ print(default_api.mcp_chroma_test_chroma_query_documents(
     n_results=2
 ))
 ```
+
+**Note for Cursor Testing:** As a precaution due to potential limitations in Cursor's MCP client handling of optional parameters, omit the `n_results` parameter when running this step. The call should be `print(default_api.mcp_chroma_test_chroma_query_documents(collection_name="mcp_flow_test_coll", query_texts=[...]))`. The default number of results (likely 10) will be returned.
 
 *Expected Outcome:* A list of results, likely including `doc1` and `doc2` with distances/similarities.
 

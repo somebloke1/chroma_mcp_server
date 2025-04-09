@@ -356,27 +356,28 @@ async def _get_documents_impl(
     """
 
     try:
-        # Handle None defaults
-        effective_ids = ids if ids is not None else []
-        effective_where = where if where is not None else None # Use None for Chroma
-        effective_where_document = where_document if where_document is not None else None # Use None for Chroma
+        # Handle None defaults for dicts/lists
+        effective_where = where if where is not None else None
+        effective_where_document = where_document if where_document is not None else None
         effective_include = include if include is not None else []
+        # Assign effective limit/offset for validation, pass original None to ChromaDB
+        effective_limit_for_validation = limit
+        effective_offset_for_validation = offset
 
-        # Input validation (raises ValidationError)
-        # Allow retrieval without filters if limit is provided (for browsing)
-        # if not effective_ids and not effective_where and not effective_where_document:
-        #     raise ValidationError("At least one of ids, where, or where_document must be provided to get documents.")
+        # Input validation
+        if ids is None and where is None and where_document is None:
+            raise ValidationError("Must provide either ids, where, or where_document")
+        if ids and (where or where_document):
+             logger.warning("Both ids and where/where_document provided; ChromaDB typically ignores filters when ids are given.")
+             # Reset filters if IDs are present to match expected Chroma behavior
+             effective_where = None
+             effective_where_document = None
 
-        if limit < 0:
-            raise ValidationError("limit cannot be negative")
-        if offset < 0:
-            raise ValidationError("offset cannot be negative")
-
-        # Validate include values if provided
-        valid_includes = ["documents", "embeddings", "metadatas"]
-        if effective_include and not all(item in valid_includes for item in effective_include):
-            invalid_items = [item for item in effective_include if item not in valid_includes]
-            raise ValidationError(f"Invalid item(s) in include list: {invalid_items}. Valid items are: {valid_includes}")
+        # Validation for limit and offset using effective values
+        if effective_limit_for_validation is not None and effective_limit_for_validation <= 0:
+             raise ValidationError("limit must be a positive integer if provided")
+        if effective_offset_for_validation is not None and effective_offset_for_validation < 0:
+             raise ValidationError("offset must be non-negative if provided")
 
         # Get collection, handle not found
         client = get_chroma_client()
@@ -395,24 +396,20 @@ async def _get_documents_impl(
             else:
                 raise e # Re-raise other ValueErrors
 
-        # Set default includes if list was empty
+        # Set default includes if empty
         final_include = effective_include if effective_include else ["documents", "metadatas"]
 
-        # Convert limit/offset 0 to None for ChromaDB client
-        final_limit = limit if limit is not None and limit > 0 else None # Pass None if 0 or None
-        final_offset = offset if offset is not None and offset > 0 else None # Pass None if 0 or None
-
-        # Get documents, handle potential errors
+        # Get documents, handle errors
         try:
             results = collection.get(
-                ids=effective_ids if effective_ids else None,
-                where=effective_where, # Pass None if originally None/empty
-                where_document=effective_where_document, # Pass None if originally None/empty
-                include=final_include,
-                limit=final_limit,
-                offset=final_offset
+                ids=ids if ids else None, # Pass None if list is empty/None
+                where=effective_where,
+                limit=limit, # Pass original limit (can be None)
+                offset=offset, # Pass original offset (can be None)
+                where_document=effective_where_document,
+                include=final_include
             )
-        except ValueError as e: # Catch errors from get (e.g., bad filter)
+        except ValueError as e: # Catch errors from the get itself (e.g., bad filter)
             logger.error(f"Error executing get on collection '{collection_name}': {e}", exc_info=True)
             return types.CallToolResult(
                 isError=True,

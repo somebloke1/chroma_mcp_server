@@ -336,18 +336,16 @@ class TestDocumentTools:
         result = await _get_documents_impl(
             collection_name="test_get_ids",
             ids=ids_to_get,
-            limit=0, # Add mandatory args
-            offset=0
         )
         
         # Assert synchronous call
         mock_collection.get.assert_called_once_with(
             ids=ids_to_get,
             where=None,
+            limit=None,
+            offset=None,
             where_document=None,
             include=["documents", "metadatas"], # Default include
-            limit=None, # limit=0 becomes None
-            offset=None # offset=0 becomes None
         )
         # Use helper to parse JSON first
         result_data = assert_successful_json_result(result)
@@ -409,32 +407,41 @@ class TestDocumentTools:
     @pytest.mark.asyncio
     async def test_get_documents_validation_no_criteria(self, mock_chroma_client_document):
         """Test validation failure with no criteria (ids/where)."""
-        # Adapted test: Check successful retrieval of all (mocked empty)
+        # Expect validation error: Must provide one criteria
         mock_client, mock_collection = mock_chroma_client_document
-        mock_collection.get.return_value = {"ids": [], "documents": [], "metadatas": []}
         result = await _get_documents_impl(
             collection_name="test_valid",
-            limit=10, # Provide limit
-            offset=0  # Provide offset
+            # No ids, where, or where_document provided
+            # Providing limit/offset doesn't satisfy the criteria requirement
+            limit=10,
+            offset=0
         )
-        # Expect successful result, not error
-        result_data = assert_successful_json_result(result)
-        assert result_data.get("documents") == []
-        # Correct the key check based on implementation (likely 'retrieved_count')
-        assert result_data.get("retrieved_count", -1) == 0 # Check count key
-        mock_collection.get.assert_called_once()
+        # Expect error result
+        assert_error_result(result, "Validation Error: Must provide either ids, where, or where_document")
 
     @pytest.mark.asyncio
     async def test_get_documents_validation_invalid_limit(self, mock_chroma_client_document):
         """Test validation failure with invalid limit."""
         result = await _get_documents_impl(
             collection_name="test_valid",
-            ids=["id1"],
+            ids=["id1"], # Provide valid criteria
             limit=-1,
             offset=0 # Add missing argument
         )
-        assert_error_result(result, "Validation Error: limit cannot be negative")
-        
+        # Update expected error message
+        assert_error_result(result, "Validation Error: limit must be a positive integer if provided")
+
+    @pytest.mark.asyncio
+    async def test_get_documents_validation_invalid_offset(self, mock_chroma_client_document):
+        """Test validation failure with invalid offset."""
+        result = await _get_documents_impl(
+            collection_name="test_valid",
+            ids=["id1"],
+            limit=10,
+            offset=-1
+        )
+        assert_error_result(result, "Validation Error: offset must be non-negative if provided")
+
     # --- _update_documents_impl Tests ---
     @pytest.mark.asyncio
     async def test_update_documents_success(self, mock_chroma_client_document):
