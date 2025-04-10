@@ -5,23 +5,21 @@ from .types import (
     # Document, # Removed: Not defined in types.py
     DocumentMetadata,
     # QueryResult, # Removed: Not defined in types.py
-    ThoughtMetadata
+    ThoughtMetadata,
 )
 from .utils import (
     config,
     client,
     errors,
 )
+
 # from .handlers import (
 #     CollectionHandler,
 #     DocumentHandler,
 #     ThinkingHandler
 # )
-from .tools import (
-    collection_tools,
-    document_tools,
-    thinking_tools
-)
+from .tools import collection_tools, document_tools, thinking_tools
+
 # Only import get_mcp from server
 # from .server import get_mcp
 # Removed: main, config_server, create_parser
@@ -33,12 +31,9 @@ from .tools import (
 # )
 
 # Import key components for easier access from outside
-from .utils import (
-    get_logger,
-    get_chroma_client,
-    get_embedding_function
-)
-from .utils.errors import McpError, ValidationError # Assuming McpError is defined here or imported
+from .utils import get_logger, get_chroma_client, get_embedding_function
+from .utils.errors import McpError, ValidationError  # Assuming McpError is defined here or imported
+
 # REMOVE this line as get_mcp no longer exists in server.py
 # from .server import get_mcp
 
@@ -71,7 +66,7 @@ __all__ = [
     # "create_parser", # Removed
     "get_mcp",
     # Version
-    "__version__"
+    "__version__",
 ]
 
 __author__ = "Nold Coaching & Consulting"

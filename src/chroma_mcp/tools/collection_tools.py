@@ -10,6 +10,7 @@ from chromadb.api.client import ClientAPI
 from chromadb.errors import InvalidDimensionException
 import numpy as np
 
+from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional, Union, cast
 from dataclasses import dataclass
 
@@ -20,15 +21,13 @@ from mcp import types
 from mcp.types import ErrorData, INVALID_PARAMS, INTERNAL_ERROR
 from mcp.shared.exceptions import McpError
 
-from ..app import mcp
 from ..utils import (
-    get_logger, 
-    get_chroma_client, 
-    get_embedding_function, 
-    validate_input, 
-    ValidationError, # Keep this if used
-    ClientError, # Keep this if used
-    ConfigurationError # Keep this if used
+    get_logger,
+    get_chroma_client,
+    get_embedding_function,
+    ValidationError,
+    ClientError,
+    ConfigurationError,
 )
 from ..utils.config import get_collection_settings, validate_collection_name
 
@@ -44,11 +43,78 @@ from ..utils.config import get_collection_settings, validate_collection_name
 # or passed to a setup function that imports this module. For now, leave as is.
 # If errors persist, we might need to import the global _mcp_instance from server.py.
 
+# --- Pydantic Input Models for Collection Tools ---
+
+
+class CreateCollectionInput(BaseModel):
+    collection_name: str = Field(
+        description="The name for the new collection. Must adhere to ChromaDB naming conventions."
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional metadata and settings (e.g., {'description': '...', 'settings': {'hnsw:space': 'cosine'}}). Uses server defaults if None.",
+    )
+
+
+class ListCollectionsInput(BaseModel):
+    limit: Optional[int] = Field(
+        default=None, ge=0, description="Maximum number of collections to return (0 or None for no limit)."
+    )
+    offset: Optional[int] = Field(default=None, ge=0, description="Number of collections to skip.")
+    name_contains: Optional[str] = Field(
+        default=None, description="Filter collections by name (case-insensitive contains)."
+    )
+
+
+class GetCollectionInput(BaseModel):
+    collection_name: str = Field(description="The name of the collection to retrieve information for.")
+
+
+class SetCollectionDescriptionInput(BaseModel):
+    collection_name: str = Field(description="The name of the collection to update.")
+    description: str = Field(description="The new description for the collection.")
+
+
+class SetCollectionSettingsInput(BaseModel):
+    collection_name: str = Field(description="The name of the collection to update.")
+    settings: Dict[str, Any] = Field(
+        description="A dictionary containing the new settings (e.g., HNSW parameters). Replaces existing settings."
+    )
+
+
+class UpdateCollectionMetadataInput(BaseModel):
+    collection_name: str = Field(description="The name of the collection to update.")
+    metadata_update: Dict[str, Any] = Field(
+        description="Key-value pairs to add/update in the collection's custom metadata block. Replaces existing custom metadata."
+    )
+
+
+class RenameCollectionInput(BaseModel):
+    collection_name: str = Field(description="The current name of the collection to rename.")
+    new_name: str = Field(description="The new name for the collection.")
+
+
+class DeleteCollectionInput(BaseModel):
+    collection_name: str = Field(description="The name of the collection to delete.")
+
+
+class PeekCollectionInput(BaseModel):
+    collection_name: str = Field(description="The name of the collection to peek into.")
+    limit: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="Maximum number of documents to return (defaults to ChromaDB's internal default, often 10). Must be >= 1.",
+    )
+
+
+# --- End Pydantic Input Models ---
+
+
 def _reconstruct_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Reconstructs the structured metadata (with 'settings') from ChromaDB's internal format."""
     if not metadata:
         return {}
-    
+
     reconstructed = {}
     settings = {}
     for key, value in metadata.items():
@@ -56,798 +122,719 @@ def _reconstruct_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         # Check for flattened setting keys
         if key.startswith("chroma:setting:"):
             # Convert 'chroma_setting_hnsw_space' back to 'hnsw:space'
-            original_key = key[len("chroma:setting:"):].replace('_', ':')
+            original_key = key[len("chroma:setting:") :].replace("_", ":")
             setting_key_to_store = original_key
         # Also recognize common raw keys like hnsw:*
         elif key.startswith("hnsw:"):
             setting_key_to_store = key
-        
+
         if setting_key_to_store:
             settings[setting_key_to_store] = value
         # Explicitly check for 'description' as it's handled separately
-        elif key == 'description':
+        elif key == "description":
             reconstructed[key] = value
         # Store other keys directly (custom user keys)
-        elif not key.startswith("chroma:"): # Avoid other potential internal chroma keys
+        elif not key.startswith("chroma:"):  # Avoid other potential internal chroma keys
             reconstructed[key] = value
-    
+
     if settings:
         reconstructed["settings"] = settings
-        
+
     return reconstructed
 
-# Get logger instance for this module
-logger = get_logger("tools.collection")
 
 # --- Implementation Functions ---
 
-@mcp.tool(name="chroma_create_collection", description="Create a new ChromaDB collection with specific or default settings. If `metadata` is provided, it overrides the default settings (e.g., HNSW parameters). If `metadata` is None or omitted, default settings are used. Use other tools like 'set_collection_description' to modify mutable metadata later.")
-async def _create_collection_impl(collection_name: str, metadata: Dict[str, Any] = None) -> types.CallToolResult:
-    """Creates a new ChromaDB collection.
 
-    Args:
-        collection_name: The name for the new collection. Must adhere to ChromaDB
-                         naming conventions (e.g., length, allowed characters).
-        metadata: An optional dictionary containing metadata and settings.
-                  Keys like 'description' or 'settings' (containing HNSW params like 'hnsw:space')
-                  can be provided. If omitted, default settings are used.
+# Signature changed to return List[Content]
+async def _create_collection_impl(input_data: CreateCollectionInput) -> List[types.TextContent]:
+    """Implementation for creating a new collection.
 
     Returns:
-        A CallToolResult object.
-        On success, content contains a TextContent object with a JSON string
-        detailing the created collection's name, id, metadata, count, and
-        sample entries (up to 5).
-        On error (e.g., validation error, collection exists, unexpected issue),
-        isError is True and content contains a TextContent object with an
-        error message.
+        List containing a single TextContent object with JSON details of the created collection.
+    Raises:
+        McpError: If validation fails, the collection already exists, or another error occurs.
     """
+    logger = get_logger("tools.collection")
+    collection_name = input_data.collection_name
+    metadata = input_data.metadata
 
     try:
         validate_collection_name(collection_name)
-        client = get_chroma_client()
-        
-        # Determine metadata: Use provided or get defaults
-        metadata_to_use = None
-        log_msg_suffix = ""
-        if metadata is not None:
-            if not isinstance(metadata, dict):
-                logger.warning(f"Invalid metadata type provided: {type(metadata)}")
-                return types.CallToolResult(isError=True, content=[types.TextContent(type="text", text="Tool Error: metadata must be a dictionary.")])
-            metadata_to_use = metadata
-            log_msg_suffix = "with provided metadata."
-        else:
-            metadata_to_use = get_collection_settings()
-            log_msg_suffix = "with default settings."
 
-        # Call create_collection directly with embedding function and target metadata
-        logger.debug(f"Attempting to create collection '{collection_name}' with embedding function and metadata: {metadata_to_use}")
+        client = get_chroma_client()
+        embedding_function = get_embedding_function()
+
+        # Handle metadata and default settings
+        final_metadata = {}
+        if metadata:
+            final_metadata.update(metadata)
+            # Warn if user provided metadata might conflict with settings pattern
+            if any(k.startswith("chroma:setting:") for k in metadata):
+                logger.warning(
+                    f"Metadata for '{collection_name}' contains keys matching 'chroma:setting:'. Use set_collection_settings tool for settings."
+                )
+        else:
+            # Apply default settings if no metadata provided
+            default_settings = get_collection_settings()
+            # Use the internal format ChromaDB expects for default settings via metadata
+            final_metadata = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings.items()}
+            logger.debug(f"Creating collection '{collection_name}' with default settings: {final_metadata}")
+
+        # Create the collection
         collection = client.create_collection(
             name=collection_name,
-            metadata=metadata_to_use,
-            embedding_function=get_embedding_function(),
-            get_or_create=False
+            metadata=final_metadata, # Pass the processed metadata
+            embedding_function=embedding_function, # Ensure EF is passed if needed by client
+            get_or_create=False, # Explicitly False to ensure creation error
         )
-        logger.info(f"Created collection: {collection_name} {log_msg_suffix}")
 
-        # Get the count (should be 0)
+        # Prepare success result data
         count = collection.count()
-        # REMOVED: peek_results = collection.peek(limit=5) # Useless on a new collection
-
-        # REMOVED: Process peek_results logic is no longer needed here
-        # processed_peek = peek_results.copy() if peek_results else {}
-        # if processed_peek.get("embeddings"):
-        #     # Convert numpy arrays (or anything with a tolist() method) to lists
-        #     processed_peek["embeddings"] = [
-        #         arr.tolist() if hasattr(arr, 'tolist') and callable(arr.tolist) else arr 
-        #         for arr in processed_peek["embeddings"] if arr is not None # Added check for None elements
-        #     ]
-
         result_data = {
             "name": collection.name,
             "id": str(collection.id), # Ensure ID is string if it's UUID
             "metadata": _reconstruct_metadata(collection.metadata),
             "count": count,
-            # REMOVED: "sample_entries": processed_peek
         }
-        # Serialize success result to JSON
         result_json = json.dumps(result_data, indent=2)
-        return types.CallToolResult(
-            content=[types.TextContent(type="text", text=result_json)]
-        )
+        # Return content list directly
+        return [types.TextContent(type="text", text=result_json)]
 
     except ValidationError as e:
         logger.warning(f"Validation error creating collection '{collection_name}': {e}")
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Validation Error: {str(e)}")]
-        )
+        # Raise McpError
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
     except ValueError as e:
-        # Check if the error message indicates a duplicate collection
         if f"Collection {collection_name} already exists." in str(e):
             logger.warning(f"Collection '{collection_name}' already exists.")
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text=f"Tool Error: Collection '{collection_name}' already exists.")]
+            # Raise McpError
+            raise McpError(
+                ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' already exists.")
             )
         else:
-            # Handle other ValueErrors as likely invalid parameters
             logger.error(f"Validation error during collection creation '{collection_name}': {e}", exc_info=True)
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text=f"Tool Error: Invalid parameter during collection creation. Details: {e}")]
+            # Raise McpError
+            raise McpError(
+                ErrorData(
+                    code=INVALID_PARAMS,
+                    message=f"Tool Error: Invalid parameter during collection creation. Details: {e}",
+                )
             )
-    except InvalidDimensionException as e: # Example of another specific Chroma error
+    except InvalidDimensionException as e:
         logger.error(f"Dimension error creating collection '{collection_name}': {e}", exc_info=True)
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"ChromaDB Error: Invalid dimension configuration. {str(e)}")]
+        # Raise McpError
+        raise McpError(
+            ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Invalid dimension configuration. {str(e)}")
         )
     except Exception as e:
-        # Log the full unexpected error server-side
         logger.error(f"Unexpected error creating collection '{collection_name}': {e}", exc_info=True)
-        # Return a Tool Error instead of raising McpError
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while creating collection '{collection_name}'. Details: {str(e)}")]
+        # Raise McpError
+        raise McpError(
+            ErrorData(
+                code=INTERNAL_ERROR,
+                message=f"Tool Error: An unexpected error occurred while creating collection '{collection_name}'. Details: {str(e)}",
+            )
         )
 
-@mcp.tool(name="chroma_list_collections", description="List all collections with optional filtering and pagination.")
-async def _list_collections_impl(limit: Optional[int] = None, offset: Optional[int] = None, name_contains: Optional[str] = None) -> types.CallToolResult:
-    """Lists available ChromaDB collections.
+
+# Signature changed to accept Pydantic model and return List[TextContent]
+async def _list_collections_impl(input_data: ListCollectionsInput) -> List[types.TextContent]:
+    """Lists collections, optionally filtering by name and applying pagination.
 
     Args:
-        limit: The maximum number of collection names to return. 0 means no limit.
-               Defaults to 0 (no limit). Must be non-negative.
-        offset: The number of collection names to skip from the beginning.
-                Defaults to 0. Must be non-negative.
-        name_contains: An optional string to filter collections by name (case-insensitive).
-                       Only collections whose names contain this string will be returned.
-                       Defaults to None (no filtering).
+        input_data: A ListCollectionsInput object containing validated arguments.
 
     Returns:
-        A CallToolResult object.
-        On success, content contains a TextContent object with a JSON string
-        containing a list of 'collection_names', the 'total_count' (before pagination),
-        and the requested 'limit' and 'offset'.
-        On error (e.g., validation error, unexpected issue), isError is True and
-        content contains a TextContent object with an error message.
+        A list containing a single TextContent object with a JSON string
+        detailing the paginated collection names and counts.
+
+    Raises:
+        McpError: If a validation error occurs or an unexpected exception
+                  happens during client interaction.
     """
+    logger = get_logger("tools.collection")
+    limit = input_data.limit
+    offset = input_data.offset
+    name_contains = input_data.name_contains
 
     try:
-        # Assign effective defaults if None
-        effective_limit = 0 if limit is None else limit
-        effective_offset = 0 if offset is None else offset
+        # Pydantic handles validation for limit/offset >= 0
 
-        # Input validation
-        if effective_limit < 0:
-            raise ValidationError("limit cannot be negative")
-        if effective_offset < 0:
-            raise ValidationError("offset cannot be negative")
-            
         client = get_chroma_client()
-        # In ChromaDB v0.5+, list_collections returns Collection objects
-        # The code needs to handle this correctly.
-        all_collections = client.list_collections()
-        
-        # Correctly extract names from Collection objects
-        collection_names = []
-        if isinstance(all_collections, list):
-            for col in all_collections:
-                try:
-                    # Access the name attribute of the Collection object
-                    collection_names.append(col.name)
-                except AttributeError:
-                    logger.warning(f"Object in list_collections result does not have a .name attribute: {type(col)}")
-        else:
-             logger.warning(f"client.list_collections() returned unexpected type: {type(all_collections)}")
-            
-        # Safety check, though Chroma client should return a list of Collections (already handled above)
-        # if not isinstance(collection_names, list): # This check is redundant now
-        #     logger.warning(f"client.list_collections() yielded unexpected structure, processing as empty list.")
-        #     collection_names = []
-            
-        # Explicitly check for None before filtering
-        if name_contains is not None:
-            filtered_names = [name for name in collection_names if name_contains.lower() in name.lower()]
-        else:
-            filtered_names = collection_names
-            
-        total_count = len(filtered_names)
-        start_index = effective_offset
-        # Apply limit only if it's positive; 0 means no limit
-        end_index = (start_index + effective_limit) if effective_limit > 0 else len(filtered_names)
+        # Chroma >= 0.6.0 returns List[str] directly
+        all_collection_names: List[str] = client.list_collections()
+
+        # Apply filtering if name_contains is provided
+        filtered_names = [
+            name for name in all_collection_names if name_contains and name_contains.lower() in name.lower()
+        ] if name_contains else all_collection_names
+
+        total_matching_count = len(filtered_names)
+
+        # Apply pagination
+        paginated_names = filtered_names
+        start_index = offset if offset is not None else 0
+        end_index = (start_index + limit) if limit is not None else None
+
+        if start_index < 0:
+             start_index = 0 # Ensure start index is not negative
+
         paginated_names = filtered_names[start_index:end_index]
-        
+
+        # Prepare result
         result_data = {
             "collection_names": paginated_names,
-            "total_count": total_count,
-            "limit": effective_limit, # Return the effective limit used
-            "offset": effective_offset # Return the effective offset used
+            "total_count": total_matching_count,
+            "limit": limit,
+            "offset": offset,
         }
         result_json = json.dumps(result_data, indent=2)
-        return types.CallToolResult(
-            content=[types.TextContent(type="text", text=result_json)]
-        )
-        
-    except ValidationError as e:
-        logger.warning(f"Validation error listing collections: {e}")
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Validation Error: {str(e)}")]
-        )
-    # Catch other potential ChromaDB or client connection errors if necessary
-    # except SomeChromaError as e: ... return CallToolResult(isError=True, ...)
+        # Return content list directly
+        return [types.TextContent(type="text", text=result_json)]
+
     except Exception as e:
-        logger.error(f"Unexpected error listing collections: {e}", exc_info=True)
-        # Return a Tool Error instead of raising McpError
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while listing collections. Details: {str(e)}")]
+        logger.error(f"Error listing collections: {e}", exc_info=True)
+        # Raise McpError
+        raise McpError(
+            ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Error listing collections. Details: {str(e)}")
         )
 
-@mcp.tool(name="chroma_get_collection", description="Get information about a specific collection.")
-async def _get_collection_impl(collection_name: str) -> types.CallToolResult:
+
+# Signature changed to return List[Content]
+async def _get_collection_impl(input_data: GetCollectionInput) -> List[types.TextContent]:
     """Retrieves details about a specific ChromaDB collection.
 
-    Args:
-        collection_name: The name of the collection to retrieve.
-
     Returns:
-        A CallToolResult object.
-        On success, content contains a TextContent object with a JSON string
-        detailing the collection's name, id, metadata, count, and sample
-        entries (up to 5).
-        On error (e.g., collection not found, unexpected issue), isError is True
-        and content contains a TextContent object with an error message.
+        A list containing a single TextContent object with JSON details of the collection.
+
+    Raises:
+        McpError: If the collection is not found or another error occurs.
     """
+    logger = get_logger("tools.collection")
+    collection_name = input_data.collection_name
 
     try:
+        validate_collection_name(collection_name)
         client = get_chroma_client()
-        # get_collection raises ValueError if not found
-        collection = client.get_collection(
-            name=collection_name,
-            embedding_function=get_embedding_function()
-        )
-        count = collection.count()
-        # Limit peek results
-        peek_results = collection.peek(limit=5) 
+        # Use get_collection which raises an error if not found
+        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
 
-        # Process peek_results to ensure JSON serializability (convert ndarrays)
-        processed_peek = peek_results.copy() if peek_results else {}
-        if processed_peek.get("embeddings"):
-            # Convert numpy arrays (or anything with a tolist() method) to lists
-            processed_peek["embeddings"] = [
-                arr.tolist() if hasattr(arr, 'tolist') and callable(arr.tolist) else arr 
-                for arr in processed_peek["embeddings"] if arr is not None
-            ]
+        count = collection.count()
+        # Process peek results carefully, handle potential large embeddings
+        peek_results = None
+        try:
+            # Limit peek to avoid large payloads
+            peek_results = collection.peek(limit=5)
+            # Remove embeddings if present, as they can be large and aren't needed for info
+            if peek_results and "embeddings" in peek_results:
+                del peek_results["embeddings"]
+        except Exception as peek_err:
+            logger.warning(f"Could not peek into collection '{collection_name}': {peek_err}")
+            peek_results = {"error": f"Could not peek: {str(peek_err)}"}
 
         result_data = {
             "name": collection.name,
-            "id": str(collection.id), # Ensure ID is string
+            "id": str(collection.id),
             "metadata": _reconstruct_metadata(collection.metadata),
             "count": count,
-            "sample_entries": processed_peek # Use processed results
+            "sample_entries": peek_results, # Include processed/limited peek
         }
-        # Convert dict containing potentially non-serializable items to JSON
-        # Using a custom handler might be more robust if other types arise
         result_json = json.dumps(result_data, indent=2)
-        return types.CallToolResult(
-            content=[types.TextContent(type="text", text=result_json)]
-        )
-        
+        # Return content list directly
+        return [types.TextContent(type="text", text=result_json)]
+
     except ValueError as e:
-        # ChromaDB often raises ValueError for not found
-        logger.warning(f"Error getting collection '{collection_name}': {e}")
-        # Check if the error message indicates "not found"
-        if f"Collection {collection_name} does not exist." in str(e):
-            error_msg = f"ChromaDB Error: Collection '{collection_name}' not found."
+        # Handle case where collection is not found
+        error_str = str(e).lower()
+        not_found = False
+        if f"collection {collection_name} does not exist." in error_str:
+            not_found = True
+        if f"collection {collection_name} not found" in error_str:
+             not_found = True
+        
+        if not_found:
+            logger.warning(f"Collection '{collection_name}' not found.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
         else:
-             # Keep the original ValueError message if it's something else
-            error_msg = f"ChromaDB Value Error: {str(e)}"
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=error_msg)]
-        )
+            # Handle other ValueErrors
+            logger.error(f"Value error getting collection '{collection_name}': {e}", exc_info=True)
+            raise McpError(
+                ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Invalid parameter getting collection. Details: {e}")
+            )
     except Exception as e:
         logger.error(f"Unexpected error getting collection '{collection_name}': {e}", exc_info=True)
-        # Return a Tool Error instead of raising McpError
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while getting collection '{collection_name}'. Details: {str(e)}")]
+        # Raise McpError
+        raise McpError(
+            ErrorData(
+                code=INTERNAL_ERROR,
+                message=f"Tool Error: An unexpected error occurred while getting collection '{collection_name}'. Details: {str(e)}",
+            )
         )
 
-@mcp.tool(name="chroma_set_collection_description", description="Sets or updates the description of a collection. Note: Due to ChromaDB limitations, this tool will likely fail on existing collections. Set description during creation via metadata instead.")
-async def _set_collection_description_impl(collection_name: str, description: str) -> types.CallToolResult:
-    """Sets the description metadata field for a collection.
 
-    Warning: This operation might fail if the collection has immutable settings
-             (like HNSW parameters) already defined.
-
-    Args:
-        collection_name: The name of the collection to modify.
-        description: The new description string to set.
+# Signature changed to return List[Content]
+async def _set_collection_description_impl(input_data: SetCollectionDescriptionInput) -> List[types.TextContent]:
+    """Implementation for setting a collection's description.
 
     Returns:
-        A CallToolResult object.
-        On success, content contains a TextContent object with a JSON string
-        detailing the updated collection's info (name, id, metadata, etc.).
-        On error (e.g., collection not found, immutable settings conflict,
-        unexpected issue), isError is True and content contains a TextContent
-        object with an error message.
+        List containing a single TextContent object confirming the attempt.
+
+    Raises:
+        McpError: If the collection is not found or another error occurs.
     """
+    logger = get_logger("tools.collection")
+    collection_name = input_data.collection_name
+    description = input_data.description
 
     try:
+        validate_collection_name(collection_name)
         client = get_chroma_client()
 
-        # Try to get the collection first, handle not found error
-        try:
-            collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
-        except ValueError as e:
-             # Check if it's the specific "not found" error
-            if f"Collection {collection_name} does not exist." in str(e):
-                logger.warning(f"Cannot set description: Collection '{collection_name}' not found.")
-                return types.CallToolResult(
-                    isError=True,
-                    content=[types.TextContent(type="text", text=f"Tool Error: Collection '{collection_name}' not found.")]
-                )
-            else:
-                # Re-raise other ValueErrors to be caught by the generic handler below
-                raise e
+        # Get the collection first
+        collection = client.get_collection(name=collection_name)
 
-        # Check for immutable settings (example: hnsw)
-        current_metadata = collection.metadata or {}
-        if any(k.startswith("hnsw:") for k in current_metadata):
-            logger.warning(f"Attempted to set description on collection '{collection_name}' with immutable settings.")
-            # Return MCP-compliant error
-            return types.CallToolResult( 
-                isError=True,
-                content=[types.TextContent(type="text", text="Tool Error: Cannot set description on collections with existing immutable settings (e.g., hnsw:*). Modify operation aborted.")]
+        # Construct metadata update
+        metadata_update = {"description": description}
+
+        # Call modify with the new description in metadata
+        logger.warning(
+            f"Attempting to set description for '{collection_name}'. This operation might replace other metadata."
+        )
+        collection.modify(metadata=metadata_update)
+        logger.info(f"Description set attempt for collection '{collection_name}' completed.")
+
+        # Return confirmation message in content list
+        return [
+            types.TextContent(
+                type="text", text=f"Attempted to set description for collection '{collection_name}' to '{description}'."
             )
+        ]
 
-        # If no immutable settings, proceed with modify
-        # Note: modify might raise its own errors, caught by generic Exception handler
-        collection.modify(metadata={ "description": description })
-        logger.info(f"Set description for collection: {collection_name}")
-
-        # Return the updated collection info by calling the refactored get function
-        return await _get_collection_impl(collection_name)
-
-    except ValueError as e: # Catch ValueErrors re-raised from the inner try block
-        logger.error(f"Value error during set description for '{collection_name}': {e}", exc_info=False) # No need for full trace here usually
-        # It's likely not the "not found" error if it reached here
-        return types.CallToolResult(
-             isError=True,
-             content=[types.TextContent(type="text", text=f"ChromaDB Value Error: {str(e)}")]
-         )
+    except ValueError as e:
+        if (
+            f"Collection {collection_name} does not exist." in str(e) or 
+            f"Collection {collection_name} not found" in str(e).lower()
+        ): # Added lower() for safety
+            logger.warning(f"Cannot set description: Collection '{collection_name}' not found.")
+            # Raise McpError
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error setting description for '{collection_name}': {e}", exc_info=True)
+            # Raise McpError
+            raise McpError(
+                ErrorData(
+                    code=INVALID_PARAMS, message=f"Tool Error: Invalid parameter setting description. Details: {e}"
+                )
+            )
     except Exception as e:
-        logger.error(f"Unexpected error setting description for collection '{collection_name}': {e}", exc_info=True)
-        # Return a Tool Error instead of raising McpError
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while setting description for '{collection_name}'. Details: {str(e)}")]
+        # Catch errors during the modify operation specifically
+        logger.error(f"Error during collection.modify for description on '{collection_name}': {e}", exc_info=True)
+        # Raise McpError
+        raise McpError(
+            ErrorData(
+                code=INTERNAL_ERROR,
+                message=f"Tool Error: Failed during modify operation for '{collection_name}'. Details: {str(e)}",
+            )
         )
 
-@mcp.tool(name="chroma_set_collection_settings", description="Sets or updates the settings (e.g., HNSW parameters) of a collection. Warning: This replaces existing settings. This will likely fail on existing collections due to immutable settings. Define settings during creation via metadata.")
-async def _set_collection_settings_impl(collection_name: str, settings: Dict[str, Any]) -> types.CallToolResult:
-    """Sets the 'settings' metadata block for a collection.
 
-    Warning: This replaces any existing 'settings' and might fail if the
-             collection has immutable settings (like HNSW parameters) already defined.
-
-    Args:
-        collection_name: The name of the collection to modify.
-        settings: A dictionary containing the settings key-value pairs (e.g.,
-                  {'hnsw:space': 'cosine'}).
+# Signature changed to return List[Content]
+async def _set_collection_settings_impl(input_data: SetCollectionSettingsInput) -> List[types.TextContent]:
+    """Implementation for setting a collection's settings.
 
     Returns:
-        A CallToolResult object.
-        On success, content contains a TextContent object with a JSON string
-        detailing the updated collection's info (name, id, metadata including
-        the new settings, etc.).
-        On error (e.g., collection not found, invalid settings format, immutable
-        settings conflict, unexpected issue), isError is True and content contains
-        a TextContent object with an error message.
+        List containing a single TextContent object confirming the attempt.
+
+    Raises:
+        McpError: If the collection is not found or another error occurs.
     """
+    logger = get_logger("tools.collection")
+    collection_name = input_data.collection_name
+    settings = input_data.settings
 
     try:
-        # Input validation for settings type
-        if not isinstance(settings, dict):
-            logger.warning(f"Invalid settings type provided for set_collection_settings: {type(settings)}")
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text="Tool Error: settings parameter must be a dictionary.")]
-            )
+        validate_collection_name(collection_name)
 
         client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
 
-        # Try to get the collection first, handle not found error
-        try:
-            collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
-        except ValueError as e:
-             # Check if it's the specific "not found" error
-            if f"Collection {collection_name} does not exist." in str(e):
-                logger.warning(f"Cannot set settings: Collection '{collection_name}' not found.")
-                return types.CallToolResult(
-                    isError=True,
-                    content=[types.TextContent(type="text", text=f"Tool Error: Collection '{collection_name}' not found.")]
-                )
-            else:
-                # Re-raise other ValueErrors
-                raise e
-
-        # Check for immutable settings (existing hnsw:* keys in current metadata)
+        # Get current metadata (optional, depends on whether modify merges or replaces)
+        # Assuming modify MERGES or we handle merging here if needed.
+        # If modify REPLACES, we MUST fetch existing non-setting metadata first.
+        # Current Chroma `modify` seems to merge, but let's be safe if behavior changes.
         current_metadata = collection.metadata or {}
-        if any(k.startswith("hnsw:") for k in current_metadata):
-            logger.warning(f"Attempted to set settings on collection '{collection_name}' with immutable settings.")
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text="Tool Error: Cannot set settings on collections with existing immutable settings (e.g., hnsw:*). Modify operation aborted.")]
-            )
 
-        # Prepare metadata, preserving description and other custom keys
-        current_metadata_safe = collection.metadata or {}
-        preserved_metadata = { 
-            k: v for k, v in current_metadata_safe.items() 
-            # Keep description and any non-setting, non-hnsw keys
-            if k == 'description' or (not k.startswith(("chroma:setting:", "hnsw:")))
-        }
-        # Format new settings keys correctly for storing
-        formatted_settings = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in settings.items()}
-        # Combine preserved data with new flattened settings
-        updated_metadata = {**preserved_metadata, **formatted_settings}
+        # Prepare the metadata update block with prefixed setting keys
+        # Only include keys from the input settings
+        settings_update = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in settings.items()}
+
+        # Merge new settings with existing metadata
+        # Prioritize new settings if keys overlap (though settings keys shouldn't overlap with user meta)
+        final_metadata = {**current_metadata, **settings_update}
+
+        logger.warning(
+            f"Attempting to set settings for '{collection_name}'. This operation might replace other metadata or fail depending on ChromaDB version."
+        )
+        collection.modify(metadata=final_metadata) # Modify with merged data
+        logger.info(f"Settings update attempt for collection '{collection_name}' completed.")
+
+        # Return confirmation message
+        return [
+            types.TextContent(
+                type="text", text=f"Attempted to set settings for collection '{collection_name}'. Verify persistence."
+            )
+        ]
+
+    except ValueError as e:
+        error_str = str(e).lower()
+        not_found = False
+        if f"collection {collection_name} does not exist." in error_str:
+            not_found = True
+        if f"collection {collection_name} not found" in error_str:
+            not_found = True
         
-        # Modify the collection
-        collection.modify(metadata=updated_metadata)
-        logger.info(f"Set settings for collection: {collection_name}")
-
-        # Return updated collection info by calling get_collection_impl
-        # which will use _reconstruct_metadata
-        return await _get_collection_impl(collection_name)
-
-    except ValueError as e: # Catch ValueErrors re-raised from the inner try block
-        logger.error(f"Value error during set settings for '{collection_name}': {e}", exc_info=False)
-        return types.CallToolResult(
-             isError=True,
-             content=[types.TextContent(type="text", text=f"ChromaDB Value Error: {str(e)}")]
-         )
+        if not_found:
+            logger.warning(f"Cannot set settings: Collection '{collection_name}' not found.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error setting settings for '{collection_name}': {e}", exc_info=True)
+            raise McpError(
+                ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Invalid parameter setting settings. Details: {e}")
+            )
     except Exception as e:
-        logger.error(f"Unexpected error setting settings for collection '{collection_name}': {e}", exc_info=True)
-        # Return a Tool Error instead of raising McpError
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while setting settings for '{collection_name}'. Details: {str(e)}")]
+        logger.error(f"Error during collection.modify for settings on '{collection_name}': {e}", exc_info=True)
+        # Raise McpError
+        raise McpError(
+            ErrorData(
+                code=INTERNAL_ERROR,
+                message=f"Tool Error: Failed during modify operation for '{collection_name}'. Details: {str(e)}",
+            )
         )
 
-@mcp.tool(name="chroma_update_collection_metadata", description="Updates or adds custom key-value pairs to a collection's metadata (merge). Warning: This REPLACES the entire existing custom metadata block. This will likely fail on existing collections due to immutable settings. Set metadata during creation.")
-async def _update_collection_metadata_impl(collection_name: str, metadata_update: Dict[str, Any]) -> types.CallToolResult:
+
+# Signature changed to return List[Content]
+async def _update_collection_metadata_impl(input_data: UpdateCollectionMetadataInput) -> List[types.TextContent]:
     """Updates custom key-value pairs in a collection's metadata.
-
-    Warning: This merges the provided dictionary with existing custom metadata.
-             It cannot modify reserved keys like 'description' or 'settings'.
-             It might fail if the collection has immutable settings (like HNSW).
+    Warning: This REPLACES the existing custom metadata block. Likely fails on existing collections.
 
     Args:
-        collection_name: The name of the collection to modify.
-        metadata_update: A dictionary containing the custom key-value pairs
-                         to add or update. Keys must not be reserved ('description',
-                         'settings', etc.).
+        input_data: An UpdateCollectionMetadataInput object containing validated arguments.
 
     Returns:
-        A CallToolResult object.
-        On success, content contains a TextContent object with a JSON string
-        detailing the updated collection's info (name, id, merged metadata, etc.).
-        On error (e.g., collection not found, attempt to update reserved keys,
-        immutable settings conflict, unexpected issue), isError is True and
-        content contains a TextContent object with an error message.
+        List containing a single TextContent object confirming the attempt.
+
+    Raises:
+        McpError: If validation fails, collection not found, or another error occurs.
     """
+    logger = get_logger("tools.collection")
+    collection_name = input_data.collection_name
+    metadata_update = input_data.metadata_update
 
     try:
-        # Input validation for metadata_update type
-        if not isinstance(metadata_update, dict):
-            logger.warning(f"Invalid metadata_update type provided: {type(metadata_update)}")
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text="Tool Error: metadata_update parameter must be a dictionary.")]
-            )
-            
-        # Input validation for reserved keys
-        reserved_keys = ["description", "settings"]
-        if any(key in reserved_keys or key.startswith(("chroma:setting:", "hnsw:")) for key in metadata_update):
-            logger.warning(f"Attempted to update reserved/immutable keys via update_metadata: {list(metadata_update.keys())}")
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text="Tool Error: Cannot update reserved keys ('description', 'settings', 'chroma:setting:...', 'hnsw:...') via this tool. Use dedicated tools or recreate the collection.")]
-            )
-            
+        validate_collection_name(collection_name)
+
         client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
 
-        # Try to get the collection first, handle not found error
-        try:
-            collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
-        except ValueError as e:
-             # Check if it's the specific "not found" error
-            if f"Collection {collection_name} does not exist." in str(e):
-                logger.warning(f"Cannot update metadata: Collection '{collection_name}' not found.")
-                return types.CallToolResult(
-                    isError=True,
-                    content=[types.TextContent(type="text", text=f"Tool Error: Collection '{collection_name}' not found.")]
-                )
-            else:
-                # Re-raise other ValueErrors
-                raise e
-
-        # Check for immutable settings (hnsw:*) again
-        current_metadata = collection.metadata or {}
-        if any(k.startswith("hnsw:") for k in current_metadata):
-            logger.warning(f"Attempted to update metadata on collection '{collection_name}' with immutable settings.")
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text="Tool Error: Cannot update metadata on collections with existing immutable settings (e.g., hnsw:*). Modify operation aborted.")]
+        # Modify metadata - WARNING: Replaces ENTIRE metadata block in some Chroma versions.
+        logger.warning(
+            f"Attempting to update metadata for '{collection_name}'. This operation might replace the entire metadata block."
+        )
+        collection.modify(metadata=metadata_update)  # Use the provided update directly
+        logger.info(f"Modify call completed for metadata update on '{collection_name}'. Verification needed.")
+        # Return confirmation message in content list
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Attempted to update metadata for collection '{collection_name}'. Note: Behavior depends heavily on ChromaDB version (may replace all metadata).",
             )
+        ]
 
-        # Merge metadata: Start with existing, then update with new keys
-        current_metadata_safe = collection.metadata or {}
-        merged_metadata = current_metadata_safe.copy()
-        # Only add/update keys from metadata_update (don't overwrite description/settings)
-        for key, value in metadata_update.items():
-            # Double-check against reserved keys just in case
-            if key != 'description' and not key.startswith(("chroma:setting:", "hnsw:")):
-                 merged_metadata[key] = value
-            else:
-                 logger.warning(f"Skipping attempt to update reserved key '{key}' via update_metadata in collection '{collection_name}'")
+    except ValidationError as e:
+        logger.warning(f"Validation error updating metadata for '{collection_name}': {e}")
+        # Raise McpError
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
+    except ValueError as e:  # Catch collection not found from get_collection
+        error_str = str(e).lower()
+        not_found = False
+        if f"collection {collection_name} does not exist." in error_str:
+            not_found = True
+        if f"collection {collection_name} not found" in error_str:
+             not_found = True
 
-        # Modify the collection
-        collection.modify(metadata=merged_metadata)
-        logger.info(f"Updated custom metadata for collection: {collection_name}")
-
-        # Return updated collection info
-        return await _get_collection_impl(collection_name)
-
-    except ValueError as e: # Catch ValueErrors re-raised from the inner try block
-        logger.error(f"Value error during update metadata for '{collection_name}': {e}", exc_info=False)
-        return types.CallToolResult(
-             isError=True,
-             content=[types.TextContent(type="text", text=f"ChromaDB Value Error: {str(e)}")]
-         )
-    except Exception as e:
-        logger.error(f"Unexpected error updating metadata for collection '{collection_name}': {e}", exc_info=True)
-        # Return a Tool Error instead of raising McpError
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while updating metadata for '{collection_name}'. Details: {str(e)}")]
+        if not_found:
+            logger.warning(f"Cannot update metadata: Collection '{collection_name}' not found.")
+            # Raise McpError
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error updating metadata for '{collection_name}': {e}", exc_info=True)
+            # Raise McpError
+            raise McpError(
+                ErrorData(
+                    code=INVALID_PARAMS, message=f"Tool Error: Problem accessing collection '{collection_name}'. Details: {e}"
+                )
+            )
+    except Exception as e: # Catch errors during modify itself
+        logger.error(
+            f"Error during collection.modify for metadata update on '{collection_name}': {e}", exc_info=True
+        )
+        # Raise McpError
+        raise McpError(
+            ErrorData(
+                code=INTERNAL_ERROR,
+                message=f"Tool Error: Failed during modify operation for '{collection_name}'. Details: {str(e)}",
+            )
         )
 
-@mcp.tool(name="chroma_rename_collection", description="Renames an existing collection.")
-async def _rename_collection_impl(collection_name: str, new_name: str) -> types.CallToolResult:
-    """Renames an existing ChromaDB collection.
 
-    Args:
-        collection_name: The current name of the collection.
-        new_name: The desired new name for the collection. Must be valid according
-                  to ChromaDB naming rules and not already exist.
+# Signature changed to return List[Content]
+async def _rename_collection_impl(input_data: RenameCollectionInput) -> List[types.TextContent]:
+    """Implementation for renaming a collection.
 
     Returns:
-        A CallToolResult object.
-        On success, content contains a TextContent object with a JSON string
-        detailing the collection's info under its *new* name.
-        On error (e.g., original collection not found, new name invalid or exists,
-        unexpected issue), isError is True and content contains a TextContent
-        object with an error message.
+        List containing a single TextContent object confirming the rename.
+
+    Raises:
+        McpError: If validation fails, collection not found, name exists, or another error occurs.
     """
+    logger = get_logger("tools.collection")
+    original_name = input_data.collection_name
+    new_name = input_data.new_name
 
     try:
-        # 1. Validate the new name first
-        try:
-            validate_collection_name(new_name)
-        except ValidationError as e:
-            logger.warning(f"Invalid new collection name provided for rename: '{new_name}'. Error: {e}")
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text=f"Validation Error: Invalid new collection name '{new_name}'. {str(e)}")]
-            )
+        # Validate both names first
+        validate_collection_name(original_name)
+        validate_collection_name(new_name)
 
         client = get_chroma_client()
 
-        # 2. Get the original collection, handle not found
-        try:
-            collection = client.get_collection(
-                name=collection_name,
-                embedding_function=get_embedding_function()
+        # Check if original collection exists
+        collection = client.get_collection(name=original_name)
+
+        # Attempt to modify the name
+        logger.info(f"Attempting to rename collection '{original_name}' to '{new_name}'.")
+        collection.modify(name=new_name) # Use modify with the new name
+        logger.info(f"Collection rename attempt from '{original_name}' to '{new_name}' completed.")
+
+        # Return confirmation message
+        return [
+            types.TextContent(
+                type="text", text=f"Collection '{original_name}' successfully renamed to '{new_name}'."
             )
-        except ValueError as e:
-            if f"Collection {collection_name} does not exist." in str(e):
-                logger.warning(f"Cannot rename: Original collection '{collection_name}' not found.")
-                return types.CallToolResult(
-                    isError=True,
-                    content=[types.TextContent(type="text", text=f"Tool Error: Original collection '{collection_name}' not found.")]
-                )
-            else:
-                # Re-raise other ValueErrors from get_collection
-                raise e
+        ]
 
-        # 3. Attempt the rename via modify, handle potential errors (like new_name exists)
-        try:
-            collection.modify(name=new_name)
-            logger.info(f"Renamed collection '{collection_name}' to '{new_name}'")
-        except ValueError as e: # ChromaDB might raise ValueError if new_name exists or is invalid
-            logger.warning(f"Failed to rename collection '{collection_name}' to '{new_name}': {e}")
-            # Check common error messages if possible, otherwise provide generic
-            error_msg = f"ChromaDB Error: Failed to rename to '{new_name}'. It might already exist or be invalid. Details: {str(e)}"
-            if "already exists" in str(e).lower():
-                 error_msg = f"ChromaDB Error: Cannot rename to '{new_name}' because a collection with that name already exists."
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text=error_msg)]
-            )
-
-        # 4. On success, return the info for the collection under its NEW name
-        return await _get_collection_impl(new_name)
-
-    except ValueError as e: # Catch ValueErrors re-raised from the get_collection block
-        logger.error(f"Value error during rename for '{collection_name}' -> '{new_name}': {e}", exc_info=False)
-        return types.CallToolResult(
-             isError=True,
-             content=[types.TextContent(type="text", text=f"ChromaDB Value Error getting original collection: {str(e)}")]
-         )
-    except Exception as e:
-        logger.error(f"Unexpected error renaming collection '{collection_name}' to '{new_name}': {e}", exc_info=True)
-        # Return a Tool Error instead of raising McpError
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while renaming collection '{collection_name}'. Details: {str(e)}")]
-        )
-
-@mcp.tool(name="chroma_delete_collection", description="Delete a collection.")
-async def _delete_collection_impl(collection_name: str) -> types.CallToolResult:
-    """Deletes a ChromaDB collection.
-
-    Args:
-        collection_name: The name of the collection to delete.
-
-    Returns:
-        A CallToolResult object.
-        On success, content contains a TextContent object with a JSON string
-        confirming deletion: {"status": "deleted", "collection_name": ...}.
-        On error (e.g., collection not found, unexpected issue), isError is True
-        and content contains a TextContent object with an error message.
-    """
-
-    try:
-        client = get_chroma_client()
+    except ValidationError as e:
+        logger.warning(f"Validation error renaming collection '{original_name}': {e}")
+        # Raise McpError for validation failure
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
+    except ValueError as e:
+        error_str = str(e).lower()
+        # Check for original not found from get_collection
+        original_not_found = False
+        if f"collection {original_name} does not exist." in error_str:
+            original_not_found = True
+        if f"collection {original_name} not found" in error_str:
+            original_not_found = True
         
-        # delete_collection raises ValueError if collection doesn't exist
-        try:
-            client.delete_collection(name=collection_name)
-            logger.info(f"Deleted collection: {collection_name}")
-            
-            # Return success message
-            result_data = {"status": "deleted", "collection_name": collection_name}
-            result_json = json.dumps(result_data)
-            return types.CallToolResult(
-                content=[types.TextContent(type="text", text=result_json)]
+        if original_not_found:
+            logger.warning(f"Cannot rename: Collection '{original_name}' not found.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{original_name}' not found."))
+        
+        # Check for new name exists from modify
+        new_name_exists = False
+        if f"collection {new_name} already exists." in error_str:
+             new_name_exists = True
+
+        if new_name_exists:
+            logger.warning(f"Cannot rename: New collection name '{new_name}' already exists.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection name '{new_name}' already exists."))
+        
+        # Handle other ValueErrors
+        logger.error(f"Value error renaming collection '{original_name}': {e}", exc_info=True)
+        raise McpError(
+            ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Invalid parameter during rename. Details: {e}")
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error renaming collection '{original_name}': {e}", exc_info=True)
+        # Raise McpError
+        raise McpError(
+            ErrorData(
+                code=INTERNAL_ERROR,
+                message=f"Tool Error: An unexpected error occurred renaming collection '{original_name}'. Details: {str(e)}",
             )
-        except ValueError as e:
-            # Check if the error is specifically "not found"
-            if f"Collection {collection_name} not found" in str(e):
-                logger.warning(f"Attempted to delete non-existent collection: {collection_name}")
-                return types.CallToolResult(
-                    isError=True,
-                    content=[types.TextContent(type="text", text=f"Tool Error: Collection '{collection_name}' not found, cannot delete.")]
-                )
-            else:
-                # Handle other potential ValueErrors from delete_collection
-                logger.error(f"ValueError deleting collection '{collection_name}': {e}", exc_info=True)
-                return types.CallToolResult(
-                    isError=True,
-                    content=[types.TextContent(type="text", text=f"ChromaDB Value Error: {str(e)}")]
-                )
-                
+        )
+
+
+# Signature changed to return List[Content]
+async def _delete_collection_impl(input_data: DeleteCollectionInput) -> List[types.TextContent]:
+    """Implementation for deleting a collection.
+
+    Returns:
+        List containing a single TextContent object confirming deletion.
+
+    Raises:
+        McpError: If the collection is not found or another error occurs.
+    """
+    logger = get_logger("tools.collection")
+    collection_name = input_data.collection_name
+
+    try:
+        validate_collection_name(collection_name)
+        client = get_chroma_client()
+
+        # Attempt to delete the collection
+        logger.info(f"Attempting to delete collection '{collection_name}'.")
+        client.delete_collection(name=collection_name)
+        logger.info(f"Collection '{collection_name}' deleted successfully.")
+
+        # Return confirmation message
+        return [
+            types.TextContent(
+                type="text", text=f"Collection '{collection_name}' deleted successfully."
+            )
+        ]
+
+    except ValueError as e:
+        # Handle collection not found during delete
+        error_str = str(e).lower()
+        not_found = False
+        if f"collection {collection_name} does not exist." in error_str:
+            not_found = True
+        # Check alternate message format sometimes seen
+        if f"collection named {collection_name} does not exist" in error_str:
+             not_found = True
+        
+        if not_found:
+            logger.warning(f"Collection '{collection_name}' not found for deletion.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error deleting collection '{collection_name}': {e}", exc_info=True)
+            raise McpError(
+                ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Invalid parameter deleting collection. Details: {e}")
+            )
     except Exception as e:
         logger.error(f"Unexpected error deleting collection '{collection_name}': {e}", exc_info=True)
-        # Return a Tool Error instead of raising McpError
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while deleting collection '{collection_name}'. Details: {str(e)}")]
+        # Raise McpError
+        raise McpError(
+            ErrorData(
+                code=INTERNAL_ERROR,
+                message=f"Tool Error: An unexpected error occurred deleting collection '{collection_name}'. Details: {str(e)}",
+            )
         )
 
-@mcp.tool(name="chroma_peek_collection", description="Get a sample of documents from a collection.")
-async def _peek_collection_impl(collection_name: str, limit: Optional[int] = None) -> types.CallToolResult:
+
+# Signature changed to return List[Content]
+async def _peek_collection_impl(input_data: PeekCollectionInput) -> List[types.TextContent]:
     """Retrieves a small sample of entries from a collection.
 
-    Args:
-        collection_name: The name of the collection to peek into.
-        limit: The maximum number of entries to retrieve. Defaults to 5.
-
     Returns:
-        A CallToolResult object.
-        On success, content contains a TextContent object with a JSON string
-        representing the peek results (containing lists for ids, embeddings,
-        documents, metadatas). Embeddings are returned as lists of floats.
-        On error (e.g., collection not found, invalid limit, unexpected issue),
-        isError is True and content contains a TextContent object with an error message.
+        List containing a single TextContent object with JSON results of the peek.
+
+    Raises:
+        McpError: If the collection is not found or another error occurs.
     """
+    logger = get_logger("tools.collection")
+    collection_name = input_data.collection_name
+    limit = input_data.limit
 
     try:
-        # Assign effective default if None
-        effective_limit = 5 if limit is None else limit
-        
+        validate_collection_name(collection_name)
+
         client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
 
-        # 1. Get the collection, handle not found
-        try:
-            collection = client.get_collection(
-                name=collection_name,
-                embedding_function=get_embedding_function()
-            )
-        except ValueError as e:
-            if f"Collection {collection_name} does not exist." in str(e):
-                logger.warning(f"Cannot peek: Collection '{collection_name}' not found.")
-                return types.CallToolResult(
-                    isError=True,
-                    content=[types.TextContent(type="text", text=f"Tool Error: Collection '{collection_name}' not found.")]
+        # Call peek with the validated limit (or None if not provided, letting Chroma use its default)
+        peek_results = collection.peek(limit=limit if limit is not None else 10) # Pass explicit default if None
+        # --- DEBUG LOGGING ---
+        logger.debug(f"Peek results raw type: {type(peek_results)}")
+        logger.debug(f"Peek results raw content: {peek_results}")
+        # --- END DEBUG LOGGING ---
+
+        # Process results to make them JSON serializable if needed
+        # Check if peek_results is not None before attempting to copy
+        processed_peek = peek_results.copy() if peek_results is not None else {}
+        # Convert numpy arrays (or anything with a tolist() method) to lists
+        # Check existence and non-None value explicitly before processing
+        if "embeddings" in processed_peek and processed_peek["embeddings"] is not None:
+            # Embeddings can be List[Optional[np.ndarray]] or List[List[Optional[np.ndarray]]]
+            embeddings_list = processed_peek["embeddings"]
+            new_embeddings = []
+            for item in embeddings_list:
+                 if isinstance(item, list): # Handle potential nested lists
+                     inner_list = []
+                     for emb_arr in item:
+                          inner_list.append(emb_arr.tolist() if hasattr(emb_arr, 'tolist') else emb_arr)
+                     new_embeddings.append(inner_list)
+                 elif hasattr(item, 'tolist'): # Handle top-level numpy arrays
+                     new_embeddings.append(item.tolist())
+                 else: # Handle other types or None
+                      new_embeddings.append(item)
+            processed_peek["embeddings"] = new_embeddings
+
+        # Also process distances if present
+        # Check existence and non-None value explicitly before processing
+        if "distances" in processed_peek and processed_peek["distances"] is not None:
+             distances_list = processed_peek["distances"]
+             new_distances = []
+             for item in distances_list:
+                   if isinstance(item, list):
+                        inner_list = []
+                        for dist_arr in item:
+                             inner_list.append(dist_arr.tolist() if hasattr(dist_arr, 'tolist') else dist_arr)
+                        new_distances.append(inner_list)
+                   elif hasattr(item, 'tolist'):
+                        new_distances.append(item.tolist())
+                   else:
+                        new_distances.append(item)
+             processed_peek["distances"] = new_distances
+
+
+        result_json = json.dumps(processed_peek, indent=2)
+        # Return content list directly
+        return [types.TextContent(type="text", text=result_json)]
+
+    except ValueError as e:  # Catch collection not found from get_collection
+        error_str = str(e).lower()
+        not_found = False
+        if f"collection {collection_name} does not exist." in error_str:
+            not_found = True
+        if f"collection {collection_name} not found" in error_str:
+             not_found = True
+
+        if not_found:
+            logger.warning(f"Cannot peek: Collection '{collection_name}' not found.")
+            # Raise McpError
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error peeking collection '{collection_name}': {e}", exc_info=True)
+            # Raise McpError
+            raise McpError(
+                ErrorData(
+                    code=INVALID_PARAMS, message=f"Tool Error: Problem accessing collection '{collection_name}'. Details: {e}"
                 )
-            else:
-                # Re-raise other ValueErrors from get_collection
-                raise e
-
-        # 2. Perform the peek operation using effective_limit
-        try:
-            peek_results = collection.peek(limit=effective_limit)
-            logger.info(f"Peeked {len(peek_results.get('ids', []))} items from collection: {collection_name}")
-            # Serialize peek results to JSON
-            result_json = json.dumps(peek_results, indent=2)
-            return types.CallToolResult(
-                content=[types.TextContent(type="text", text=result_json)]
             )
-        except ValueError as e: # Catch potential errors from peek itself (e.g., invalid limit if not caught by schema)
-            logger.warning(f"ValueError during peek for collection '{collection_name}' with limit={effective_limit}: {e}")
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text=f"ChromaDB Value Error during peek: {str(e)}")]
-            )
-            
-    except ValueError as e: # Catch ValueErrors re-raised from the get_collection block
-        logger.error(f"Value error getting collection for peek '{collection_name}': {e}", exc_info=False)
-        return types.CallToolResult(
-             isError=True,
-             content=[types.TextContent(type="text", text=f"ChromaDB Value Error getting collection: {str(e)}")]
-         )
     except Exception as e:
         logger.error(f"Unexpected error peeking collection '{collection_name}': {e}", exc_info=True)
-        # Return a Tool Error instead of raising McpError
-        return types.CallToolResult(
-            isError=True,
-            content=[types.TextContent(type="text", text=f"Tool Error: An unexpected error occurred while peeking collection '{collection_name}'. Details: {str(e)}")]
+        # Raise McpError
+        raise McpError(
+            ErrorData(
+                code=INTERNAL_ERROR,
+                message=f"Tool Error: An unexpected error occurred peeking collection '{collection_name}'. Details: {str(e)}",
+            )
         )
 
-def _get_collection_info(collection) -> dict:
-    """Helper to get structured info about a collection."""
-    # Use the passed collection object directly
-    # Reconstruct metadata first
-    reconstructed_meta = _reconstruct_metadata(collection.metadata or {})
-    
-    # Get sample entries, handle potential errors during peek
-    try:
-        # Peek might return embeddings as ndarray, convert to list for JSON
-        sample_entries = collection.peek(limit=5)
-        if isinstance(sample_entries.get('embeddings'), np.ndarray):
-             sample_entries['embeddings'] = sample_entries['embeddings'].tolist()
-        # Also handle embeddings within lists if peek returns list of lists
-        elif isinstance(sample_entries.get('embeddings'), list):
-             sample_entries['embeddings'] = [
-                 emb.tolist() if isinstance(emb, np.ndarray) else emb 
-                 for emb in sample_entries['embeddings']
-             ]
-    except Exception as peek_err:
-        # Log the error if possible, return a placeholder
-        # logger = get_logger("collection_tools") # Need to import get_logger if used here
-        # logger.warning(f"Could not peek collection '{collection.name}': {peek_err}")
-        sample_entries = {"error": f"Could not peek collection: {peek_err}"}
 
-    return {
-        "name": collection.name,
-        "id": str(collection.id), # Ensure ID is string
-        "metadata": reconstructed_meta,
-        "count": collection.count(),
-        "sample_entries": sample_entries
-    }
+def _get_collection_info(collection) -> dict:
+    """Helper to get basic info (name, id, metadata) about a collection object."""
+    # ADD logger assignment inside the function
+    logger = get_logger("tools.collection")
+    try:
+        return {
+            "name": collection.name,
+            "id": str(collection.id),
+            "metadata": _reconstruct_metadata(collection.metadata),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get info for collection: {e}", exc_info=True)
+        return {"error": f"Failed to retrieve collection info: {str(e)}"}

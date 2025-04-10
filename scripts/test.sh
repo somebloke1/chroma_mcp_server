@@ -17,7 +17,7 @@ fi
 
 # Parse command line arguments
 COVERAGE=false
-VERBOSE=false
+VERBOSE_LEVEL=0 # 0: default, 1: -v, 2: -vv, 3: -vvv
 HTML=false
 CLEAN_ENV=false
 
@@ -27,12 +27,23 @@ while [[ $# -gt 0 ]]; do
             COVERAGE=true
             shift
             ;;
+        -vvv)
+            VERBOSE_LEVEL=3
+            shift
+            ;;
+        -vv)
+            # Only set if not already -vvv
+            [[ $VERBOSE_LEVEL -lt 3 ]] && VERBOSE_LEVEL=2
+            shift
+            ;;
         --verbose|-v)
-            VERBOSE=true
+            # Only set if not already -vv or -vvv
+            [[ $VERBOSE_LEVEL -lt 2 ]] && VERBOSE_LEVEL=1
             shift
             ;;
         --html)
             HTML=true
+            COVERAGE=true # HTML implies coverage
             shift
             ;;
         --clean)
@@ -41,7 +52,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--coverage|-c] [--verbose|-v] [--html] [--clean]"
+            echo "Usage: $0 [--coverage|-c] [-v|-vv|-vvv] [--html] [--clean]"
             exit 1
             ;;
     esac
@@ -54,40 +65,66 @@ if [ "$CLEAN_ENV" = true ]; then
     echo "Test environment removed."
 fi
 
-# Run tests based on options
-echo "Running tests with Hatch..."
+# Build the base pytest command arguments
+# Using the settings we found work reliably (timeout, no xdist)
+PYTEST_BASE_ARGS="--timeout=10 -p no:xdist"
 
-# Ensure coverage tool is available for combine step later
-# We might need this if combine is run directly in the script context
-# Consider adding coverage to global path or project dev dependencies
-# pip install coverage # Uncomment if needed, though hatch should manage envs
-
-if [ "$HTML" = true ]; then
-    echo "Running tests across matrix for HTML coverage..."
-    # Run tests, generate parallel data (no report flag needed in pytest call)
-    hatch run test:html # Alias 'html' in hatch config runs pytest
-    echo "Combining parallel coverage data..."
-    # Use hatch run to ensure coverage is available in the correct env
-    hatch run coverage combine
-    echo "Generating HTML coverage report..."
-    hatch run coverage html # Use hatch run to ensure coverage is available
-elif [ "$COVERAGE" = true ]; then
-    echo "Running tests across matrix for coverage..."
-    # Run tests, generate parallel data
-    hatch run test:cov # Alias 'cov' in hatch config runs pytest
-    echo "Combining parallel coverage data..."
-    hatch run coverage combine
-    echo "Generating XML and terminal coverage report..."
-    hatch run coverage xml # Generate XML for Codecov
-    hatch run coverage report -m # Show terminal report
-else
-    if [ "$VERBOSE" = true ]; then
-        echo "Running tests in verbose mode..."
-        hatch run test:run -v
-    else
-        echo "Running tests..."
-        hatch run test:run
-    fi
+# Add verbosity flag if requested
+VERBOSITY_FLAG=""
+if [ "$VERBOSE_LEVEL" -eq 1 ]; then
+    VERBOSITY_FLAG="-v"
+elif [ "$VERBOSE_LEVEL" -eq 2 ]; then
+    VERBOSITY_FLAG="-vv"
+elif [ "$VERBOSE_LEVEL" -eq 3 ]; then
+    VERBOSITY_FLAG="-vvv"
 fi
 
-echo "Tests complete." 
+PYTEST_ARGS="$PYTEST_BASE_ARGS $VERBOSITY_FLAG"
+
+# Add test path
+PYTEST_ARGS="$PYTEST_ARGS tests/"
+
+# Determine the execution command based on coverage flag
+if [ "$COVERAGE" = true ]; then
+    echo "Running tests with Coverage enabled (Verbosity: $VERBOSE_LEVEL)..."
+    # Use the reliable coverage run method, include verbosity if requested
+    RUN_CMD="hatch run test:coverage run -m pytest $PYTEST_ARGS"
+else
+    echo "Running tests without Coverage (Verbosity: $VERBOSE_LEVEL)..."
+    # Run directly via python -m pytest, include verbosity if requested
+    RUN_CMD="hatch run test:python -m pytest $PYTEST_ARGS"
+fi
+
+# Execute the tests
+echo "Executing: $RUN_CMD"
+$RUN_CMD # Execute the constructed command
+EXIT_CODE=$?
+
+# Check if pytest run failed (exit code 1 or higher)
+# Exit code 0 is success, others indicate issues.
+if [ $EXIT_CODE -ne 0 ]; then
+    echo "❌ Pytest run exited with non-zero code: $EXIT_CODE"
+    # Optionally, be more specific: if [ $EXIT_CODE -eq 1 ]; then echo "Test failures occurred"; fi
+    exit $EXIT_CODE
+fi
+
+# Handle coverage reporting if coverage was enabled
+if [ "$COVERAGE" = true ]; then
+    echo "✅ Coverage run finished."
+    echo "<<< Coverage run finished >>>"
+    # Comment out ALL subsequent coverage commands
+    echo "Combining parallel coverage data (if any)..."
+    hatch run coverage combine --quiet
+    echo "Generating XML coverage report..."
+    hatch run coverage xml # Generate XML for Codecov
+    echo "Generating XML terminal coverage report..."
+    hatch run coverage report -m # Show terminal report
+    if [ "$HTML" = true ]; then
+        echo "Generating HTML coverage report..."
+        hatch run coverage html
+    fi
+    echo "<<< Coverage combination finished >>>"
+fi
+
+echo "✅ Tests complete."
+exit 0 
