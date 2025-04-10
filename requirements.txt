@@ -21,6 +21,7 @@ black>=25.1.0
 isort>=6.0.1
 mypy>=1.15.0
 pylint>=3.3.6
+trio>=0.29.0
 
 # Type stubs for development
 types-PyYAML>=6.0.12.20241230

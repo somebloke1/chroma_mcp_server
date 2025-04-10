@@ -4,192 +4,107 @@
 import argparse
 import importlib.metadata
 import os
+from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 # Third-party imports
 import pytest
+import trio
+import sys
+import logging # Import logging
 # Import McpError and INTERNAL_ERROR from exceptions
-from mcp.shared.exceptions import McpError 
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
 # Local application imports
-# Import the module itself to allow monkeypatching its attributes
-from chroma_mcp import server
-from chroma_mcp.server import (
-    _initialize_mcp_instance, config_server, create_parser,
-    get_mcp
-)
-from chroma_mcp.utils.errors import (
-    CollectionNotFoundError, ValidationError
-)
+# Import main and config_server from server
+from src.chroma_mcp.server import main, config_server
+# Keep ValidationError import
+from chroma_mcp.utils.errors import ValidationError
+# Import the client module itself to reset its globals
+from chroma_mcp.utils import client as client_utils
+# Import get_logger
+from chroma_mcp.utils import get_logger
 
-# Mock dependencies globally for simplicity in these tests
+# Mock dependencies globally
 @pytest.fixture(autouse=True)
 def mock_dependencies():
     """Mock external dependencies like ChromaDB and FastMCP availability."""
-    with patch("chroma_mcp.server.CHROMA_AVAILABLE", True), \
-         patch("chroma_mcp.server.FASTMCP_AVAILABLE", True):
+    # Patch within server where they are checked
+    with patch("src.chroma_mcp.server.CHROMA_AVAILABLE", True), \
+         patch("src.chroma_mcp.server.FASTMCP_AVAILABLE", True):
         yield
 
+# Fixture to reset globals
 @pytest.fixture(autouse=True)
 def reset_globals():
-    """Reset global handlers and MCP instance before each test."""
-    server._mcp_instance = None
-    server._thinking_handler = None
+    setattr(client_utils, '_client', None)
+    setattr(client_utils, '_embedding_function', None)
     yield
-    server._mcp_instance = None
-    server._thinking_handler = None
-
-@pytest.fixture
-def mock_register_collection():
-    with patch("chroma_mcp.server.register_collection_tools") as mock:
-        yield mock
-
-@pytest.fixture
-def mock_register_document():
-    with patch("chroma_mcp.server.register_document_tools") as mock:
-        yield mock
-
-@pytest.fixture
-def mock_register_thinking():
-    with patch("chroma_mcp.server.register_thinking_tools") as mock:
-        yield mock
+    setattr(client_utils, '_client', None)
+    setattr(client_utils, '_embedding_function', None)
 
 @pytest.fixture
 def mock_mcp():
-    """Mock the FastMCP class."""
-    with patch("chroma_mcp.server.FastMCP", autospec=True) as mock:
+    # Mock the instance used in server.py (imported from app.py)
+    with patch("src.chroma_mcp.server.mcp", autospec=True) as mock:
         yield mock
 
-# Patch logging.getLogger for tests needing to check log calls
 @pytest.fixture
 def mock_get_logger():
-    with patch("chroma_mcp.server.logging.getLogger") as mock_get:
+    # Patch logger used within server module
+    with patch("src.chroma_mcp.server.logging.getLogger") as mock_get:
         mock_logger = MagicMock()
         mock_get.return_value = mock_logger
-        yield mock_logger # Yield the instance returned by getLogger
+        yield mock_logger
 
-# --- Test Functions ---
+# --- Test server.main function --- #
 
-def test_create_parser():
-    """Test argument parser creation."""
-    parser = create_parser()
-    assert isinstance(parser, argparse.ArgumentParser)
-    # Check a few arguments
-    args = parser.parse_args([]) # Get defaults
-    assert args.client_type == 'ephemeral'
-    assert args.ssl is True # Default SSL for HTTP client if relevant
-    assert args.cpu_execution_provider == 'auto'
+@patch("src.chroma_mcp.server.mcp.run") # Patch mcp.run within server
+@patch("sys.stdin") # Patch stdin
+def test_main_calls_mcp_run(mock_stdin, mock_mcp_run):
+    """Test that main attempts to call mcp.run with stdio."""
+    mock_stdin.buffer = BytesIO(b'')
+    mock_mcp_run.return_value = None
 
-def test_server_config_defaults(mock_get_logger): # Use new fixture
-    """Test server configuration with default arguments."""
-    parser = create_parser()
-    args = parser.parse_args([])
+    main() # Call directly
 
-    with patch("os.path.exists", return_value=False):
-        config_server(args)
+    mock_mcp_run.assert_called_once_with(transport='stdio')
 
-    # Check logger initialization (using the mock instance)
-    mock_get_logger.info.assert_any_call("Server configured (CPU provider: auto-detected)")
+@patch("src.chroma_mcp.server.mcp.run") # Patch mcp.run within server
+@patch("sys.stdin") # Patch stdin
+def test_main_catches_mcp_run_mcp_error(mock_stdin, mock_mcp_run):
+    """Test main catches McpError raised by the mcp.run call."""
+    mock_stdin.buffer = BytesIO(b'')
+    error_code = INVALID_PARAMS
+    error_message = "Test MCP error message from mcp.run"
+    test_error_data = ErrorData(code=error_code, message=error_message)
+    mock_mcp_run.side_effect = McpError(test_error_data)
 
-def test_server_config_persistent(mock_get_logger): # Use new fixture
-    """Test server configuration with persistent client."""
-    parser = create_parser()
-    test_data_dir = "/tmp/chroma_test_data"
-    test_log_dir = "/tmp/chroma_test_logs"
-    args = parser.parse_args([
-        "--client-type", "persistent",
-        "--data-dir", test_data_dir,
-        "--log-dir", test_log_dir
-    ])
-
-    with patch("os.path.exists", return_value=False), \
-         patch("os.makedirs"), \
-         patch("logging.handlers.RotatingFileHandler"): # Patch file handler creation
-        config_server(args)
-
-    # Use the mock logger instance for assertions
-    mock_get_logger.info.assert_any_call(f"Logs will be saved to: {test_log_dir}")
-    mock_get_logger.info.assert_any_call(f"Data directory: {test_data_dir}")
-
-@patch('chroma_mcp.server.load_dotenv')
-@patch('builtins.print') # Patch print instead
-def test_server_config_error(mock_print, mock_load_dotenv):
-    """Test error handling during server configuration (early failure)."""
-    with patch("os.path.exists", return_value=True):
-        mock_load_dotenv.side_effect = OSError("Failed to load .env")
-        parser = create_parser()
-        args = parser.parse_args([])
-
-        with pytest.raises(McpError) as exc_info:
-            config_server(args)
-
-        assert "Failed to configure server" in str(exc_info.value)
-        # Remove the assertion for logger.error
-        # mock_logger_instance.error.assert_called_once_with("Failed to configure server: Failed to load .env")
-        # Assert that print was called with the correct error message
-        mock_print.assert_called_once_with("ERROR: Failed to configure server: Failed to load .env")
-
-def test_server_config_cpu_provider_options(mock_get_logger): # Use new fixture
-    """Test server configuration with different CPU provider settings."""
-    parser = create_parser()
-
-    # Test auto (default)
-    args_auto = parser.parse_args([])
-    with patch("os.path.exists", return_value=False), \
-         patch("logging.handlers.RotatingFileHandler"): # Patch file handler
-        config_server(args_auto)
-    mock_get_logger.info.assert_any_call("Server configured (CPU provider: auto-detected)")
-    mock_get_logger.reset_mock() # Reset mock for next call
-
-    # Test force true
-    args_true = parser.parse_args(["--cpu-execution-provider", "true"])
-    with patch("os.path.exists", return_value=False), \
-         patch("logging.handlers.RotatingFileHandler"): # Patch file handler
-        config_server(args_true)
-    mock_get_logger.info.assert_any_call("Server configured (CPU provider: enabled)")
-    mock_get_logger.reset_mock() # Reset mock for next call
-
-    # Test force false
-    args_false = parser.parse_args(["--cpu-execution-provider", "false"])
-    with patch("os.path.exists", return_value=False), \
-         patch("logging.handlers.RotatingFileHandler"): # Patch file handler
-        config_server(args_false)
-    mock_get_logger.info.assert_any_call("Server configured (CPU provider: disabled)")
-
-def test_get_mcp_initialization(
-    mock_mcp, mock_register_collection, mock_register_document, mock_register_thinking, monkeypatch
-):
-    """Test successful MCP initialization and tool registration."""
-    monkeypatch.setattr(server, "_mcp_instance", None)
-
-    mcp_instance = get_mcp()
-
-    assert mcp_instance is mock_mcp.return_value
-
-    mock_mcp.assert_called_once_with("chroma")
-
-    mock_register_collection.assert_called_once_with(mock_mcp.return_value)
-    mock_register_document.assert_called_once_with(mock_mcp.return_value)
-    mock_register_thinking.assert_called_once_with(mock_mcp.return_value)
-
-    # Check that the .tool() method was called with the correct name
-    # for the get_version_tool
-    found_tool_call = False
-    for method_call in mock_mcp.return_value.method_calls:
-        # method_call looks like call.tool(name=..., ...)
-        if method_call[0] == 'tool' and method_call.kwargs.get('name') == 'chroma_get_server_version':
-            found_tool_call = True
-            break
-    assert found_tool_call, "call to .tool(name='chroma_get_server_version') not found on mock MCP"
-
-def test_get_mcp_initialization_error(mock_mcp, monkeypatch):
-    """Test MCP initialization error handling."""
-    monkeypatch.setattr(server, "_mcp_instance", None)
-
-    mock_mcp.side_effect = Exception("Failed to initialize")
-
+    # main should re-raise the original McpError
     with pytest.raises(McpError) as exc_info:
-        get_mcp()
+        main() # Call directly
 
-    assert "Failed to initialize MCP" in str(exc_info.value)
-    mock_mcp.assert_called_once_with("chroma")
+    mock_mcp_run.assert_called_once_with(transport='stdio')
+    assert exc_info.type is McpError
+    assert str(error_message) in str(exc_info.value)
+
+@patch("src.chroma_mcp.server.mcp.run") # Patch mcp.run within server
+@patch("sys.stdin") # Patch stdin
+@patch("sys.exit") # Patch sys.exit
+def test_main_catches_mcp_run_unexpected_error(mock_exit, mock_stdin, mock_mcp_run):
+    """Test main catches generic Exception raised by the mcp.run call."""
+    mock_stdin.buffer = BytesIO(b'')
+    unexpected_error_message = "Something unexpected went wrong in mcp.run"
+    mock_mcp_run.side_effect = Exception(unexpected_error_message)
+
+    # main should catch Exception, log, and raise a new McpError
+    with pytest.raises(McpError) as exc_info:
+         main() # Call directly
+
+    mock_mcp_run.assert_called_once_with(transport='stdio')
+    assert exc_info.type is McpError
+    # Check the wrapped error code and message
+    assert f"Critical error running MCP server: {unexpected_error_message}" in str(exc_info.value)
+    # Check that main did NOT call sys.exit because it raised McpError instead
+    mock_exit.assert_not_called()

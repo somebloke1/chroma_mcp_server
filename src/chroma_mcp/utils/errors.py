@@ -19,23 +19,16 @@ from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 #     log_file="chroma_errors.log"
 # )
 
+# Custom Exception Classes (Kept as they are raised directly now)
 class ValidationError(Exception):
     """Raised when input validation fails."""
     def __init__(self, message: str):
         self.message = message
         super().__init__(message)
 
-class CollectionNotFoundError(Exception):
-    """Raised when a collection is not found."""
-    def __init__(self, message: str):
-        self.message = message
-        super().__init__(message)
-
-class DocumentNotFoundError(Exception):
-    """Raised when a document is not found."""
-    def __init__(self, message: str):
-        self.message = message
-        super().__init__(message)
+# Removed unused CollectionNotFoundError and DocumentNotFoundError
+# class CollectionNotFoundError(Exception): ...
+# class DocumentNotFoundError(Exception): ...
 
 class EmbeddingError(Exception):
     """Raised when there is an error with embeddings."""
@@ -55,75 +48,43 @@ class ConfigurationError(Exception):
         self.message = message
         super().__init__(message)
 
-@dataclass
-class ChromaError:
-    """Standardized error structure for Chroma operations."""
-    code: str
-    message: str
-    details: Optional[Dict[str, Any]] = None
+# Removed ChromaError dataclass and constants as handle_chroma_error is removed
+# @dataclass
+# class ChromaError: ...
+# COLLECTION_NOT_FOUND = ...
+# ... etc ...
 
-# Error codes
-COLLECTION_NOT_FOUND = "COLLECTION_NOT_FOUND"
-INVALID_COLLECTION_NAME = "INVALID_COLLECTION_NAME"
-DOCUMENT_NOT_FOUND = "DOCUMENT_NOT_FOUND"
-INVALID_DOCUMENT_FORMAT = "INVALID_DOCUMENT_FORMAT"
-EMBEDDING_ERROR = "EMBEDDING_ERROR"
-CLIENT_ERROR = "CLIENT_ERROR"
-CONFIGURATION_ERROR = "CONFIGURATION_ERROR"
+# Removed handle_chroma_error function
+# def handle_chroma_error(error: Exception, operation: str) -> McpError:
+#     """Maps specific ChromaDB exceptions to McpError."""
+#     from ..server import get_logger # Import locally
+#     logger = get_logger("utils.errors")
+#
+#     logger.error(f"Handling Chroma error during {operation}: {error}", exc_info=True)
+#
+#     # Map specific Chroma errors or common Python errors
+#     if isinstance(error, ValueError) and "does not exist" in str(error):
+#         error_code = INVALID_PARAMS # Or a custom code if defined
+#         error_message = f"Resource not found during {operation}: {str(error)}"
+#     elif isinstance(error, ValueError): # Other ValueErrors
+#         error_code = INVALID_PARAMS
+#         error_message = f"Invalid parameter during {operation}: {str(error)}"
+#     # Add more specific ChromaDB error types here if needed
+#     # elif isinstance(error, chromadb.errors.SomeSpecificError):
+#     #     error_code = ...
+#     #     error_message = ...
+#     else: # Default for unexpected errors
+#         error_code = INTERNAL_ERROR
+#         error_message = f"An unexpected server error occurred during {operation}."
+#
+#     return McpError(
+#         code=error_code,
+#         message=error_message,
+#         data=ErrorData(details=str(error)) # Include original error string
+#     )
 
-def handle_chroma_error(error: Exception, operation: str) -> McpError:
-    """
-    Convert ChromaDB exceptions to standardized MCP errors.
-    
-    Args:
-        error: The original exception
-        operation: Description of the operation that failed
-        
-    Returns:
-        McpError instance with standardized error information
-    """
-    # Import and get logger within the function
-    from ..server import get_logger
-    logger = get_logger("utils.errors")
 
-    # Map ChromaDB exceptions to our error codes
-    if "Collection not found" in str(error):
-        code = COLLECTION_NOT_FOUND
-    elif "Invalid collection name" in str(error):
-        code = INVALID_COLLECTION_NAME
-    elif "Document not found" in str(error):
-        code = DOCUMENT_NOT_FOUND
-    elif "Invalid document format" in str(error):
-        code = INVALID_DOCUMENT_FORMAT
-    elif "Embedding failed" in str(error):
-        code = EMBEDDING_ERROR
-    elif any(x in str(error).lower() for x in ["connection", "timeout", "network"]):
-        code = CLIENT_ERROR
-    else:
-        code = INTERNAL_ERROR
-    
-    # Log the error
-    logger.error(f"ChromaDB error during {operation}: {str(error)}")
-    logger.error(f"Error code: {code}")
-    
-    # Create standardized error
-    chroma_error = ChromaError(
-        code=code,
-        message=f"ChromaDB operation failed: {str(error)}",
-        details={
-            "operation": operation,
-            "original_error": str(error),
-            "error_type": error.__class__.__name__
-        }
-    )
-    
-    # Convert to MCP error
-    return McpError(ErrorData(
-        code=INTERNAL_ERROR if code == INTERNAL_ERROR else INVALID_PARAMS,
-        message=chroma_error.message,
-        data=chroma_error.details
-    ))
-
+# Kept validate_input as it might be useful elsewhere
 def validate_input(
     value: Any,
     name: str,
@@ -134,7 +95,7 @@ def validate_input(
 ) -> Optional[str]:
     """
     Validate input parameters.
-    
+
     Args:
         value: Value to validate
         name: Name of the parameter
@@ -142,46 +103,34 @@ def validate_input(
         max_length: Maximum length for string values
         min_length: Minimum length for string values
         pattern: Regex pattern for string validation
-        
+
     Returns:
         Error message if validation fails, None otherwise
     """
     # Check required
     if required and value is None:
         return f"{name} is required"
-    
+
     # Skip further validation if value is None and not required
     if value is None:
         return None
-    
+
     # String validations
     if isinstance(value, str):
         if max_length and len(value) > max_length:
             return f"{name} exceeds maximum length of {max_length}"
-        
+
         if min_length and len(value) < min_length:
             return f"{name} is shorter than minimum length of {min_length}"
-        
+
         if pattern:
             import re
             if not re.match(pattern, value):
                 return f"{name} does not match required pattern"
-    
+
     return None
 
-def raise_validation_error(error_message: str) -> None:
-    """
-    Raise a standardized validation error.
-    
-    Args:
-        error_message: Validation error message
-        
-    Raises:
-        ValidationError with error message
-    """
-    # Import and get logger within the function
-    from ..server import get_logger
-    logger = get_logger("utils.errors")
-
-    logger.error(f"Validation error: {error_message}")
-    raise ValidationError(error_message)
+# Removed raise_validation_error function
+# def raise_validation_error(error_message: str) -> None:
+#     """Raise a standard validation error."""
+#     raise ValidationError(error_message)

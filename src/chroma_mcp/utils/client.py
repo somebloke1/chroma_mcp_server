@@ -3,25 +3,28 @@ ChromaDB client utility module for managing client instances and configuration.
 """
 
 import os
-import ssl
 import platform
-from typing import Optional, Union
+from typing import Optional, Union, Any
 from dataclasses import dataclass
 
 import chromadb
 from chromadb.config import Settings
-from chromadb.api.types import GetResult
 # Import specific embedding function for compatibility with Intel Macs
-from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2
+try:
+    from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
+except ImportError:
+    ONNXMiniLM_L6_V2 = None # type: ignore
 
 from mcp.shared.exceptions import McpError
-from mcp.types import ErrorData, INTERNAL_ERROR
+from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
-# Remove old logger setup
-# from .logger_setup import LoggerSetup
-# Replace with get_logger from server
-from ..server import get_logger
-from ..types import ChromaClientConfig
+# Local application imports
+# Import ChromaClientConfig from types
+from ..types import ChromaClientConfig 
+# Import errors from siblings
+from .errors import EmbeddingError, ConfigurationError
+# Import loggers/config getters directly from parent utils package (__init__.py)
+from . import get_logger, get_server_config 
 
 # Initialize logger using the central function
 # logger = LoggerSetup.create_logger(
@@ -61,22 +64,9 @@ def should_use_cpu_provider() -> bool:
         logger.warning(f"Error detecting system info, defaulting to standard provider: {e}")
         return False
 
-@dataclass
-class ChromaClientConfig:
-    """Configuration for ChromaDB client."""
-    client_type: str
-    data_dir: Optional[str] = None
-    host: Optional[str] = None
-    port: Optional[str] = None
-    ssl: bool = True
-    tenant: Optional[str] = None
-    database: Optional[str] = None
-    api_key: Optional[str] = None
-    use_cpu_provider: Optional[bool] = None  # Flag to force CPU execution provider, None means auto-detect
-
-# Global client instance
+# Module-level cache for the client and embedding function
 _chroma_client: Optional[Union[chromadb.PersistentClient, chromadb.HttpClient, chromadb.EphemeralClient]] = None
-_embedding_function = None
+_embedding_function: Optional[Any] = None
 
 def initialize_embedding_function(use_cpu_provider: Optional[bool] = None) -> None:
     """
@@ -95,6 +85,8 @@ def initialize_embedding_function(use_cpu_provider: Optional[bool] = None) -> No
         should_use_cpu = use_cpu_provider if use_cpu_provider is not None else should_use_cpu_provider()
         
         if should_use_cpu:
+            if ONNXMiniLM_L6_V2 is None:
+                raise EmbeddingError("ONNXMiniLM_L6_V2 embedding function not available. Please install chroma-mcp-server[full]")
             _embedding_function = ONNXMiniLM_L6_V2(preferred_providers=["CPUExecutionProvider"])
             logger.info("Initialized embedding function with CPU provider")
         else:
@@ -112,13 +104,26 @@ def get_chroma_client(config: Optional[ChromaClientConfig] = None) -> Union[chro
     """Get a ChromaDB client based on configuration."""
     global _chroma_client
     
-    # FIX: Use global config if no specific config is passed
-    if config is None:
-        # FIX: Import getter locally within the function
-        from ..server import get_server_config
-        config = get_server_config() # Get the config set during server startup
+    # Get logger and config locally
+    logger = get_logger("utils.client")
 
-    # Initialize embedding function if not already initialized
+    # If client already exists, return it
+    if _chroma_client is not None:
+        return _chroma_client
+
+    # If client doesn't exist, initialize it (should only happen once)
+    if config is None:
+        # Import getter locally within the function
+        config = get_server_config() # Get the config set during server startup
+    
+    # Ensure config is actually set (should be by server startup)
+    if config is None:
+         raise McpError(ErrorData(
+            code=INTERNAL_ERROR,
+            message="Chroma client configuration not found during initialization."
+        ))
+
+    # Initialize embedding function if not already initialized (part of first client init)
     if _embedding_function is None:
         initialize_embedding_function(use_cpu_provider=config.use_cpu_provider)
 
