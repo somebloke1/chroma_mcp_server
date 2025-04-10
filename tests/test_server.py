@@ -11,7 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 import trio
 import sys
-import logging # Import logging
+import logging  # Import logging
+
 # Import McpError and INTERNAL_ERROR from exceptions
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
@@ -19,36 +20,45 @@ from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 # Local application imports
 # Import main and config_server from server
 from src.chroma_mcp.server import main, config_server
+
 # Keep ValidationError import
 from chroma_mcp.utils.errors import ValidationError
+
 # Import the client module itself to reset its globals
 from chroma_mcp.utils import client as client_utils
+
 # Import get_logger
 from chroma_mcp.utils import get_logger
+
+# Import server instance
+from chroma_mcp.app import server
+
 
 # Mock dependencies globally
 @pytest.fixture(autouse=True)
 def mock_dependencies():
     """Mock external dependencies like ChromaDB and FastMCP availability."""
     # Patch within server where they are checked
-    with patch("src.chroma_mcp.server.CHROMA_AVAILABLE", True), \
-         patch("src.chroma_mcp.server.FASTMCP_AVAILABLE", True):
+    with patch("src.chroma_mcp.server.CHROMA_AVAILABLE", True), patch("src.chroma_mcp.server.FASTMCP_AVAILABLE", True):
         yield
+
 
 # Fixture to reset globals
 @pytest.fixture(autouse=True)
 def reset_globals():
-    setattr(client_utils, '_client', None)
-    setattr(client_utils, '_embedding_function', None)
+    setattr(client_utils, "_client", None)
+    setattr(client_utils, "_embedding_function", None)
     yield
-    setattr(client_utils, '_client', None)
-    setattr(client_utils, '_embedding_function', None)
+    setattr(client_utils, "_client", None)
+    setattr(client_utils, "_embedding_function", None)
+
 
 @pytest.fixture
 def mock_mcp():
     # Mock the instance used in server.py (imported from app.py)
     with patch("src.chroma_mcp.server.mcp", autospec=True) as mock:
         yield mock
+
 
 @pytest.fixture
 def mock_get_logger():
@@ -58,53 +68,78 @@ def mock_get_logger():
         mock_get.return_value = mock_logger
         yield mock_logger
 
+
 # --- Test server.main function --- #
 
-@patch("src.chroma_mcp.server.mcp.run") # Patch mcp.run within server
-@patch("sys.stdin") # Patch stdin
-def test_main_calls_mcp_run(mock_stdin, mock_mcp_run):
-    """Test that main attempts to call mcp.run with stdio."""
-    mock_stdin.buffer = BytesIO(b'')
-    mock_mcp_run.return_value = None
+# Patch only the components directly used by server.main
+@patch("src.chroma_mcp.server.stdio.stdio_server") # Patch the context manager
+@patch("src.chroma_mcp.server.server.run") # Patch the server.run call
+def test_main_calls_mcp_run(
+    mock_server_run, # Capture patched server.run
+    mock_stdio_cm, # Capture patched context manager
+):
+    # Mock the context manager to return mock streams
+    mock_stdio_cm.return_value.__aenter__.return_value = (MagicMock(), MagicMock())
+    # Mock server.run (async)
+    mock_server_run.return_value = None
 
-    main() # Call directly
+    # --- Act ---
+    main() # Call the real server.main
 
-    mock_mcp_run.assert_called_once_with(transport='stdio')
+    # --- Assert ---
+    # stdio_server context manager should be entered
+    mock_stdio_cm.assert_called_once()
+    # server.run (from app) should be called
+    mock_server_run.assert_called_once()
 
-@patch("src.chroma_mcp.server.mcp.run") # Patch mcp.run within server
-@patch("sys.stdin") # Patch stdin
-def test_main_catches_mcp_run_mcp_error(mock_stdin, mock_mcp_run):
-    """Test main catches McpError raised by the mcp.run call."""
-    mock_stdin.buffer = BytesIO(b'')
-    error_code = INVALID_PARAMS
-    error_message = "Test MCP error message from mcp.run"
-    test_error_data = ErrorData(code=error_code, message=error_message)
-    mock_mcp_run.side_effect = McpError(test_error_data)
 
-    # main should re-raise the original McpError
+# Patch only the components directly used by server.main
+@patch("src.chroma_mcp.server.stdio.stdio_server") # Patch the context manager
+@patch("src.chroma_mcp.server.server.run") # Patch the server.run call
+def test_main_catches_mcp_run_mcp_error(
+    mock_server_run, # Capture patched server.run
+    mock_stdio_cm, # Capture patched context manager
+    caplog,
+):
+    # Mock the context manager
+    mock_stdio_cm.return_value.__aenter__.return_value = (MagicMock(), MagicMock())
+    # Simulate server.run raising McpError
+    error_message = "MCP specific error"
+    mock_server_run.side_effect = McpError(ErrorData(code=INVALID_PARAMS, message=error_message))
+
+    # --- Act & Assert ---
+    # Expect server.main() to catch the McpError and re-raise it
     with pytest.raises(McpError) as exc_info:
-        main() # Call directly
+        main()
+    assert error_message in str(exc_info.value)
 
-    mock_mcp_run.assert_called_once_with(transport='stdio')
-    assert exc_info.type is McpError
-    assert str(error_message) in str(exc_info.value)
+    # Check logs (server.main logs the error before re-raising)
+    assert "MCP Error:" in caplog.text
+    assert error_message in caplog.text
 
-@patch("src.chroma_mcp.server.mcp.run") # Patch mcp.run within server
-@patch("sys.stdin") # Patch stdin
-@patch("sys.exit") # Patch sys.exit
-def test_main_catches_mcp_run_unexpected_error(mock_exit, mock_stdin, mock_mcp_run):
-    """Test main catches generic Exception raised by the mcp.run call."""
-    mock_stdin.buffer = BytesIO(b'')
-    unexpected_error_message = "Something unexpected went wrong in mcp.run"
-    mock_mcp_run.side_effect = Exception(unexpected_error_message)
 
-    # main should catch Exception, log, and raise a new McpError
+# Patch only the components directly used by server.main
+@patch("src.chroma_mcp.server.stdio.stdio_server") # Patch the context manager
+@patch("src.chroma_mcp.server.server.run") # Patch the server.run call
+def test_main_catches_mcp_run_unexpected_error(
+    mock_server_run, # Capture patched server.run
+    mock_stdio_cm, # Capture patched context manager
+    caplog,
+):
+    # Mock the context manager
+    mock_stdio_cm.return_value.__aenter__.return_value = (MagicMock(), MagicMock())
+    # Simulate server.run raising an unexpected error
+    error_message = "Something else went wrong"
+    mock_server_run.side_effect = Exception(error_message)
+
+    # --- Act & Assert ---
+    # Expect server.main() to catch the error, log, and raise McpError
     with pytest.raises(McpError) as exc_info:
-         main() # Call directly
+        main()
 
-    mock_mcp_run.assert_called_once_with(transport='stdio')
-    assert exc_info.type is McpError
-    # Check the wrapped error code and message
-    assert f"Critical error running MCP server: {unexpected_error_message}" in str(exc_info.value)
-    # Check that main did NOT call sys.exit because it raised McpError instead
-    mock_exit.assert_not_called()
+    # Check the raised McpError message
+    assert f"Critical error running MCP server: {error_message}" in str(exc_info.value)
+
+    # Check logs (server.main logs the critical error)
+    assert "Critical error running MCP server:" in caplog.text
+    assert error_message in caplog.text

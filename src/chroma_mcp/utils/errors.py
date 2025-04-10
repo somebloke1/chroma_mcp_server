@@ -19,34 +19,44 @@ from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 #     log_file="chroma_errors.log"
 # )
 
+
 # Custom Exception Classes (Kept as they are raised directly now)
 class ValidationError(Exception):
     """Raised when input validation fails."""
+
     def __init__(self, message: str):
         self.message = message
         super().__init__(message)
+
 
 # Removed unused CollectionNotFoundError and DocumentNotFoundError
 # class CollectionNotFoundError(Exception): ...
 # class DocumentNotFoundError(Exception): ...
 
+
 class EmbeddingError(Exception):
     """Raised when there is an error with embeddings."""
+
     def __init__(self, message: str):
         self.message = message
         super().__init__(message)
+
 
 class ClientError(Exception):
     """Raised when there is an error with the ChromaDB client."""
+
     def __init__(self, message: str):
         self.message = message
         super().__init__(message)
 
+
 class ConfigurationError(Exception):
     """Raised when there is an error with the configuration."""
+
     def __init__(self, message: str):
         self.message = message
         super().__init__(message)
+
 
 # Removed ChromaError dataclass and constants as handle_chroma_error is removed
 # @dataclass
@@ -85,52 +95,50 @@ class ConfigurationError(Exception):
 
 
 # Kept validate_input as it might be useful elsewhere
-def validate_input(
-    value: Any,
-    name: str,
-    required: bool = True,
-    max_length: Optional[int] = None,
-    min_length: Optional[int] = None,
-    pattern: Optional[str] = None
-) -> Optional[str]:
-    """
-    Validate input parameters.
-
-    Args:
-        value: Value to validate
-        name: Name of the parameter
-        required: Whether the parameter is required
-        max_length: Maximum length for string values
-        min_length: Minimum length for string values
-        pattern: Regex pattern for string validation
-
-    Returns:
-        Error message if validation fails, None otherwise
-    """
-    # Check required
-    if required and value is None:
-        return f"{name} is required"
-
-    # Skip further validation if value is None and not required
-    if value is None:
-        return None
-
-    # String validations
-    if isinstance(value, str):
-        if max_length and len(value) > max_length:
-            return f"{name} exceeds maximum length of {max_length}"
-
-        if min_length and len(value) < min_length:
-            return f"{name} is shorter than minimum length of {min_length}"
-
-        if pattern:
-            import re
-            if not re.match(pattern, value):
-                return f"{name} does not match required pattern"
-
-    return None
+# def validate_input(
+#     value: Any,
+#     name: str,
+#     required: bool = True,
+#     max_length: Optional[int] = None,
+#     min_length: Optional[int] = None,
+#     pattern: Optional[str] = None
+# ) -> Optional[str]:
+#     """
+#     Validate input parameters.
+#
+#     Args:
+#         value: Value to validate
+#         name: Name of the parameter
+#         required: Whether the parameter is required
+#         max_length: Maximum length for string values
+#         min_length: Minimum length for string values
+#         pattern: Regex pattern for string validation
+#
+#     Returns:
+#         Error message if validation fails, None otherwise
+#     """
+#     # Check required
+#     if required and value is None:
+#         return f"{name} is required"
+#
+#     # Skip further validation if value is None and not required
+#     if value is None:
+#         return None
+#
+#     # String validations
+#     if isinstance(value, str):
+#         if max_length and len(value) > max_length:
+#             return f"{name} exceeds maximum length of {max_length}"
+#
+#         if min_length and len(value) < min_length:
+#             return f"{name} is shorter than minimum length of {min_length}"
+#
+#         if pattern:
+#             import re
+#             if not re.match(pattern, value):
+#                 return f"{name} does not match required pattern"
+#
+#     return None
 
 # Removed raise_validation_error function
 # def raise_validation_error(error_message: str) -> None:
-#     """Raise a standard validation error."""
-#     raise ValidationError(error_message)

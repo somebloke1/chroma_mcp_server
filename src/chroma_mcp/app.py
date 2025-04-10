@@ -12,39 +12,37 @@ those modules to automatically register themselves with the shared `mcp` instanc
 import importlib.metadata
 from typing import Dict
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import Server
 
-# Create the single, shared FastMCP instance
-mcp = FastMCP()
+# Create the single, shared standard Server instance
+# Using 'server' instead of 'mcp' to avoid confusion with the protocol name
+server = Server(name="chroma-mcp-server")
 
-# logger.info("Shared FastMCP instance created.")
+# logger.info("Shared standard MCP Server instance created.")
 
 # Register server utility tools directly here if they are simple
-@mcp.tool(name="chroma_get_server_version", description="Return the installed version of the chroma-mcp-server package.")
-def get_version_tool() -> Dict[str, str]:
-     """Return the installed version of the chroma-mcp-server package.
+# REMOVE: We will define this in list_tools and handle in call_tool now
+# @mcp.tool(name="chroma_get_server_version", description="Return the installed version of the chroma-mcp-server package.")
+# def get_version_tool() -> Dict[str, str]:
+#      """Return the installed version of the chroma-mcp-server package.
+#
+#      This tool takes no arguments.
+#
+#      Returns:
+#          A dictionary containing the package name ('chroma-mcp-server') and its
+#          installed version string. Returns 'unknown (not installed)' or 'error (...)'
+#          if the version cannot be determined.
+#      """
+#      try:
+#          version = importlib.metadata.version('chroma-mcp-server')
+#          return {"package": "chroma-mcp-server", "version": version}
+#      except importlib.metadata.PackageNotFoundError:
+#          return {"package": "chroma-mcp-server", "version": "unknown (not installed)"}
+#      except Exception as e:
+#         # TODO: Add logging here if possible/needed
+#         # logger.error(f"Error getting server version: {str(e)}")
+#          return {"package": "chroma-mcp-server", "version": f"error ({str(e)})"}
 
-     This tool takes no arguments.
 
-     Returns:
-         A dictionary containing the package name ('chroma-mcp-server') and its
-         installed version string. Returns 'unknown (not installed)' or 'error (...)'
-         if the version cannot be determined.
-     """
-     try:
-         version = importlib.metadata.version('chroma-mcp-server')
-         return {"package": "chroma-mcp-server", "version": version}
-     except importlib.metadata.PackageNotFoundError:
-         return {"package": "chroma-mcp-server", "version": "unknown (not installed)"}
-     except Exception as e:
-        # TODO: Add logging here if possible/needed
-        # logger.error(f"Error getting server version: {str(e)}")
-         return {"package": "chroma-mcp-server", "version": f"error ({str(e)})"}
-
-
-# Import tool modules AFTER mcp instance is created.
-# This allows the @mcp.tool decorators within these modules to
-# find and register themselves with the 'mcp' instance above.
-from .tools import collection_tools
-from .tools import document_tools
-from .tools import thinking_tools
+# Tool modules are now imported directly by server.py where needed.
+# Removing imports from here to break potential circular dependencies.

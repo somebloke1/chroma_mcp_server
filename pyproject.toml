@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.45"
+version = "0.1.54"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -155,28 +155,27 @@ dependencies = [
   "pytest-cov>=6.0.0",
   "pytest-mock>=3.14.0",
   "pytest-xdist[psutil]>=3.5.0",
+  "pytest-timeout>=2.3.0",
   "trio>=0.29.0",
 ]
 
 [tool.hatch.envs.test.scripts]
 run = "pytest {args:tests}"
 cov = [
-  # FIX: Remove --cov-config, keep --cov-report=
-  # "pytest --cov-report= --cov=src/chroma_mcp {args:tests}", # Original, generated no report
-  # Fix: Generate terminal report and XML report
-  "pytest --cov-report=term --cov-report=xml --cov=src/chroma_mcp {args:tests}",
+  # Run pytest via coverage run, remove --cov args from pytest command
+  "pytest --timeout=120 -p no:xdist {args:tests}",
 ]
 html = [
-  # FIX: Remove --cov-config, keep --cov-report=
-  "pytest --cov-report= --cov=src/chroma_mcp {args:tests}", 
+  # Run pytest via coverage run, remove --cov args from pytest command
+  "pytest --timeout=120 -p no:xdist {args:tests}",
 ]
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.10", "3.11", "3.12"]
 
 [tool.coverage.run]
-branch = true
-parallel = true
+branch = false
+parallel = false
 source = ["src/chroma_mcp"]
 relative_files = true
 # Add omit from .coveragerc
@@ -218,7 +217,7 @@ directory = "coverage_html"
 output = "coverage.xml"
 
 [tool.pytest-asyncio]
-mode = "auto"
+mode = "strict"
 
 [tool.hatch.build]
 dev-mode-dirs = ["src"]  # This enables editable install for development 
