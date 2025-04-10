@@ -240,7 +240,7 @@ async def _create_collection_impl(input_data: CreateCollectionInput) -> List[typ
 
 # Signature changed to accept Pydantic model and return List[TextContent]
 async def _list_collections_impl(input_data: ListCollectionsInput) -> List[types.TextContent]:
-    """Lists available ChromaDB collections.
+    """Lists collections, optionally filtering by name and applying pagination.
 
     Args:
         input_data: A ListCollectionsInput object containing validated arguments.
@@ -254,64 +254,51 @@ async def _list_collections_impl(input_data: ListCollectionsInput) -> List[types
                   happens during client interaction.
     """
     logger = get_logger("tools.collection")
-    # REMOVE outer try...except - let exceptions propagate
-    # try:
-    # Access validated data from the input model
-    effective_limit = input_data.limit
-    effective_offset = input_data.offset
+    limit = input_data.limit
+    offset = input_data.offset
     name_contains = input_data.name_contains
 
-    try: # Keep inner try for Chroma-specific errors
+    try:
+        # Pydantic handles validation for limit/offset >= 0
+
         client = get_chroma_client()
-        all_collections = client.list_collections()
+        # Chroma >= 0.6.0 returns List[str] directly
+        all_collection_names: List[str] = client.list_collections()
 
-        # Correctly extract names from Collection objects
-        collection_names = []
-        if isinstance(all_collections, list):
-            for col in all_collections:
-                try:
-                    collection_names.append(col.name)
-                except AttributeError:
-                    logger.warning(f"Object in list_collections result does not have a .name attribute: {type(col)}")
-        else:
-            logger.warning(f"client.list_collections() returned unexpected type: {type(all_collections)}")
+        # Apply filtering if name_contains is provided
+        filtered_names = [
+            name for name in all_collection_names if name_contains and name_contains.lower() in name.lower()
+        ] if name_contains else all_collection_names
 
-        # Filter by name_contains if provided
-        filtered_names = collection_names
-        if name_contains is not None:
-            filtered_names = [name for name in collection_names if name_contains.lower() in name.lower()]
-
-        total_count = len(filtered_names)
+        total_matching_count = len(filtered_names)
 
         # Apply pagination
-        start_index = effective_offset if effective_offset is not None else 0
-        end_index = (
-            (start_index + effective_limit) if effective_limit is not None and effective_limit > 0 else total_count
-        )
+        paginated_names = filtered_names
+        start_index = offset if offset is not None else 0
+        end_index = (start_index + limit) if limit is not None else None
+
+        if start_index < 0:
+             start_index = 0 # Ensure start index is not negative
+
         paginated_names = filtered_names[start_index:end_index]
 
+        # Prepare result
         result_data = {
             "collection_names": paginated_names,
-            "total_count": total_count,
-            "limit": effective_limit,
-            "offset": effective_offset,
+            "total_count": total_matching_count,
+            "limit": limit,
+            "offset": offset,
         }
-        # Return the content list directly
         result_json = json.dumps(result_data, indent=2)
+        # Return content list directly
         return [types.TextContent(type="text", text=result_json)]
-    
-    except Exception as e: # Catch specific Chroma/client errors if needed, otherwise general Exception
-        logger.error(f"Error listing collections: {e}", exc_info=True)
-        # Wrap and raise as McpError for the main handler
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Error listing collections. Details: {str(e)}"))
 
-    # REMOVE the outer exception handlers that returned CallToolResult
-    # except ValidationError as e:
-    #     logger.warning(f"Validation error listing collections: {e}")
-    #     return types.CallToolResult(...)
-    # except Exception as e:
-    #     logger.error(f"Unexpected error listing collections: {e}", exc_info=True)
-    #     return types.CallToolResult(...)
+    except Exception as e:
+        logger.error(f"Error listing collections: {e}", exc_info=True)
+        # Raise McpError
+        raise McpError(
+            ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Error listing collections. Details: {str(e)}")
+        )
 
 
 # Signature changed to return List[Content]
@@ -758,17 +745,50 @@ async def _peek_collection_impl(input_data: PeekCollectionInput) -> List[types.T
         collection = client.get_collection(name=collection_name)
 
         # Call peek with the validated limit (or None if not provided, letting Chroma use its default)
-        peek_results = collection.peek(limit=limit if limit is not None else 10)  # Pass explicit default if None
+        peek_results = collection.peek(limit=limit if limit is not None else 10) # Pass explicit default if None
+        # --- DEBUG LOGGING ---
+        logger.debug(f"Peek results raw type: {type(peek_results)}")
+        logger.debug(f"Peek results raw content: {peek_results}")
+        # --- END DEBUG LOGGING ---
 
         # Process results to make them JSON serializable if needed
+        # Check if peek_results is not None before attempting to copy
+        processed_peek = peek_results.copy() if peek_results is not None else {}
         # Convert numpy arrays (or anything with a tolist() method) to lists
-        processed_peek = peek_results.copy() if peek_results else {}
-        if processed_peek.get("embeddings"):
-            processed_peek["embeddings"] = [
-                arr.tolist() if hasattr(arr, "tolist") and callable(arr.tolist) else arr
-                for arr in processed_peek["embeddings"]
-                if arr is not None
-            ]
+        # Check existence and non-None value explicitly before processing
+        if "embeddings" in processed_peek and processed_peek["embeddings"] is not None:
+            # Embeddings can be List[Optional[np.ndarray]] or List[List[Optional[np.ndarray]]]
+            embeddings_list = processed_peek["embeddings"]
+            new_embeddings = []
+            for item in embeddings_list:
+                 if isinstance(item, list): # Handle potential nested lists
+                     inner_list = []
+                     for emb_arr in item:
+                          inner_list.append(emb_arr.tolist() if hasattr(emb_arr, 'tolist') else emb_arr)
+                     new_embeddings.append(inner_list)
+                 elif hasattr(item, 'tolist'): # Handle top-level numpy arrays
+                     new_embeddings.append(item.tolist())
+                 else: # Handle other types or None
+                      new_embeddings.append(item)
+            processed_peek["embeddings"] = new_embeddings
+
+        # Also process distances if present
+        # Check existence and non-None value explicitly before processing
+        if "distances" in processed_peek and processed_peek["distances"] is not None:
+             distances_list = processed_peek["distances"]
+             new_distances = []
+             for item in distances_list:
+                   if isinstance(item, list):
+                        inner_list = []
+                        for dist_arr in item:
+                             inner_list.append(dist_arr.tolist() if hasattr(dist_arr, 'tolist') else dist_arr)
+                        new_distances.append(inner_list)
+                   elif hasattr(item, 'tolist'):
+                        new_distances.append(item.tolist())
+                   else:
+                        new_distances.append(item)
+             processed_peek["distances"] = new_distances
+
 
         result_json = json.dumps(processed_peek, indent=2)
         # Return content list directly

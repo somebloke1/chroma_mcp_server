@@ -230,13 +230,16 @@ async def _query_documents_impl(input_data: QueryDocumentsInput) -> List[types.T
         client = get_chroma_client()
         collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
 
+        # Ensure 'include' is a list, provide default if None
+        final_include = include if include is not None else ["metadatas", "documents", "distances"]
+
         # Perform the query
         results = collection.query(
             query_texts=query_texts,
             n_results=n_results,
             where=where,
             where_document=where_document,
-            include=include,
+            include=final_include, # Pass the guaranteed list
         )
 
         # Process results to make them JSON serializable (especially embeddings)

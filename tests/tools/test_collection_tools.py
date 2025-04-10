@@ -326,12 +326,8 @@ class TestCollectionTools:
     async def test_list_collections_success(self, mock_chroma_client_collections):
         """Test successful default collection listing."""
         mock_client, _, _ = mock_chroma_client_collections
-        # Simulate the return value from the actual Chroma client method
-        mock_collection_a = MagicMock()
-        mock_collection_a.name = "coll_a"
-        mock_collection_b = MagicMock()
-        mock_collection_b.name = "coll_b"
-        mock_client.list_collections.return_value = [mock_collection_a, mock_collection_b]
+        # Simulate the return value from the actual Chroma client method (List[str])
+        mock_client.list_collections.return_value = ["coll_a", "coll_b"]
 
         # --- Act ---
         # Create Pydantic model instance (no args)
@@ -352,13 +348,9 @@ class TestCollectionTools:
     async def test_list_collections_with_filter_pagination(self, mock_chroma_client_collections):
         """Test listing with name filter and pagination."""
         mock_client, _, _ = mock_chroma_client_collections
-        # Simulate Chroma client return with MagicMock objects having a 'name' attribute
+        # Simulate Chroma client return with List[str]
         collections_data = ["apple", "banana", "apricot", "avocado"]
-        mock_collections = [MagicMock(spec=["name"]) for _ in collections_data]
-        for mock_coll, name_val in zip(mock_collections, collections_data):
-            mock_coll.name = name_val  # Set the name attribute directly
-
-        mock_client.list_collections.return_value = mock_collections
+        mock_client.list_collections.return_value = collections_data
 
         # --- Act ---
         # Create Pydantic model instance

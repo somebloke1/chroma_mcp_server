@@ -277,7 +277,9 @@ A JSON object containing the peek results:
 
 ### `chroma_add_documents`
 
-Adds documents to a collection, with optional metadata and IDs.
+Adds documents to a ChromaDB collection.
+
+**Client Limitation Note:** Some MCP clients may incorrectly serialize optional list parameters (`ids`, `metadatas`). If encountering validation errors, try omitting these parameters and allowing ChromaDB to auto-generate IDs.
 
 #### Parameters for chroma_add_documents
 
@@ -342,19 +344,21 @@ A JSON object containing query results organized by the query text.
 
 ### `chroma_get_documents`
 
-Gets documents from a collection with optional filtering.
+Gets documents from a ChromaDB collection by ID or filter.
+
+**Client Limitation Note:** Some MCP clients may incorrectly serialize optional list parameters (`ids`, `include`, `limit`, `offset`). If encountering validation errors when providing these, try omitting them or using alternative filtering (`where`, `where_document`).
 
 #### Parameters for chroma_get_documents
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `collection_name` | string | Yes | Name of the target collection |
-| `ids` | array of strings | No | Document IDs to retrieve |
-| `where` | object | No | Metadata filters using Chroma's query operators |
-| `where_document` | object | No | Document content filters |
-| `limit` | integer | No | Maximum number of documents to return |
+| `collection_name` | string | Yes | Name of the collection |
+| `ids` | array (string) | No | List of document IDs to retrieve |
+| `where` | object | No | Metadata filter |
+| `where_document` | object | No | Document content filter |
+| `limit` | integer | No | Maximum number of documents |
 | `offset` | integer | No | Number of documents to skip |
-| `include` | array of strings | No | What to include in response |
+| `include` | array (string) | No | Fields to include (e.g., `["documents", "metadatas"]`) |
 
 #### Returns from chroma_get_documents
 
@@ -373,7 +377,9 @@ A JSON object containing the matching documents and their metadata.
 
 ### `chroma_update_documents`
 
-Updates existing documents in a collection.
+Updates existing documents in a ChromaDB collection.
+
+**Client Limitation Note:** Some MCP clients may incorrectly serialize optional list parameters (`documents`, `metadatas`). If encountering validation errors when providing these, try omitting them.
 
 #### Parameters for chroma_update_documents
 
@@ -404,14 +410,16 @@ A JSON object with update status.
 
 ### `chroma_delete_documents`
 
-Deletes documents from a collection.
+Deletes documents from a ChromaDB collection by ID or filter.
+
+**Client Limitation Note:** Some MCP clients may incorrectly serialize the optional list parameter `ids`. If encountering validation errors when providing `ids`, try omitting it and using `where` or `where_document` filters instead.
 
 #### Parameters for chroma_delete_documents
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the target collection |
-| `ids` | array of strings | Yes | Document IDs to delete |
+| `ids` | array of strings | No | Document IDs to delete |
 | `where` | object | No | Metadata filters for deletion |
 | `where_document` | object | No | Document content filters for deletion |
 
