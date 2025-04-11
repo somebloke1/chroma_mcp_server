@@ -6,18 +6,21 @@ This document outlines a sequence of Model Context Protocol (MCP) tool calls to 
 
 - The `chroma-mcp-server` is running and accessible via the MCP client (e.g., through Cursor's `chroma_test` or `chroma` configuration).
 - We are using the `mcp_chroma_test_` prefix for the tools as exposed in this environment.
+- **Recent Refactoring:** Document `add`, `update`, and `delete` tools now operate on **single documents** to improve compatibility with certain clients/models. Query and Get operations still support multiple items/results.
 
 **Error Handling Note:**
 
 - All tool implementations now raise `mcp.shared.exceptions.McpError` on failure (e.g., validation errors, collection not found, ChromaDB errors). Expect error responses to be structured accordingly, rather than returning `isError=True`.
 
-**Client-Side Limitations Note (Important):**
+**Client-Side Limitations Note (Updated):**
 
-- Testing has revealed that some MCP clients (including the one used in Cursor/VS Code during recent tests) have **limitations in correctly serializing *optional* list parameters** (e.g., `ids`, `metadatas` in `add_documents`; `limit` in `peek_collection`; `ids`, `limit`, `offset`, `include` in `get_documents`; `documents`, `metadatas` in `update_documents`; `ids` in `delete_documents`).
-- Providing values for these optional lists through such clients may result in a **string representation** being sent to the server (e.g., `'["id1", "id2"]'`) instead of a proper JSON array, leading to server-side **Pydantic validation errors (`type=list_type, input_type=str`)**.
-- Required list parameters (like `query_texts` in `query_documents`) seem to be handled correctly by these clients.
-- **Workaround:** When using affected clients, **omit the optional list parameters** and rely on default behaviors (e.g., auto-generated IDs, default limits) or alternative filtering methods (like `where` clauses if applicable).
-- Steps in this flow that rely heavily on optional list parameters (Steps 8-12b) were likely **skipped** during recent testing due to these client limitations.
+- Testing has revealed that some MCP clients (including the one used in Cursor/VS Code during recent tests) may have **limitations in correctly serializing list parameters**, especially optional ones. This can also affect required list parameters used in **query and get** tool variants.
+- Providing values for these lists through such clients may result in a **string representation** being sent to the server (e.g., `'["id1", "id2"]'`) instead of a proper JSON array, leading to server-side **Pydantic validation errors (`type=list_type, input_type=str`)**.
+- **Workaround:** When using affected clients for **query/get** operations:
+  - For *optional* lists, omit them and rely on defaults or alternative methods.
+  - For *required* lists (e.g., `ids` in `get_documents_by_ids`), this workaround might not be possible, and these specific tool variants may be unusable with that client.
+- **Single-item operations** (add, update, delete) should not be affected by this list issue.
+- Steps in this flow relying on list parameters for *query/get* (Steps 7, 8, 10, 12, 12b) might fail or need skipping with affected clients.
 
 ## Test Sequence
 
@@ -33,7 +36,7 @@ print(default_api.mcp_chroma_test_chroma_get_server_version(random_string="check
 
 ### 2. Create a New Collection
 
-Let's create a collection to store test data.
+Let's create a collection to store test data using the basic tool.
 
 ```tool_code
 print(default_api.mcp_chroma_test_chroma_create_collection(collection_name="mcp_flow_test_coll"))
@@ -49,7 +52,7 @@ Verify the new collection appears in the list.
 print(default_api.mcp_chroma_test_chroma_list_collections())
 ```
 
-**Note for Cursor Testing:** Due to potential limitations in Cursor's MCP client handling of optional parameters for this tool, you might need to omit the `name_contains` parameter when running this step. The call should be `print(default_api.mcp_chroma_test_chroma_list_collections())`. You will need to manually verify the collection exists in the full list returned.
+**Note:** Due to potential client limitations with optional parameters, `name_contains` is omitted. Verify manually if needed.
 
 *Expected Outcome:* A list including `"mcp_flow_test_coll"`.
 
@@ -61,31 +64,51 @@ Retrieve information about the newly created collection.
 print(default_api.mcp_chroma_test_chroma_get_collection(collection_name="mcp_flow_test_coll"))
 ```
 
-*Expected Outcome:* Details including name, ID, metadata, count (should be 0 initially), and sample entries (should be empty initially). If the collection doesn't exist, an `McpError` will be raised.
+*Expected Outcome:* Details including name, ID, metadata, count (should be 0 initially), and sample entries (should be empty initially).
 
-### 5. Add Documents
+### 5. Add a Document (with Metadata as JSON String)
 
-Add some sample documents to the collection.
+Add a sample document using the single-item tool that expects metadata as a JSON string.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_add_documents(
+print(default_api.mcp_chroma_test_chroma_add_document_with_metadata(
     collection_name="mcp_flow_test_coll",
-    documents=[
-        "This is the first test document.",
-        "Here is another document for testing purposes.",
-        "The quick brown fox jumps over the lazy dog."
-    ],
-    metadatas=[ # Optional: Provide metadata
-        {"source": "test_flow", "topic": "general"},
-        {"source": "test_flow", "topic": "specific"},
-        {"source": "test_flow", "topic": "pangram"}
-    ]
+    document="This is the first test document.",
+    metadata='{"source": "test_flow", "topic": "general"}' # Single JSON string
+    # increment_index is optional, defaults to False for single items
 ))
 ```
 
-**Note on Optional Parameters:** Due to the client-side limitations mentioned above, it's recommended to **omit `ids` and `metadatas`** when using affected clients. ChromaDB will auto-generate IDs. Subsequent steps relying on specific IDs (`doc1`, `doc2`, `doc3`) will need adjustment or may be skipped.
+*Expected Outcome:* Confirmation that 1 document was added. The response might include the auto-generated ID if the tool implementation returns it (design choice). Let's assume we don't know the ID for now.
 
-*Expected Outcome:* Confirmation that documents were added. If `ids` were omitted, the response will include the auto-generated UUIDs.
+### 5b. Add Another Document (with ID)
+
+Add another document, this time specifying an ID.
+
+```tool_code
+print(default_api.mcp_chroma_test_chroma_add_document_with_id(
+    collection_name="mcp_flow_test_coll",
+    document="Here is another document for testing purposes.",
+    id="test-doc-2" # Parameter remains singular 'id' as per schema
+))
+```
+
+*Expected Outcome:* Confirmation that 1 document was added with the specified ID.
+
+### 5c. Add Third Document (with ID and Metadata)
+
+Add a third document with both ID and metadata.
+
+```tool_code
+print(default_api.mcp_chroma_test_chroma_add_document_with_id_and_metadata(
+    collection_name="mcp_flow_test_coll",
+    document="The quick brown fox jumps over the lazy dog.",
+    id="test-doc-pangram",
+    metadata='{"source": "test_flow", "topic": "pangram"}'
+))
+```
+
+*Expected Outcome:* Confirmation that 1 document was added with the specified ID and metadata.
 
 ### 6. Peek at Collection
 
@@ -95,126 +118,84 @@ Check the first few entries.
 print(default_api.mcp_chroma_test_chroma_peek_collection(collection_name="mcp_flow_test_coll"))
 ```
 
-**Note on Optional Parameters:** Due to client-side limitations, the `limit` parameter is omitted here to rely on the default. Previous issues involving NumPy array evaluation in the response processing for this tool have been resolved (as of v0.1.57+), requiring a server restart to load the fix if encountered.
+**Note:** `limit` is omitted due to potential client issues.
 
-*Expected Outcome:* A sample of documents (default limit) and their data. If the collection is empty or doesn't exist, the result might be empty or an `McpError` respectively.
+*Expected Outcome:* A sample of documents (default limit is 10) including the ones we added (e.g., ID "test-doc-2", "test-doc-pangram", and one auto-generated ID).
 
 ### 7. Query Documents
 
-Perform a semantic search.
+Perform a semantic search. We'll use the basic query tool.
 
 ```tool_code
 print(default_api.mcp_chroma_test_chroma_query_documents(
     collection_name="mcp_flow_test_coll",
-    query_texts=["Tell me about test documents"] # Required list, should work
+    query_texts=["Tell me about test documents"], # Required list, should work
+    # n_results is optional (defaults to 10), include is optional
 ))
 ```
 
-**Note on Optional Parameters:** Due to client-side limitations, optional parameters like `n_results`, `where`, `where_document`, `include` are omitted here.
+**Note:** Optional parameters omitted due to potential client issues. Use specific variants for filtering if needed and if the client supports them.
 
-*Expected Outcome:* A list of results (default number), likely including documents similar to the query text, with distances/similarities.
+*Expected Outcome (Client Limitation possible):* A list of results likely including relevant documents. May fail if client cannot handle `query_texts` list.
 
 ### 8. Get Specific Documents by ID
 
-Retrieve documents using their IDs.
+Retrieve documents using their known IDs. Use the specific `_by_ids` variant. **This step might fail with affected clients due to list handling.**
 
 ```tool_code
-# Adjust IDs if they were auto-generated in step 5
-print(default_api.mcp_chroma_test_chroma_get_documents(
-    collection_name="mcp_flow_test_coll"
-))
-```
-
-*Expected Outcome (if run without `ids` or filters):* An `McpError` due to missing required filter (`ids`, `where`, or `where_document`).
-*Expected Outcome (in affected clients):* This step is likely **skipped** as providing the optional `ids` list leads to validation errors.
-
-### 9. Update Documents
-
-Modify the content and metadata of an existing document.
-
-```tool_code
-# Adjust ID if it was auto-generated in step 5
-print(default_api.mcp_chroma_test_chroma_update_documents(
+# Use the IDs we specified earlier.
+print(default_api.mcp_chroma_test_chroma_get_documents_by_ids(
     collection_name="mcp_flow_test_coll",
-    ids=["some-auto-generated-id"] # Required list, but 'documents' and 'metadatas' are optional lists
+    ids=["test-doc-2", "test-doc-pangram"] # Required list
+    # include is optional
 ))
 ```
 
-*Expected Outcome (in affected clients):* This step is likely **skipped** or run without providing optional `documents`/`metadatas` due to client-side limitations with optional lists. If run only with `ids`, it might effectively do nothing if no other parameters are provided.
+*Expected Outcome (in affected clients):* Likely failure due to client list handling.
+*Expected Outcome (if successful):* JSON containing the requested documents "test-doc-2" and "test-doc-pangram".
+
+### 9. Update Document Content
+
+Modify a document's content using its ID. Use the single-item update tool.
+
+```tool_code
+# Use one of the known IDs.
+print(default_api.mcp_chroma_test_chroma_update_document_content(
+    collection_name="mcp_flow_test_coll",
+    id="test-doc-2", # Single ID
+    document="This document content has been updated." # Single document content
+))
+```
+
+**Note:** To update metadata, use `mcp_chroma_test_chroma_update_document_metadata` (takes single `id` and `metadata` dict/JSON string).
+
+*Expected Outcome:* Confirmation of update request for 1 document.
 
 ### 10. Verify Update with Get
 
-Retrieve the updated document to confirm changes.
+Retrieve the updated document using its ID. **This step might fail with affected clients due to list handling.**
 
 ```tool_code
-# Adjust ID if it was auto-generated in step 5
-print(default_api.mcp_chroma_test_chroma_get_documents(
-    collection_name="mcp_flow_test_coll"
+# Use the same ID used in Step 9.
+print(default_api.mcp_chroma_test_chroma_get_documents_by_ids(
+    collection_name="mcp_flow_test_coll",
+    ids=["test-doc-2"] # Required list
 ))
 ```
 
-*Expected Outcome (in affected clients):* This step is likely **skipped** due to the same reasons as Step 8.
+*Expected Outcome (in affected clients):* Likely failure due to client list handling.
+*Expected Outcome (if successful):* JSON containing the document with ID "test-doc-2" showing the updated content.
 
-### 11. Delete Documents by ID
+### 11. Delete Document by ID
 
-Remove specific documents.
+Remove a specific document using its ID. Use the single-item delete tool.
 
 ```tool_code
-# Adjust IDs if they were auto-generated in step 5
-print(default_api.mcp_chroma_test_chroma_delete_documents(
-    collection_name="mcp_flow_test_coll"
+# Use one of the known IDs.
+print(default_api.mcp_chroma_test_chroma_delete_document_by_id(
+    collection_name="mcp_flow_test_coll",
+    id="test-doc-2" # Single ID
 ))
 ```
 
-*Expected Outcome (in affected clients):* This step is likely **skipped** as providing the optional `ids` list leads to validation errors. Deletion might be tested using `where` or `where_document` filters instead, or by deleting the whole collection (Step 13).
-
-### 12. Verify Deletion with Get
-
-Attempt to retrieve deleted documents (should fail or return empty).
-
-```tool_code
-# Adjust IDs if they were auto-generated in step 5
-print(default_api.mcp_chroma_test_chroma_get_documents(
-    collection_name="mcp_flow_test_coll"
-))
-```
-
-*Expected Outcome (in affected clients):* This step is likely **skipped** due to the same reasons as Step 8.
-
-### 12b. Attempt Get on Non-Existent Document
-
-Attempt to retrieve a document ID that never existed.
-
-```tool_code
-print(default_api.mcp_chroma_test_chroma_get_documents(
-    collection_name="mcp_flow_test_coll"
-))
-```
-
-*Expected Outcome (in affected clients):* This step is likely **skipped** due to the same reasons as Step 8.
-
-### 13. Delete Collection
-
-Clean up by deleting the test collection.
-
-```tool_code
-print(default_api.mcp_chroma_test_chroma_delete_collection(collection_name="mcp_flow_test_coll"))
-```
-
-*Expected Outcome:* Confirmation that the collection was deleted. If it doesn't exist, an `McpError` will be raised.
-
-### 14. Verify Collection Deletion
-
-Attempt to list the collection (should not be found).
-
-```tool_code
-print(default_api.mcp_chroma_test_chroma_list_collections()) # Omit name_contains due to potential client issues
-```
-
-**Note on Optional Parameters:** See note in step 3 regarding potential need to omit `name_contains`. Verify manually that `mcp_flow_test_coll` is absent from the full list.
-
-*Expected Outcome:* A list of collection names that does not include `mcp_flow_test_coll`.
-
----
-
-This flow covers the primary CRUD (Create, Read, Update, Delete) operations for both collections and documents. However, due to observed client-side limitations with optional list parameters, exercising Update and Delete operations on specific document IDs may require workarounds or different client environments.
+**Note:** Use filter variants (`

@@ -209,3 +209,6 @@ logs/
 
 # Cursor
 .cursor/
+
+# Local files
+.local/

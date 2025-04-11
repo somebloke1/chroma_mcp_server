@@ -5,6 +5,7 @@ import uuid
 import re
 import json
 import numpy as np
+import time
 
 from typing import Dict, Any, List, Optional
 from unittest.mock import patch, MagicMock, ANY, call
@@ -19,11 +20,9 @@ from src.chroma_mcp.utils.errors import ValidationError
 from src.chroma_mcp.tools.collection_tools import (
     _reconstruct_metadata,  # Keep helper if used
     _create_collection_impl,
+    _create_collection_with_metadata_impl,
     _list_collections_impl,
     _get_collection_impl,
-    _set_collection_description_impl,
-    _set_collection_settings_impl,
-    _update_collection_metadata_impl,
     _rename_collection_impl,
     _delete_collection_impl,
     _peek_collection_impl,
@@ -32,11 +31,9 @@ from src.chroma_mcp.tools.collection_tools import (
 # Import Pydantic models used by the tools
 from src.chroma_mcp.tools.collection_tools import (
     CreateCollectionInput,
+    CreateCollectionWithMetadataInput,
     ListCollectionsInput,
     GetCollectionInput,
-    SetCollectionDescriptionInput,
-    SetCollectionSettingsInput,
-    UpdateCollectionMetadataInput,
     RenameCollectionInput,
     DeleteCollectionInput,
     PeekCollectionInput,
@@ -76,14 +73,15 @@ def assert_successful_json_result(
 def assert_raises_mcp_error(expected_error_substring: Optional[str] = None):
     """Asserts that McpError is raised and optionally checks the error message."""
     with pytest.raises(McpError) as exc_info:
-        yield # Code under test executes here
+        yield  # Code under test executes here
 
     # After the block, check the exception details
     error_message = str(exc_info.value)
     # print(f"DEBUG: Caught McpError message: {error_message}") # Keep commented out for now
     if expected_error_substring:
-        assert expected_error_substring.lower() in error_message.lower(), \
-               f"Expected substring '{expected_error_substring}' not found in error message '{error_message}'"
+        assert (
+            expected_error_substring.lower() in error_message.lower()
+        ), f"Expected substring '{expected_error_substring}' not found in error message '{error_message}'"
 
 
 @pytest.fixture
@@ -137,32 +135,34 @@ class TestCollectionTools:
             mock_client,
             _,
             mock_validate,
-        ) = mock_chroma_client_collections # mock_collection fixture not directly needed here
+        ) = mock_chroma_client_collections  # mock_collection fixture not directly needed here
         collection_name = "test_create_new"
         mock_collection_id = str(uuid.uuid4())
 
         # Mock the collection returned by create_collection
         created_collection_mock = MagicMock()
         created_collection_mock.name = collection_name
-        created_collection_mock.id = mock_collection_id # Use a fixed UUID for assertion
+        created_collection_mock.id = mock_collection_id  # Use a fixed UUID for assertion
 
         # Simulate the metadata as stored by ChromaDB (flattened, used by _reconstruct_metadata)
-        actual_default_settings = get_collection_settings() # Get the full defaults
+        actual_default_settings = get_collection_settings()  # Get the full defaults
         # Metadata sent TO create_collection should only contain explicitly handled defaults (like hnsw:space)
         # The implementation relies on Chroma to apply other defaults server-side.
         expected_metadata_passed_to_chroma = None
         if "hnsw:space" in actual_default_settings:
-             expected_metadata_passed_to_chroma = {"chroma:setting:hnsw_space": actual_default_settings["hnsw:space"]}
+            expected_metadata_passed_to_chroma = {"chroma:setting:hnsw_space": actual_default_settings["hnsw:space"]}
 
         # The collection object returned by the MOCK should have the FULL metadata
         # reflecting what Chroma *would* store, including implicit defaults.
-        metadata_stored_by_chroma = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in actual_default_settings.items()}
-        created_collection_mock.metadata = metadata_stored_by_chroma # What the collection obj would have
-        created_collection_mock.count.return_value = 0 # Simulate count after creation
+        metadata_stored_by_chroma = {
+            f"chroma:setting:{k.replace(':', '_')}": v for k, v in actual_default_settings.items()
+        }
+        created_collection_mock.metadata = metadata_stored_by_chroma  # What the collection obj would have
+        created_collection_mock.count.return_value = 0  # Simulate count after creation
         mock_client.create_collection.return_value = created_collection_mock
 
         # --- Act ---
-        input_model = CreateCollectionInput(collection_name=collection_name, metadata=None)
+        input_model = CreateCollectionInput(collection_name=collection_name)
         # Call await directly, expect List[TextContent]
         result_list = await _create_collection_impl(input_model)
 
@@ -185,9 +185,9 @@ class TestCollectionTools:
         # Correct Assertion: Compare the RECONSTRUCTED metadata['settings'] in the result with the EXPECTED defaults
         assert "settings" in result_data["metadata"], "Reconstructed metadata should contain a 'settings' key"
         # Convert keys in actual_default_settings from _ to : for comparison
-        expected_settings_with_colons = {k.replace('_', ':'): v for k, v in actual_default_settings.items()}
+        expected_settings_with_colons = {k.replace("_", ":"): v for k, v in actual_default_settings.items()}
         assert result_data["metadata"]["settings"] == expected_settings_with_colons
-        assert result_data.get("count") == 0 # Based on mock count
+        assert result_data.get("count") == 0  # Based on mock count
 
     @pytest.mark.asyncio
     async def test_create_collection_invalid_name(self, mock_chroma_client_collections):
@@ -209,14 +209,15 @@ class TestCollectionTools:
         #     await _create_collection_impl(input_model)
         with assert_raises_mcp_error(f"Validation Error: {error_msg}"):
             await _create_collection_impl(input_model)
-        mock_validate.assert_called_once_with(invalid_name) # Verify validator was called
+        mock_validate.assert_called_once_with(invalid_name)  # Verify validator was called
 
     @pytest.mark.asyncio
     async def test_create_collection_with_custom_metadata(self, mock_chroma_client_collections):
-        """Test creating a collection with custom metadata provided."""
+        """Test creating a collection with custom metadata provided (as JSON string)."""
         mock_client, _, mock_validate = mock_chroma_client_collections
         collection_name = "custom_meta_coll"
-        custom_metadata_input = {"hnsw:space": "ip", "custom_field": "value1"}
+        custom_metadata_dict = {"hnsw:space": "ip", "custom_field": "value1"}
+        custom_metadata_json = json.dumps(custom_metadata_dict)  # Convert to JSON string
         mock_collection_id = str(uuid.uuid4())
 
         # Mock the collection returned by create_collection
@@ -224,14 +225,18 @@ class TestCollectionTools:
         created_collection_mock.name = collection_name
         created_collection_mock.id = mock_collection_id
         # Metadata stored internally might be slightly different if flattened
-        created_collection_mock.metadata = custom_metadata_input
+        # Pass the DICT to the mock, as that's what _impl passes to the *client*
+        created_collection_mock.metadata = custom_metadata_dict
         created_collection_mock.count.return_value = 0
         mock_client.create_collection.return_value = created_collection_mock
 
         # --- Act ---
-        # Create Pydantic model instance
-        input_model = CreateCollectionInput(collection_name=collection_name, metadata=custom_metadata_input)
-        result_list = await _create_collection_impl(input_model)
+        # Create Pydantic model instance - Use correct model, pass JSON string
+        input_model = CreateCollectionWithMetadataInput(
+            collection_name=collection_name, metadata=custom_metadata_json
+        )  # Pass the JSON string here
+        # Use correct implementation function
+        result_list = await _create_collection_with_metadata_impl(input_model)
 
         # --- Assert ---
         # Mock calls
@@ -239,16 +244,17 @@ class TestCollectionTools:
         mock_client.create_collection.assert_called_once()
         call_args = mock_client.create_collection.call_args
         assert call_args.kwargs["name"] == collection_name
-        # Verify the custom metadata was passed to create_collection
-        assert call_args.kwargs["metadata"] == custom_metadata_input
+        # Verify the original *dictionary* was passed to Chroma's create_collection
+        # (because _impl parses the JSON string back to a dict)
+        assert call_args.kwargs["metadata"] == custom_metadata_dict
 
         # Assert successful result
         result_data = assert_successful_json_result(result_list)
         assert result_data.get("name") == collection_name
         assert result_data.get("id") == mock_collection_id
         assert result_data.get("count") == 0
-        # Assert reconstructed metadata in result matches input
-        assert result_data.get("metadata") == _reconstruct_metadata(custom_metadata_input)
+        # Assert reconstructed metadata in result matches input dict
+        assert result_data.get("metadata") == _reconstruct_metadata(custom_metadata_dict)
 
     @pytest.mark.asyncio
     async def test_create_collection_chroma_duplicate_error(self, mock_chroma_client_collections):
@@ -477,241 +483,6 @@ class TestCollectionTools:
             await _get_collection_impl(input_model)
         mock_client.get_collection.assert_called_once_with(name=collection_name, embedding_function=ANY)
 
-    # --- _set_collection_description_impl Tests ---
-    @pytest.mark.asyncio
-    async def test_set_collection_description_success(self, mock_chroma_client_collections):
-        """Test successfully *attempting* to set a collection description."""
-        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
-        collection_name = "desc_coll"
-        new_description = "A new description"
-
-        # Configure mocks
-        mock_client.get_collection.return_value = mock_collection
-
-        # --- Act ---
-        input_model = SetCollectionDescriptionInput(collection_name=collection_name, description=new_description)
-        result = await _set_collection_description_impl(input_model)
-
-        # --- Assert ---
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(name=collection_name)
-        # Modify *is* called with the new description
-        mock_collection.modify.assert_called_once_with(metadata={"description": new_description})
-
-        # Assert successful result (confirmation message, not JSON)
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert isinstance(result[0], types.TextContent)
-        assert f"Attempted to set description for collection '{collection_name}'" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_set_collection_description_not_found(self, mock_chroma_client_collections):
-        """Test setting description when the collection doesn't exist."""
-        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
-        collection_name = "nonexistent_set_desc"
-        error_message = f"Collection {collection_name} does not exist."
-        mock_client.get_collection.side_effect = ValueError(error_message)
-
-        # --- Act & Assert ---
-        input_model = SetCollectionDescriptionInput(collection_name=collection_name, description="any")
-        # result = await _set_collection_description_impl(input_model)
-        # --- Assert ---
-        # mock_validate.assert_called_once_with(collection_name)
-        # mock_client.get_collection.assert_called_once_with(name=collection_name)
-        # modify should not be called if get_collection fails
-        # Assert error result using helper
-        with assert_raises_mcp_error(f"Tool Error: Collection '{collection_name}' not found."):
-            await _set_collection_description_impl(input_model)
-        # Assert mocks were called
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(name=collection_name)
-        mock_collection.modify.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_set_collection_description_modify_error(self, mock_chroma_client_collections):
-        """Test handling of unexpected error during the modify call itself."""
-        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
-        collection_name = "test_desc_modify_err"
-        description = "new desc"
-        error_message = "Internal DB error during modify"
-        # Mock get success, modify failure
-        mock_client.get_collection.return_value = mock_collection
-        mock_collection.modify.side_effect = Exception(error_message)
-
-        # --- Act & Assert ---
-        input_model = SetCollectionDescriptionInput(collection_name=collection_name, description=description)
-        # result = await _set_collection_description_impl(input_model)
-        # --- Assert ---
-        # mock_validate.assert_called_once_with(collection_name)
-        # mock_client.get_collection.assert_called_once_with(name=collection_name)
-        # mock_collection.modify.assert_called_once_with(metadata={"description": description})
-        # Assert the specific error message from the modify failure
-        expected_msg = f"Tool Error: Failed during modify operation for '{collection_name}'. Details: {error_message}"
-        with assert_raises_mcp_error(expected_msg):
-            await _set_collection_description_impl(input_model)
-        # Assert mocks were called
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(name=collection_name)
-        mock_collection.modify.assert_called_once_with(metadata={"description": description})
-
-    # --- _set_collection_settings_impl Tests ---
-    @pytest.mark.asyncio
-    async def test_set_collection_settings_success(self, mock_chroma_client_collections):
-        """Test successfully *attempting* to set collection settings."""
-        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
-        collection_name = "settings_coll"
-        new_settings = {"hnsw:space": "l2", "hnsw:construction_ef": 200}
-
-        # Simulate existing metadata
-        mock_collection.metadata = {"existing_key": "val1"}
-        mock_client.get_collection.return_value = mock_collection
-
-        # --- Act ---
-        input_model = SetCollectionSettingsInput(collection_name=collection_name, settings=new_settings)
-        result = await _set_collection_settings_impl(input_model)
-
-        # --- Assert ---
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(name=collection_name)
-        # Check modify call with merged, prefixed keys
-        expected_metadata_for_modify = {
-            "existing_key": "val1",  # Preserved
-            "chroma:setting:hnsw_space": "l2",
-            "chroma:setting:hnsw_construction_ef": 200,
-        }
-        mock_collection.modify.assert_called_once_with(metadata=expected_metadata_for_modify)
-
-        # Assert successful result (confirmation message)
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert isinstance(result[0], types.TextContent)
-        assert f"Attempted to set settings for collection '{collection_name}'" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_set_collection_settings_not_found(self, mock_chroma_client_collections):
-        """Test setting settings when the collection doesn't exist."""
-        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
-        collection_name = "nonexistent_set_settings"
-        error_message = f"Collection {collection_name} does not exist."
-        mock_client.get_collection.side_effect = ValueError(error_message)
-
-        # --- Act & Assert ---
-        input_model = SetCollectionSettingsInput(collection_name=collection_name, settings={})
-        # result = await _set_collection_settings_impl(input_model)
-        # --- Assert ---
-        # mock_validate.assert_called_once_with(collection_name)
-        # mock_client.get_collection.assert_called_once_with(name=collection_name)
-        # mock_collection.modify.assert_not_called()
-        with assert_raises_mcp_error(f"Tool Error: Collection '{collection_name}' not found."):
-            await _set_collection_settings_impl(input_model)
-        # Assert mocks were called
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(name=collection_name)
-        mock_collection.modify.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_set_collection_settings_modify_error(self, mock_chroma_client_collections):
-        """Test handling of unexpected error during the settings modify call."""
-        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
-        collection_name = "test_settings_modify_err"
-        settings = {"hnsw:space": "l2"}
-        error_message = "Settings modify failed"
-        # Mock get success, modify failure
-        mock_collection.metadata = {} # Start with empty metadata for simplicity
-        mock_client.get_collection.return_value = mock_collection
-        mock_collection.modify.side_effect = Exception(error_message)
-
-        # --- Act & Assert ---
-        input_model = SetCollectionSettingsInput(collection_name=collection_name, settings=settings)
-        # result = await _set_collection_settings_impl(input_model)
-        # --- Assert ---
-        # mock_validate.assert_called_once_with(collection_name)
-        # mock_client.get_collection.assert_called_once_with(name=collection_name)
-        # Modify was called with merged metadata (empty existing + new settings)
-        expected_metadata = {"chroma:setting:hnsw_space": "l2"}
-        # mock_collection.modify.assert_called_once_with(metadata=expected_metadata)
-        # Assert the specific error message from the modify failure
-        expected_msg = f"Tool Error: Failed during modify operation for '{collection_name}'. Details: {error_message}"
-        with assert_raises_mcp_error(expected_msg):
-            await _set_collection_settings_impl(input_model)
-        # Assert mocks were called
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(name=collection_name)
-        mock_collection.modify.assert_called_once_with(metadata=expected_metadata)
-
-    # --- _update_collection_metadata_impl Tests ---
-    @pytest.mark.asyncio
-    async def test_update_collection_metadata_success(self, mock_chroma_client_collections):
-        """Test successfully *attempting* to update collection metadata."""
-        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
-        collection_name = "metadata_coll"
-        metadata_update = {"new_key": "new_value", "updated_key": "changed"}
-
-        # Simulate existing metadata (implementation now directly uses metadata_update for modify)
-        mock_collection.metadata = {"existing_key": "val1", "updated_key": "original"}
-        mock_client.get_collection.return_value = mock_collection
-
-        # --- Act ---
-        input_model = UpdateCollectionMetadataInput(
-            collection_name=collection_name, metadata_update=metadata_update
-        )
-        result = await _update_collection_metadata_impl(input_model)
-
-        # --- Assert ---
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(name=collection_name)
-        # Modify is called with the *new* metadata block directly
-        mock_collection.modify.assert_called_once_with(metadata=metadata_update)
-
-        # Assert successful result (confirmation message)
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert isinstance(result[0], types.TextContent)
-        assert f"Attempted to update metadata for collection '{collection_name}'" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_update_collection_metadata_not_found(self, mock_chroma_client_collections):
-        """Test updating metadata when the collection doesn't exist."""
-        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
-        collection_name = "nonexistent_update_meta"
-        error_message = f"Collection {collection_name} does not exist."
-        mock_client.get_collection.side_effect = ValueError(error_message)
-
-        # --- Act ---
-        input_model = UpdateCollectionMetadataInput(collection_name=collection_name, metadata_update={})
-        with assert_raises_mcp_error(f"Tool Error: Collection '{collection_name}' not found."):
-            await _update_collection_metadata_impl(input_model)
-
-        # --- Assert ---
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(name=collection_name)
-        mock_collection.modify.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_update_collection_metadata_modify_error(self, mock_chroma_client_collections):
-        """Test handling of unexpected error during the metadata modify call."""
-        mock_client, mock_collection, mock_validate = mock_chroma_client_collections
-        collection_name = "test_metadata_modify_err"
-        metadata_update = {"a": 1}
-        error_message = "Metadata modify failed"
-        # Mock get success, modify failure
-        mock_collection.metadata = {}
-        mock_client.get_collection.return_value = mock_collection
-        mock_collection.modify.side_effect = Exception(error_message)
-
-        # --- Act ---
-        input_model = UpdateCollectionMetadataInput(
-            collection_name=collection_name, metadata_update=metadata_update
-        )
-        with assert_raises_mcp_error(f"Tool Error: Failed during modify operation for '{collection_name}'. Details: {error_message}"):
-            await _update_collection_metadata_impl(input_model)
-
-        # --- Assert ---
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(name=collection_name)
-        # Modify was called
-        mock_collection.modify.assert_called_once_with(metadata=metadata_update)
-
     # --- _rename_collection_impl Tests ---
     @pytest.mark.asyncio
     async def test_rename_collection_success(self, mock_chroma_client_collections):
@@ -760,8 +531,8 @@ class TestCollectionTools:
             await _rename_collection_impl(input_model)
 
         # --- Assert ---
-        mock_validate.assert_any_call(original_name) # Called with original first
-        mock_validate.assert_any_call(invalid_new_name) # Called with new name second
+        mock_validate.assert_any_call(original_name)  # Called with original first
+        mock_validate.assert_any_call(invalid_new_name)  # Called with new name second
         mock_collection.modify.assert_not_called()
 
     @pytest.mark.asyncio
@@ -779,7 +550,7 @@ class TestCollectionTools:
             await _rename_collection_impl(input_model)
 
         # --- Assert ---
-        mock_validate.assert_has_calls([call(original_name), call(new_name)]) # Both validations called
+        mock_validate.assert_has_calls([call(original_name), call(new_name)])  # Both validations called
         mock_client.get_collection.assert_called_once_with(name=original_name)
 
     @pytest.mark.asyncio
@@ -814,7 +585,9 @@ class TestCollectionTools:
 
         # --- Act ---
         input_model = RenameCollectionInput(collection_name=original_name, new_name=new_name)
-        with assert_raises_mcp_error(f"Tool Error: An unexpected error occurred renaming collection '{original_name}'. Details: {error_message}"):
+        with assert_raises_mcp_error(
+            f"Tool Error: An unexpected error occurred renaming collection '{original_name}'. Details: {error_message}"
+        ):
             await _rename_collection_impl(input_model)
 
         # --- Assert ---
@@ -870,9 +643,62 @@ class TestCollectionTools:
 
         # --- Act ---
         input_model = DeleteCollectionInput(collection_name=collection_name)
-        with assert_raises_mcp_error(f"Tool Error: An unexpected error occurred deleting collection '{collection_name}'. Details: {error_message}"):
+        with assert_raises_mcp_error(
+            f"Tool Error: An unexpected error occurred deleting collection '{collection_name}'. Details: {error_message}"
+        ):
             await _delete_collection_impl(input_model)
 
         # --- Assert ---
         mock_validate.assert_called_once_with(collection_name)
         mock_client.delete_collection.assert_called_once_with(name=collection_name)
+
+    # --- Tests for _create_collection_with_metadata_impl ---
+    @pytest.mark.asyncio
+    async def test_create_collection_with_metadata_success(self, mock_chroma_client_collections):
+        """Test successful creation using the _with_metadata variant (as JSON string)."""
+        (
+            mock_client,
+            _,
+            mock_validate,
+        ) = mock_chroma_client_collections
+        collection_name = "test_create_with_meta"
+        custom_metadata_dict = {"description": "My custom description", "hnsw:space": "ip"}
+        custom_metadata_json = json.dumps(custom_metadata_dict)  # Convert to JSON string
+        mock_collection_id = str(uuid.uuid4())
+
+        # Mock the collection returned by create_collection
+        created_collection_mock = MagicMock()
+        created_collection_mock.name = collection_name
+        created_collection_mock.id = mock_collection_id
+        # Simulate Chroma storing the metadata (it might flatten/prefix settings)
+        # Assume it stores what was passed to the *client*, which is the dict
+        created_collection_mock.metadata = custom_metadata_dict
+        created_collection_mock.count.return_value = 0
+        mock_client.create_collection.return_value = created_collection_mock
+
+        # --- Act ---
+        input_model = CreateCollectionWithMetadataInput(
+            collection_name=collection_name, metadata=custom_metadata_json  # Pass the JSON string here
+        )
+        result_list = await _create_collection_with_metadata_impl(input_model)
+
+        # --- Assert ---
+        # Mock calls
+        mock_validate.assert_called_once_with(collection_name)
+        mock_client.create_collection.assert_called_once()
+        call_args = mock_client.create_collection.call_args
+        assert call_args.kwargs["name"] == collection_name
+        # Verify the original *dictionary* was passed to Chroma's create_collection
+        assert call_args.kwargs["metadata"] == custom_metadata_dict
+        assert call_args.kwargs["get_or_create"] is False
+
+        # Result structure and content assertions
+        result_data = assert_successful_json_result(result_list)
+        assert result_data.get("name") == collection_name
+        assert result_data.get("id") == mock_collection_id
+        assert "metadata" in result_data
+        # Check reconstructed metadata matches the input dictionary
+        expected_reconstructed = _reconstruct_metadata(custom_metadata_dict)  # Use dict for check
+        assert result_data["metadata"] == expected_reconstructed
+        assert result_data.get("count") == 0
+        assert result_data.get("status") == "success"

@@ -173,7 +173,11 @@ fi
 
 # Clean previous builds
 echo "Cleaning previous builds..."
-rm -rf "$DIST_DIR" "$BUILD_DIR" $EGG_INFO_DIR 
+rm -rf "$DIST_DIR" "$BUILD_DIR" $EGG_INFO_DIR
+
+# Format code before building
+echo "Formatting code with Black via Hatch (from project root)..."
+(cd "$PROJECT_ROOT" && hatch run black .)
 
 # Build the package using project root context
 echo "Building package with Hatch (from project root)..."

@@ -66,9 +66,10 @@ class SequentialThinkingInput(BaseModel):
     next_thought_needed: Optional[bool] = Field(
         default=False, description="Flag indicating if a subsequent thought is expected."
     )
-    custom_data: Optional[Dict[str, Any]] = Field(
-        default=None, description="Optional dictionary for arbitrary metadata."
-    )
+
+
+class SequentialThinkingWithCustomDataInput(SequentialThinkingInput):
+    custom_data: Dict[str, Any] = Field(description="Dictionary for arbitrary metadata.")
 
 
 class FindSimilarThoughtsInput(BaseModel):
@@ -107,19 +108,48 @@ class FindSimilarSessionsInput(BaseModel):
 # --- Implementation Functions ---
 
 
+# Wrapper for the base variant (no custom_data)
 async def _sequential_thinking_impl(input_data: SequentialThinkingInput) -> types.CallToolResult:
-    """Records a thought within a thinking session, potentially in a branch.
+    """Records a thought within a thinking session (without custom data).
 
     Args:
         input_data: A SequentialThinkingInput object containing validated arguments.
 
     Returns:
         A CallToolResult object.
-        On success, content contains a TextContent object with a JSON string
-        including the 'session_id' (either provided or newly generated) and potentially
-        the ID of the recorded thought document.
-        On error (e.g., invalid parameters, database error, unexpected issue),
-        isError is True and content contains a TextContent object with an error message.
+    """
+    # Pass custom_data as None explicitly
+    return await _base_sequential_thinking_impl(input_data, custom_data=None)
+
+
+# Wrapper for the variant with custom_data
+async def _sequential_thinking_with_custom_data_impl(
+    input_data: SequentialThinkingWithCustomDataInput,
+) -> types.CallToolResult:
+    """Records a thought within a thinking session (with custom data).
+
+    Args:
+        input_data: A SequentialThinkingWithCustomDataInput object containing validated arguments.
+
+    Returns:
+        A CallToolResult object.
+    """
+    # Extract custom_data and pass it to the base implementation
+    return await _base_sequential_thinking_impl(input_data, custom_data=input_data.custom_data)
+
+
+# Base implementation (renamed from original _sequential_thinking_impl)
+async def _base_sequential_thinking_impl(
+    input_data: SequentialThinkingInput, custom_data: Optional[Dict[str, Any]]
+) -> types.CallToolResult:
+    """Base implementation for recording a thought.
+
+    Args:
+        input_data: A SequentialThinkingInput (or subclass that conforms) object.
+        custom_data: The custom data dictionary (can be None).
+
+    Returns:
+        A CallToolResult object.
     """
 
     logger = get_logger("tools.thinking")
@@ -132,7 +162,7 @@ async def _sequential_thinking_impl(input_data: SequentialThinkingInput) -> type
         branch_id = input_data.branch_id  # Could be None
         branch_from_thought = input_data.branch_from_thought  # Could be None
         next_thought_needed = input_data.next_thought_needed  # Has default
-        custom_data = input_data.custom_data  # Could be None
+        # custom_data is now passed as an argument
 
         effective_session_id = session_id if session_id else str(uuid.uuid4())
         timestamp = int(time.time())
@@ -144,7 +174,7 @@ async def _sequential_thinking_impl(input_data: SequentialThinkingInput) -> type
             branch_from_thought=branch_from_thought,
             branch_id=branch_id,
             next_thought_needed=next_thought_needed,
-            custom_data=custom_data if custom_data else None,
+            custom_data=custom_data,  # Use passed custom_data argument
         )
 
         client = get_chroma_client()
@@ -168,31 +198,72 @@ async def _sequential_thinking_impl(input_data: SequentialThinkingInput) -> type
         if branch_id:
             thought_id += f"_branch_{branch_id}"
 
-        metadata_dict = asdict(metadata)
-        metadata_dict = {k: v for k, v in metadata_dict.items() if v is not None}
-        if "custom_data" in metadata_dict:  # Check existence before popping
-            custom = metadata_dict.pop("custom_data")
-            if custom:  # Check if custom data is not empty
-                for ck, cv in custom.items():
-                    metadata_dict[f"custom:{ck}"] = cv
+        # FIX: Construct metadata dictionary correctly using asdict for dataclass
+        # Convert dataclass instance to dictionary
+        base_metadata_dict = asdict(metadata)
+
+        # Manually filter out None values
+        filtered_metadata_dict = {k: v for k, v in base_metadata_dict.items() if v is not None}
+
+        # Extract custom_data if it exists (and remove it from the main dict)
+        # Use .pop on the filtered dict to get custom_data and remove it in one step
+        custom_data_to_flatten = filtered_metadata_dict.pop("custom_data", None)
+
+        # If custom_data was present and is a dict, flatten it with prefix
+        if isinstance(custom_data_to_flatten, dict):
+            for ck, cv in custom_data_to_flatten.items():
+                filtered_metadata_dict[f"custom:{ck}"] = cv
+
+        # The filtered_metadata_dict now contains the correct structure for Chroma
+        metadata_dict_for_chroma = filtered_metadata_dict
 
         try:
-            collection.add(documents=[thought], metadatas=[metadata_dict], ids=[thought_id])
+            # Add the correctly constructed metadata_dict_for_chroma
+            collection.add(documents=[thought], metadatas=[metadata_dict_for_chroma], ids=[thought_id])
         except (ValueError, InvalidDimensionException) as e:
             logger.error(f"Error adding thought to collection '{THOUGHTS_COLLECTION}': {e}", exc_info=True)
             return types.CallToolResult(
                 isError=True, content=[types.TextContent(type="text", text=f"ChromaDB Error adding thought: {str(e)}")]
             )
 
+        # --- KEEPING Previous Thoughts Logic ---
+        # (This section was being incorrectly removed by the apply model)
         previous_thoughts = []
         if thought_number > 1:
             # Use $and for multiple conditions
             where_clause = {"$and": [{"session_id": effective_session_id}, {"thought_number": {"$lt": thought_number}}]}
+            # Ensure branch filter is added correctly
+            if branch_id:
+                # Find previous thoughts within the same branch or on the main trunk before the branch point
+                branch_filter = {
+                    "$or": [
+                        {"branch_id": branch_id},  # Same branch
+                        {
+                            "$and": [  # Main trunk before branch point
+                                {"branch_id": {"$exists": False}},
+                                {
+                                    "thought_number": {
+                                        "$lt": branch_from_thought if branch_from_thought else thought_number
+                                    }
+                                },
+                            ]
+                        },
+                    ]
+                }
+                # Check if $and already exists, append if so, otherwise create it
+                if "$and" in where_clause:
+                    where_clause["$and"].append(branch_filter)
+                else:
+                    # This case shouldn't happen based on above logic, but safety first
+                    where_clause = {"$and": [where_clause, branch_filter]}  # Combine existing and new filter
+            else:
+                # If not in a branch, only get thoughts without a branch_id
+                where_clause["$and"].append({"branch_id": {"$exists": False}})
 
             try:
                 results = collection.get(
                     where=where_clause,
-                    include=["documents", "metadatas"],
+                    include=["documents", "metadatas", "ids"],  # Include IDs
                 )
 
                 if results and results.get("ids"):
@@ -211,52 +282,62 @@ async def _sequential_thinking_impl(input_data: SequentialThinkingInput) -> type
                                 "id": results["ids"][i],
                                 "content": results["documents"][i],
                                 "metadata": base_meta,
-                                "thought_number_sort_key": base_meta.get("thought_number", 999999),
+                                "thought_number_sort_key": base_meta.get(
+                                    "thought_number", 999999
+                                ),  # Temp key for sorting
                             }
                         )
 
+                    # Sort based on thought_number
                     sorted_thoughts = sorted(thought_data, key=lambda x: x["thought_number_sort_key"])
 
+                    # Final list without the sort key
                     previous_thoughts = [
                         {k: v for k, v in thought.items() if k != "thought_number_sort_key"}
                         for thought in sorted_thoughts
                     ]
 
-            except ValueError as e:
-                logger.error(
-                    f"Error retrieving previous thoughts for session '{effective_session_id}': {e}", exc_info=True
+            except Exception as e:
+                logger.warning(
+                    f"Could not retrieve previous thoughts for session {effective_session_id}: {e}",
+                    exc_info=True,
                 )
-                previous_thoughts = []
+        # --- END Previous Thoughts Logic ---
 
-        logger.info(f"Recorded thought {thought_number}/{total_thoughts} for session {effective_session_id}")
+        # REMOVED: Call to non-existent _update_session_summary
+        # if thought_number == total_thoughts and not next_thought_needed:
+        #     await _update_session_summary(effective_session_id, collection, branch_id) # This function doesn't exist
 
         result_data = {
-            "status": "success",
-            "thought_id": thought_id,
             "session_id": effective_session_id,
-            "thought_number": thought_number,
-            "total_thoughts": total_thoughts,
-            "previous_thoughts": previous_thoughts,
-            "next_thought_needed": next_thought_needed,
+            "thought_id": thought_id,
+            "previous_thoughts_count": len(previous_thoughts),  # Added count back
+            # Consider not returning all prev thoughts for brevity/performance
+            # "previous_thoughts": previous_thoughts
         }
         result_json = json.dumps(result_data, indent=2)
         return types.CallToolResult(content=[types.TextContent(type="text", text=result_json)])
 
     except ValidationError as e:
-        logger.warning(f"Validation error recording thought for session '{session_id or '(new)'}': {e}")
-        return types.CallToolResult(
-            isError=True, content=[types.TextContent(type="text", text=f"Validation Error: {str(e)}")]
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error recording thought for session '{session_id or '(new)'}': {e}", exc_info=True)
+        logger.error(f"Validation Error in sequential thinking: {e}", exc_info=True)
         return types.CallToolResult(
             isError=True,
-            content=[
-                types.TextContent(
-                    type="text",
-                    text=f"Tool Error: An unexpected error occurred while recording thought. Details: {str(e)}",
-                )
-            ],
+            content=[types.TextContent(type="text", text=f"Invalid parameters: {str(e)}")],
+            errorData=ErrorData(code=INVALID_PARAMS, message=str(e)),
+        )
+    except McpError as e:  # Catch known McpError
+        logger.error(f"MCP Error during sequential thinking: {e}", exc_info=True)
+        return types.CallToolResult(
+            isError=True,
+            content=[types.TextContent(type="text", text=str(e))],
+            errorData=e.error_data,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during sequential thinking: {e}", exc_info=True)
+        return types.CallToolResult(
+            isError=True,
+            content=[types.TextContent(type="text", text=f"An unexpected error occurred: {str(e)}")],
+            errorData=ErrorData(code=INTERNAL_ERROR, message=str(e)),
         )
 
 
@@ -638,7 +719,9 @@ async def _find_similar_sessions_impl(input_data: FindSimilarSessionsInput) -> t
             logger.error(f"Error accessing sessions collection '{SESSIONS_COLLECTION}': {e}", exc_info=True)
             return types.CallToolResult(
                 isError=True,
-                content=[types.TextContent(type="text", text=f"ChromaDB Error accessing sessions collection: {str(e)}")],
+                content=[
+                    types.TextContent(type="text", text=f"ChromaDB Error accessing sessions collection: {str(e)}")
+                ],
             )
 
         # If collection exists, proceed with embedding and adding summaries
@@ -678,7 +761,8 @@ async def _find_similar_sessions_impl(input_data: FindSimilarSessionsInput) -> t
             # Catch errors during the embedding/adding process
             logger.error(f"Error embedding/adding to sessions collection '{SESSIONS_COLLECTION}': {e}", exc_info=True)
             return types.CallToolResult(
-                isError=True, content=[types.TextContent(type="text", text=f"ChromaDB Error updating sessions: {str(e)}")]
+                isError=True,
+                content=[types.TextContent(type="text", text=f"ChromaDB Error updating sessions: {str(e)}")],
             )
 
         # --- Step 3: Query the Sessions Collection ---

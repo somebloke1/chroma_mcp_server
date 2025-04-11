@@ -46,9 +46,6 @@ This is the core phase, modifying how each `_impl` function returns results and 
     - [x] Apply general approach to `_create_collection_impl`.
     - [x] Apply general approach to `_list_collections_impl`.
     - [x] Apply general approach to `_get_collection_impl`.
-    - [x] Apply general approach to `_set_collection_description_impl`.
-    - [x] Apply general approach to `_set_collection_settings_impl`.
-    - [x] Apply general approach to `_update_collection_metadata_impl`.
     - [x] Apply general approach to `_rename_collection_impl`.
     - [x] Apply general approach to `_delete_collection_impl`.
     - [x] Apply general approach to `_peek_collection_impl`.
@@ -104,7 +101,7 @@ This is the core phase, modifying how each `_impl` function returns results and 
   - [ ] Verify successful calls.
   - [ ] Verify expected errors (how does client display `isError=True` result?).
   - [ ] Verify unexpected server errors (protocol-level errors).
-- [ ] **Server Log Verification:** Check log output for clarity and detail.
+- [x] **Server Log Verification:** Check log output for clarity and detail.
 - [x] **Linting/Formatting:** Run tools (`hatch run lint`). (Passed!).
 
 ---

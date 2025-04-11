@@ -5,14 +5,19 @@ Document management tools for ChromaDB operations.
 import time
 import json
 import logging
+import uuid
+import numpy as np  # Needed for NumpyEncoder usage
 
 from typing import Dict, List, Optional, Any, Union, cast
 from dataclasses import dataclass
 
+# Import ChromaDB result types
+from chromadb.api.types import QueryResult, GetResult
+
 from mcp import types
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INVALID_PARAMS, INTERNAL_ERROR
-from pydantic import BaseModel, Field, field_validator  # Import Pydantic
+from pydantic import BaseModel, Field, field_validator, ConfigDict  # Import Pydantic
 
 # Use relative imports
 from ..utils.errors import ValidationError
@@ -22,524 +27,945 @@ from chromadb.errors import InvalidDimensionException
 
 # --- Imports ---
 import chromadb
-import chromadb.errors as chroma_errors
 from ..utils import (
     get_logger,
     get_chroma_client,
     get_embedding_function,
     ValidationError,
+    NumpyEncoder,  # Now defined and exported from utils.__init__
 )
 from ..utils.config import validate_collection_name
 
-# REMOVE invalid validation imports
-# from ..utils.validation import validate_collection_name, validate_document_ids, validate_metadata
-# REMOVE invalid error imports (commented out or non-existent)
-# from ..utils.errors import handle_chroma_error, is_collection_not_found_error, CollectionNotFoundError
-# REMOVE invalid helper imports
-# from ..utils.helpers import (
-#     dict_to_text_content,
-#     prepare_metadata_for_chroma,
-#     process_chroma_results,
-#     format_add_result,
-#     format_update_result,
-#     format_delete_result,
-#     MAX_DOC_LENGTH_FOR_PEEK
-# )
-
 # --- Constants ---
-# Existing constants...
 DEFAULT_QUERY_N_RESULTS = 10
-
-# Get logger instance for this module
-# logger = get_logger("tools.document")
 
 # --- Pydantic Input Models for Document Tools ---
 
+# --- Add Document Variants (Singular) --- #
 
-class AddDocumentsInput(BaseModel):
-    collection_name: str = Field(description="Name of the collection to add documents to.")
-    documents: List[str] = Field(description="List of document contents (strings).")
-    ids: Optional[List[str]] = Field(
-        default=None, description="Optional list of unique IDs. If None, IDs are generated."
-    )
-    metadatas: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="Optional list of metadata dictionaries."
-    )
-    increment_index: Optional[bool] = Field(default=True, description="Whether to immediately index added documents.")
 
-    # TODO: Consider adding validators to ensure lists (if provided) match document count?
-    # Pydantic can do this, but it adds complexity. Current impl checks this.
+class AddDocumentInput(BaseModel):
+    """Input model for adding a single document (auto-generates ID, no metadata)."""
+
+    collection_name: str = Field(..., description="Name of the collection to add the document to.")
+    document: str = Field(..., description="Document content (string).")
+    # Keep simple optional bool
+    increment_index: Optional[bool] = Field(True, description="Whether to immediately index the added document.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AddDocumentWithIDInput(BaseModel):
+    """Input model for adding a single document with a specified ID (no metadata)."""
+
+    collection_name: str = Field(..., description="Name of the collection to add the document to.")
+    document: str = Field(..., description="Document content (string).")
+    id: str = Field(..., description="Unique ID for the document.")
+    increment_index: Optional[bool] = Field(True, description="Whether to immediately index the added document.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AddDocumentWithMetadataInput(BaseModel):
+    """Input model for adding a single document with specified metadata (auto-generates ID)."""
+
+    collection_name: str = Field(..., description="Name of the collection to add the document to.")
+    document: str = Field(..., description="Document content (string).")
+    # Change to single optional string, expect JSON string
+    metadata: str = Field(..., description='Metadata JSON string for the document (e.g., \'{"key": "value"}\').')
+    increment_index: Optional[bool] = Field(True, description="Whether to immediately index the added document.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AddDocumentWithIDAndMetadataInput(BaseModel):
+    """Input model for adding a single document with a specified ID and metadata."""
+
+    collection_name: str = Field(..., description="Name of the collection to add the document to.")
+    document: str = Field(..., description="Document content (string).")
+    id: str = Field(..., description="Unique ID for the document.")
+    # Change to single optional string, expect JSON string
+    metadata: str = Field(..., description='Metadata JSON string for the document (e.g., \'{"key": "value"}\').')
+    increment_index: Optional[bool] = Field(True, description="Whether to immediately index the added document.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# --- Query Documents Variants --- #
 
 
 class QueryDocumentsInput(BaseModel):
-    collection_name: str = Field(description="Name of the collection to query.")
-    query_texts: List[str] = Field(description="List of query strings for semantic search.")
-    n_results: Optional[int] = Field(default=10, ge=1, description="Number of results per query.")
-    where: Optional[Dict[str, Any]] = Field(default=None, description="Metadata filter (e.g., {'source': 'pdf'}).")
-    where_document: Optional[Dict[str, Any]] = Field(
-        default=None, description="Document content filter (e.g., {'$contains': 'keyword'})."
-    )
+    """Input model for basic querying (no filters)."""
+
+    collection_name: str = Field(..., description="Name of the collection to query.")
+    query_texts: List[str] = Field(..., description="List of query strings for semantic search.")
+    n_results: Optional[int] = Field(10, ge=1, description="Maximum number of results per query.")
     include: Optional[List[str]] = Field(
-        default=None, description="Fields to include (documents, metadatas, distances). Defaults to ChromaDB standard."
+        None, description="Optional list of fields to include (e.g., ['metadatas', 'documents', 'distances'])."
     )
 
-    # TODO: Add validator for 'include' list contents?
-    # Current impl checks this.
+    model_config = ConfigDict(extra="forbid")
 
 
-class GetDocumentsInput(BaseModel):
-    collection_name: str = Field(description="Name of the collection to get documents from.")
-    ids: Optional[List[str]] = Field(default=None, description="List of document IDs to retrieve.")
-    where: Optional[Dict[str, Any]] = Field(default=None, description="Metadata filter.")
-    where_document: Optional[Dict[str, Any]] = Field(default=None, description="Document content filter.")
-    limit: Optional[int] = Field(default=None, ge=1, description="Maximum number of documents to return.")
-    offset: Optional[int] = Field(default=None, ge=0, description="Number of documents to skip.")
-    include: Optional[List[str]] = Field(default=None, description="Fields to include.")
+# Restore filter query models
+class QueryDocumentsWithWhereFilterInput(BaseModel):
+    """Input model for querying with a metadata filter."""
 
-    # Note: Logically, at least one of ids, where, or where_document should be provided for a targeted get.
-    # A Pydantic root_validator could enforce this, but is omitted for simplicity for now.
+    collection_name: str = Field(..., description="Name of the collection to query.")
+    query_texts: List[str] = Field(..., description="List of query strings for semantic search.")
+    where: Dict[str, Any] = Field(..., description="Metadata filter to apply (e.g., {'source': 'pdf'}).")
+    n_results: Optional[int] = Field(10, ge=1, description="Maximum number of results per query.")
+    include: Optional[List[str]] = Field(None, description="Optional list of fields to include.")
+
+    model_config = ConfigDict(extra="forbid")
 
 
-class UpdateDocumentsInput(BaseModel):
-    collection_name: str = Field(description="Name of the collection to update documents in.")
-    ids: List[str] = Field(description="List of document IDs to update.")
-    documents: Optional[List[str]] = Field(default=None, description="Optional new list of document contents.")
-    metadatas: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="Optional new list of metadata dictionaries."
+class QueryDocumentsWithDocumentFilterInput(BaseModel):
+    """Input model for querying with a document content filter."""
+
+    collection_name: str = Field(..., description="Name of the collection to query.")
+    query_texts: List[str] = Field(..., description="List of query strings for semantic search.")
+    where_document: Dict[str, Any] = Field(
+        ..., description="Document content filter to apply (e.g., {'$contains': 'keyword'})."
     )
+    n_results: Optional[int] = Field(10, ge=1, description="Maximum number of results per query.")
+    include: Optional[List[str]] = Field(None, description="Optional list of fields to include.")
 
-    # Note: Logically, at least one of documents or metadatas must be provided.
-    # A Pydantic root_validator could enforce this.
-    # TODO: Consider adding validators to ensure lists (if provided) match ID count?
-
-
-class DeleteDocumentsInput(BaseModel):
-    collection_name: str = Field(description="Name of the collection to delete documents from.")
-    ids: Optional[List[str]] = Field(default=None, description="List of document IDs to delete.")
-    where: Optional[Dict[str, Any]] = Field(default=None, description="Metadata filter for deletion.")
-    where_document: Optional[Dict[str, Any]] = Field(default=None, description="Document content filter for deletion.")
-
-    # Note: Logically, at least one of ids, where, or where_document must be provided.
-    # A Pydantic root_validator could enforce this.
+    model_config = ConfigDict(extra="forbid")
 
 
-# --- End Pydantic Input Models ---
+# --- Get Documents Variants --- #
+
+
+# Restore original multi-ID get
+class GetDocumentsByIdsInput(BaseModel):
+    """Input model for getting documents by their specific IDs."""
+
+    collection_name: str = Field(..., description="Name of the collection to get documents from.")
+    ids: List[str] = Field(..., description="List of document IDs to retrieve.")
+    include: Optional[List[str]] = Field(None, description="Optional list of fields to include.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# Restore filter-based gets
+class GetDocumentsWithWhereFilterInput(BaseModel):
+    """Input model for getting documents using a metadata filter."""
+
+    collection_name: str = Field(..., description="Name of the collection to get documents from.")
+    where: Dict[str, Any] = Field(..., description="Metadata filter to apply (e.g., {'source': 'pdf'}).")
+    limit: Optional[int] = Field(None, ge=1, description="Maximum number of documents to return.")
+    offset: Optional[int] = Field(None, ge=0, description="Number of documents to skip.")
+    include: Optional[List[str]] = Field(None, description="Optional list of fields to include.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class GetDocumentsWithDocumentFilterInput(BaseModel):
+    """Input model for getting documents using a document content filter."""
+
+    collection_name: str = Field(..., description="Name of the collection to get documents from.")
+    where_document: Dict[str, Any] = Field(
+        ..., description="Document content filter to apply (e.g., {'$contains': 'keyword'})."
+    )
+    limit: Optional[int] = Field(None, ge=1, description="Maximum number of documents to return.")
+    offset: Optional[int] = Field(None, ge=0, description="Number of documents to skip.")
+    include: Optional[List[str]] = Field(None, description="Optional list of fields to include.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# Restore get all
+class GetAllDocumentsInput(BaseModel):
+    """Input model for getting all documents in a collection (potentially limited)."""
+
+    collection_name: str = Field(..., description="Name of the collection to get all documents from.")
+    limit: Optional[int] = Field(None, ge=1, description="Optional limit on the number of documents to return.")
+    offset: Optional[int] = Field(None, ge=0, description="Optional number of documents to skip.")
+    include: Optional[List[str]] = Field(None, description="Optional list of fields to include.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# --- Update Document Variants (Singular) --- #
+
+
+class UpdateDocumentContentInput(BaseModel):
+    """Input model for updating the content of an existing document."""
+
+    collection_name: str = Field(..., description="Name of the collection containing the document.")
+    id: str = Field(..., description="Document ID to update.")
+    document: str = Field(..., description="New document content.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class UpdateDocumentMetadataInput(BaseModel):
+    """Input model for updating the metadata of an existing document."""
+
+    collection_name: str = Field(..., description="Name of the collection containing the document.")
+    id: str = Field(..., description="Document ID to update.")
+    metadata: Dict[str, Any] = Field(..., description="New metadata dictionary for the document.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# --- Delete Document Variant (Singular ID) --- #
+
+
+class DeleteDocumentByIdInput(BaseModel):
+    """Input model for deleting a document by its specific ID."""
+
+    collection_name: str = Field(..., description="Name of the collection to delete the document from.")
+    id: str = Field(..., description="Document ID to delete.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# --- End Pydantic Input Models --- #
 
 # --- Implementation Functions ---
 
+# --- Add Document Impl Variants (Singular) --- #
 
-# Signature changed to return List[Content]
-async def _add_documents_impl(input_data: AddDocumentsInput) -> List[types.TextContent]:
-    """Implementation logic for adding documents to a collection."""
-    logger = get_logger("tools.document")
+
+async def _add_document_impl(input_data: AddDocumentInput) -> List[types.TextContent]:
+    """Implementation for adding a single document without specified ID or metadata."""
+    logger = get_logger("tools.document.add")
     collection_name = input_data.collection_name
-    documents = input_data.documents
-    ids = input_data.ids
-    metadatas = input_data.metadatas
+    document = input_data.document  # Singular
     increment_index = input_data.increment_index
 
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not document:  # Check single document
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Document content cannot be empty."))
+    # --- End Validation ---
+
+    logger.info(f"Adding 1 document to '{collection_name}' (generating ID). Increment index: {increment_index}")
     try:
-        # Basic validation (Pydantic handles most schema checks)
-        validate_collection_name(collection_name)
-        if ids and len(ids) != len(documents):
-            raise ValidationError("Number of IDs must match number of documents")
-        if metadatas and len(metadatas) != len(documents):
-            raise ValidationError("Number of metadatas must match number of documents")
-
         client = get_chroma_client()
-        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(name=collection_name)
 
-        ids_generated = False
-        if not ids:
-            # Generate IDs if none provided
-            ids_generated = True
-            start_index = collection.count() if increment_index else 0
-            current_time_ns = time.time_ns() # Use nanoseconds for better uniqueness
-            ids = [
-                f"doc_{current_time_ns}_{start_index + i}" for i, _ in enumerate(documents)
-            ] # Use timestamp and index
-            logger.info(f"Generated {len(ids)} document IDs for collection '{collection_name}'.")
+        # Generate unique ID for the document
+        generated_id = str(uuid.uuid4())  # Singular
+        logger.debug(f"Generated ID '{generated_id}' for document in '{collection_name}'.")
 
-        # Add documents
-        collection.add(documents=documents, metadatas=metadatas, ids=ids)
-        added_count = len(documents)
-        logger.info(f"Added {added_count} documents to collection '{collection_name}'.")
-
-        # Increment index if requested (ChromaDB doesn't have a direct equivalent, log intent)
-        if increment_index:
-            logger.info(f"increment_index=True: Signaling intent to ensure index is updated (though add() usually handles this).")
-            # Previously, this might have called collection.create_index().
-            # This is generally NOT needed after `add` in modern ChromaDB versions.
-            # If specific index refresh logic is required, it would go here.
-            # For now, we assume add() is sufficient and just log.
-
-        # Construct success message JSON
-        result_data = {
-            "status": "success",
-            "added_count": added_count,
-            "collection_name": collection_name,
-            "document_ids": ids,
-            "ids_generated": ids_generated,
-        }
-        result_json = json.dumps(result_data, indent=2)
-        # Return content list directly
-        return [types.TextContent(type="text", text=result_json)]
-
-    except ValidationError as e:
-        logger.warning(f"Validation error adding documents to '{collection_name}': {e}")
-        # Raise McpError
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
-    except ValueError as e: # Typically collection not found
-        error_str = str(e).lower()
-        not_found = False
-        if f"collection {collection_name} does not exist." in error_str:
-            not_found = True
-        if f"collection {collection_name} not found" in error_str:
-            not_found = True
-
-        if not_found:
-            logger.warning(f"Cannot add documents: Collection '{collection_name}' not found.")
-            # Raise McpError
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
+        # No need to validate IDs/Metadatas for this variant
+        logger.info(
+            f"Adding 1 document to '{collection_name}' (auto-ID, no metadata). Increment index: {increment_index}"
+        )
+        collection.add(
+            documents=[document],  # Pass as list
+            ids=[generated_id],  # Pass as list
+            metadatas=None,  # Explicitly None
+            # increment_index=increment_index # Chroma client seems to not have this yet
+        )
+        # Return the generated ID
+        return [types.TextContent(type="text", text=json.dumps({"added_id": generated_id}))]
+    except ValueError as e:
+        # Handle collection not found
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for adding document.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
         else:
-             # Reraise other ValueErrors as generic tool errors
-            logger.error(f"Value error adding documents to '{collection_name}': {e}", exc_info=True)
-            # Raise McpError
-            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error. Details: {e}"))
-    except Exception as e: # Catch other ChromaDB errors (e.g., from add)
-        logger.error(f"ChromaDB error adding documents to '{collection_name}': {e}", exc_info=True)
-        # Raise McpError
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Failed to add documents. {str(e)}"))
+            logger.error(f"Value error adding document to '{collection_name}': {e}", exc_info=True)
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter adding document: {e}"))
+    except Exception as e:
+        logger.error(f"Unexpected error adding document to '{collection_name}': {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred: {e}"))
 
 
-# Signature changed to return List[Content]
-async def _query_documents_impl(input_data: QueryDocumentsInput) -> List[types.TextContent]:
-    """Implementation logic for querying documents."""
-    logger = get_logger("tools.document")
+async def _add_document_with_id_impl(input_data: AddDocumentWithIDInput) -> List[types.TextContent]:
+    """Implementation for adding a single document with a specified ID."""
+    logger = get_logger("tools.document.add_with_id")  # Renamed logger
     collection_name = input_data.collection_name
-    query_texts = input_data.query_texts
-    n_results = input_data.n_results
-    where = input_data.where
-    where_document = input_data.where_document
+    document = input_data.document  # Singular
+    id = input_data.id  # Singular
+    increment_index = input_data.increment_index
+
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not document:  # Check single document
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Document content cannot be empty."))
+    if not id:  # Check single ID
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Document ID cannot be empty."))
+    # --- End Validation ---
+
+    logger.info(f"Adding 1 document with ID '{id}' to '{collection_name}'. Increment index: {increment_index}")
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
+
+        logger.info(
+            f"Adding 1 document with specified ID '{id}' to '{collection_name}' (no metadata). Increment index: {increment_index}"
+        )
+        collection.add(
+            documents=[document],  # Pass as list
+            ids=[id],  # Pass as list
+            metadatas=None,  # Explicitly None
+            # increment_index=increment_index
+        )
+        # Confirm the ID used
+        return [types.TextContent(type="text", text=json.dumps({"added_id": id}))]
+    except ValueError as e:
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error: {e}", exc_info=True)
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter: {e}"))
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred: {e}"))
+
+
+async def _add_document_with_metadata_impl(input_data: AddDocumentWithMetadataInput) -> List[types.TextContent]:
+    """Implementation for adding a single document with metadata (auto-ID)."""
+    logger = get_logger("tools.document.add_with_metadata")
+    collection_name = input_data.collection_name
+    document = input_data.document  # Singular
+    metadata_str = input_data.metadata  # Singular string
+    increment_index = input_data.increment_index
+
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not document:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Document content cannot be empty."))
+    if not metadata_str:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Metadata JSON string cannot be empty."))
+    # --- End Validation ---
+
+    # --- Parse Metadata JSON String ---
+    parsed_metadata = None  # Singular dict
+    try:
+        parsed_metadata = json.loads(metadata_str)
+        if not isinstance(parsed_metadata, dict):
+            raise ValueError("Metadata string must decode to a JSON object (dictionary).")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse metadata JSON string for '{collection_name}': {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid JSON format for metadata string: {str(e)}"))
+    except ValueError as e:  # Catch the isinstance check
+        logger.warning(f"Metadata did not decode to a dictionary for '{collection_name}': {e}")
+        raise McpError(
+            ErrorData(code=INVALID_PARAMS, message=f"Metadata string did not decode to a dictionary: {str(e)}")
+        )
+    # --- End Parsing ---
+
+    # --- Generate ID --- #
+    generated_id = str(uuid.uuid4())  # Singular
+    logger.debug(f"Generated ID '{generated_id}' for document in '{collection_name}' (metadata provided).")
+    # --- End Generate ID --- #
+
+    logger.info(
+        f"Adding 1 document with parsed metadata to '{collection_name}' (generated ID '{generated_id}'). Increment index: {increment_index}"
+    )
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
+
+        logger.info(
+            f"Adding 1 document with specified metadata to '{collection_name}' (generated ID). Increment index: {increment_index}"
+        )
+        collection.add(
+            documents=[document],  # Pass as list
+            ids=[generated_id],  # Pass as list
+            metadatas=[parsed_metadata],  # Pass as list
+            # increment_index=increment_index
+        )
+        # Return the generated ID
+        return [types.TextContent(type="text", text=json.dumps({"added_id": generated_id}))]
+    except ValueError as e:
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error: {e}", exc_info=True)
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter: {e}"))
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred: {e}"))
+
+
+async def _add_document_with_id_and_metadata_impl(
+    input_data: AddDocumentWithIDAndMetadataInput,
+) -> List[types.TextContent]:
+    """Implementation for adding a single document with specified ID and metadata."""
+    logger = get_logger("tools.document.add_full")
+    collection_name = input_data.collection_name
+    document = input_data.document  # Singular
+    id = input_data.id  # Singular
+    metadata_str = input_data.metadata  # Singular string
+    increment_index = input_data.increment_index
+
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not document:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Document content cannot be empty."))
+    if not id:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Document ID cannot be empty."))
+    if not metadata_str:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Metadata JSON string cannot be empty."))
+    # --- End Validation ---
+
+    # --- Parse Metadata JSON String ---
+    parsed_metadata = None  # Singular dict
+    try:
+        parsed_metadata = json.loads(metadata_str)
+        if not isinstance(parsed_metadata, dict):
+            raise ValueError("Metadata string must decode to a JSON object (dictionary).")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse metadata JSON string for '{collection_name}' ID '{id}': {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid JSON format for metadata string: {str(e)}"))
+    except ValueError as e:  # Catch the isinstance check
+        logger.warning(f"Metadata for ID '{id}' did not decode to a dictionary for '{collection_name}': {e}")
+        raise McpError(
+            ErrorData(code=INVALID_PARAMS, message=f"Metadata string did not decode to a dictionary: {str(e)}")
+        )
+    # --- End Parsing ---
+
+    logger.info(
+        f"Adding 1 document with ID '{id}' and parsed metadata to '{collection_name}'. Increment index: {increment_index}"
+    )
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
+
+        logger.info(
+            f"Adding 1 document with specified ID '{id}' and metadata to '{collection_name}'. Increment index: {increment_index}"
+        )
+        collection.add(
+            documents=[document],  # Pass as list
+            ids=[id],  # Pass as list
+            metadatas=[parsed_metadata],  # Pass as list
+            # increment_index=increment_index
+        )
+        # Confirm the ID used
+        return [types.TextContent(type="text", text=json.dumps({"added_id": id}))]
+    except ValueError as e:
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error: {e}", exc_info=True)
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter: {e}"))
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred: {e}"))
+
+
+# --- End Add Document Impl Variants --- #
+
+# --- Get Documents Impl Variants --- #
+
+
+# Restore original multi-ID get implementation
+async def _get_documents_by_ids_impl(input_data: GetDocumentsByIdsInput) -> List[types.TextContent]:
+    """Implementation for getting documents by IDs."""
+    logger = get_logger("tools.document.get_by_ids")
+    collection_name = input_data.collection_name
+    ids = input_data.ids  # List
     include = input_data.include
 
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not ids:  # Added check for empty list
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="IDs list cannot be empty for get_documents_by_ids."))
+    # --- End Validation ---
+
+    logger.info(f"Getting {len(ids)} documents by ID from '{collection_name}'. Include: {include}")
     try:
-        validate_collection_name(collection_name)
-        # Pydantic validates list presence and include values
-
         client = get_chroma_client()
-        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(name=collection_name)
 
-        # Ensure 'include' is a list, provide default if None
-        final_include = include if include is not None else ["metadatas", "documents", "distances"]
-
-        # Perform the query
-        results = collection.query(
-            query_texts=query_texts,
-            n_results=n_results,
-            where=where,
-            where_document=where_document,
-            include=final_include, # Pass the guaranteed list
+        logger.info(f"Getting {len(ids)} documents by ID from '{collection_name}'. Include: {include}")
+        results: GetResult = collection.get(
+            ids=ids,  # Pass list
+            where=None,
+            where_document=None,
+            limit=None,  # Limit/offset not applicable when getting by specific ID
+            offset=None,
+            include=include or [],
         )
 
-        # Process results to make them JSON serializable (especially embeddings)
-        # Convert numpy arrays (or anything with a tolist() method) to lists
-        processed_results = results.copy() if results else {}
-        if processed_results.get("embeddings"):
-            # Embeddings can be List[Optional[List[float]]] or List[Optional[List[List[float]]]]
-            # Handle both potential structures
-            new_embeddings = []
-            for emb_list in processed_results["embeddings"]:
-                if emb_list is None:
-                    new_embeddings.append(None)
-                elif isinstance(emb_list, list) and len(emb_list) > 0 and isinstance(emb_list[0], list):
-                     # Handle list of lists (batch query?)
-                     new_embeddings.append([arr.tolist() if hasattr(arr, 'tolist') else arr for arr in emb_list])
-                else:
-                    # Handle single list or numpy array
-                     new_embeddings.append(emb_list.tolist() if hasattr(emb_list, 'tolist') else emb_list)
-            processed_results["embeddings"] = new_embeddings
+        serialized_results = json.dumps(results, cls=NumpyEncoder)
+        return [types.TextContent(type="text", text=serialized_results)]
 
-        # Distances might also be numpy arrays
-        if processed_results.get("distances"):
-            processed_results["distances"] = [
-                dist_list.tolist() if hasattr(dist_list, "tolist") else dist_list
-                for dist_list in processed_results["distances"]
-                 if dist_list is not None
-            ]
-
-
-        result_json = json.dumps(processed_results, indent=2)
-        # Return content list directly
-        return [types.TextContent(type="text", text=result_json)]
-
-    except ValidationError as e:
-        logger.warning(f"Validation error querying documents in '{collection_name}': {e}")
-        # Raise McpError
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
     except ValueError as e:
-        error_str = str(e).lower()
-        not_found = False
-        if f"collection {collection_name} does not exist." in error_str:
-            not_found = True
-        if f"collection {collection_name} not found" in error_str:
-            not_found = True
-
-        if not_found:
-            logger.warning(f"Cannot query documents: Collection '{collection_name}' not found.")
-            # Raise McpError
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for get.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
         else:
-            # Reraise other ValueErrors as generic tool errors
-            logger.error(f"Value error querying documents in '{collection_name}': {e}", exc_info=True)
-            # Raise McpError
-            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error during query. Details: {e}"))
+            # Keep the original variable name 'documents' in the log message
+            logger.error(f"Value error getting documents from '{collection_name}': {e}", exc_info=True)
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during get: {e}"))
     except Exception as e:
-        logger.error(f"Unexpected error querying documents in '{collection_name}': {e}", exc_info=True)
-        # Raise McpError
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Failed to query documents. {str(e)}"))
+        # Keep the original variable name 'documents' in the log message
+        logger.error(f"Unexpected error getting documents from '{collection_name}': {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during get: {e}"))
 
 
-# Signature changed to accept Pydantic model
-async def _get_documents_impl(input_data: GetDocumentsInput) -> List[types.TextContent]:
-    """Retrieves documents from a collection based on IDs or filters.
-
-    Args:
-        input_data: A GetDocumentsInput object containing validated arguments.
-
-    Returns:
-        A List of TextContent objects.
-        On success, content contains a TextContent object with a JSON string
-        representing the GetResult (containing lists for ids, documents,
-        metadatas, etc.). If IDs are provided and some are not found, they
-        will be omitted from the results without an error.
-        On error (e.g., collection not found, invalid filter format,
-        unexpected issue), isError is True and content contains a TextContent
-        object with an error message.
-    """
-
-    logger = get_logger("tools.document")
+# Restore filter-based get implementations
+async def _get_documents_with_where_filter_impl(
+    input_data: GetDocumentsWithWhereFilterInput,
+) -> List[types.TextContent]:
+    """Implementation for getting documents using a metadata filter."""
+    logger = get_logger("tools.document.get_where")
     collection_name = input_data.collection_name
-    ids = input_data.ids
     where = input_data.where
     limit = input_data.limit
     offset = input_data.offset
-    where_document = input_data.where_document
     include = input_data.include
 
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not where:  # Required by Pydantic, but check
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Where filter cannot be empty for this tool variant."))
+    # --- End Validation ---
+
+    log_limit_offset = f" Limit: {limit}, Offset: {offset}" if limit or offset is not None else ""
+    logger.info(f"Getting documents from '{collection_name}' using WHERE filter.{log_limit_offset} Include: {include}")
     try:
-        # Validation
-        validate_collection_name(collection_name)
-        if not ids and not where and not where_document:
-            raise ValidationError("At least one of ids, where, or where_document must be provided for get.")
-        # Pydantic handles include validation against Literal
-
         client = get_chroma_client()
-        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(name=collection_name)
 
-        # Default include values if None/empty
-        final_include = include if include else ["documents", "metadatas"]
-
-        # Get documents
-        results = collection.get(
-            ids=ids,
+        logger.info(
+            f"Getting documents from '{collection_name}' with WHERE filter. Limit: {limit}, Offset: {offset}, Include: {include}"
+        )
+        results: GetResult = collection.get(
+            ids=None,
             where=where,
+            where_document=None,
             limit=limit,
             offset=offset,
-            where_document=where_document,
-            include=final_include,
+            include=include or [],
         )
 
-        # Process results for JSON serialization (embeddings, distances)
-        processed_results = results.copy() if results else {}
-        # Handle embeddings if included (they might be None even if requested)
-        if "embeddings" in final_include and processed_results.get("embeddings"):
-             embeddings = processed_results["embeddings"]
-             if isinstance(embeddings, list):
-                  processed_results["embeddings"] = [
-                      emb.tolist() if hasattr(emb, 'tolist') else emb
-                      for emb in embeddings if emb is not None
-                  ]
+        serialized_results = json.dumps(results, cls=NumpyEncoder)
+        return [types.TextContent(type="text", text=serialized_results)]
 
-        # Distances are not typically returned by get, but handle if they were
-        if processed_results.get("distances"):
-            distances = processed_results["distances"]
-            if isinstance(distances, list):
-                 processed_results["distances"] = [
-                     dist.tolist() if hasattr(dist, 'tolist') else dist
-                     for dist in distances if dist is not None
-                 ]
-
-
-        result_json = json.dumps(processed_results, indent=2)
-        # Return content list directly
-        return [types.TextContent(type="text", text=result_json)]
-
-    except ValidationError as e:
-        logger.warning(f"Validation error getting documents from '{collection_name}': {e}")
-        # Raise McpError
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
     except ValueError as e:
-        error_str = str(e).lower()
-        not_found = False
-        if f"collection {collection_name} does not exist." in error_str:
-            not_found = True
-        if f"collection {collection_name} not found" in error_str:
-            not_found = True
-
-        if not_found:
-            logger.warning(f"Cannot get documents: Collection '{collection_name}' not found.")
-            # Raise McpError
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for get.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
         else:
-            # Reraise other ValueErrors as generic tool errors
             logger.error(f"Value error getting documents from '{collection_name}': {e}", exc_info=True)
-            # Raise McpError
-            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error during get. Details: {e}"))
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during get: {e}"))
     except Exception as e:
         logger.error(f"Unexpected error getting documents from '{collection_name}': {e}", exc_info=True)
-        # Raise McpError
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Failed to get documents. {str(e)}"))
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during get: {e}"))
 
 
-# Signature changed to accept Pydantic model
-async def _update_documents_impl(input_data: UpdateDocumentsInput) -> List[types.TextContent]:
-    """Updates documents in a collection."""
-    logger = get_logger("tools.document")
+async def _get_documents_with_document_filter_impl(
+    input_data: GetDocumentsWithDocumentFilterInput,
+) -> List[types.TextContent]:
+    """Implementation for getting documents using a document content filter."""
+    logger = get_logger("tools.document.get_where_doc")
     collection_name = input_data.collection_name
-    ids = input_data.ids
-    documents = input_data.documents
-    metadatas = input_data.metadatas
-
-    try:
-        # Validation
-        validate_collection_name(collection_name)
-        if not ids:
-            raise ValidationError("'ids' list cannot be empty for update.")
-        if not documents and not metadatas:
-            raise ValidationError("Either 'documents' or 'metadatas' must be provided to update.")
-        if documents and len(documents) != len(ids):
-            raise ValidationError("Number of documents must match number of IDs")
-        if metadatas and len(metadatas) != len(ids):
-            raise ValidationError("Number of metadatas must match number of IDs")
-
-        client = get_chroma_client()
-        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
-
-        # Perform the update
-        collection.update(ids=ids, documents=documents, metadatas=metadatas)
-        processed_count = len(ids)
-        logger.info(f"Attempted update for {processed_count} documents in collection '{collection_name}'")
-
-        # Success result
-        result_data = {
-            "status": "success",
-            "processed_count": processed_count,
-            "collection_name": collection_name,
-        }
-        result_json = json.dumps(result_data, indent=2)
-        # Return content list directly
-        return [types.TextContent(type="text", text=result_json)]
-
-    except ValidationError as e:
-        logger.warning(f"Validation error updating documents in '{collection_name}': {e}")
-        # Raise McpError
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
-    except ValueError as e:
-        error_str = str(e).lower()
-        not_found = False
-        if f"collection {collection_name} does not exist." in error_str:
-            not_found = True
-        if f"collection {collection_name} not found" in error_str:
-             not_found = True
-
-        if not_found:
-            logger.warning(f"Cannot update documents: Collection '{collection_name}' not found.")
-            # Raise McpError
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
-        else:
-            # Reraise other ValueErrors as generic tool errors
-            logger.error(f"Value error updating documents in '{collection_name}': {e}", exc_info=True)
-            # Raise McpError
-            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error during update. Details: {e}"))
-    except Exception as e:
-        logger.error(f"Unexpected error updating documents in '{collection_name}': {e}", exc_info=True)
-        # Raise McpError
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Failed to update documents. {str(e)}"))
-
-
-# Signature changed to accept Pydantic model
-async def _delete_documents_impl(input_data: DeleteDocumentsInput) -> List[types.TextContent]:
-    """Deletes documents from a collection based on IDs or filters.
-
-    Args:
-        input_data: A DeleteDocumentsInput object containing validated arguments.
-
-    Returns:
-        A List of TextContent objects.
-        On success, content contains a TextContent object with a JSON string
-        containing the list of IDs that were actually deleted.
-        On error (e.g., collection not found, invalid filter format,
-        unexpected issue), isError is True and content contains a TextContent
-        object with an error message.
-    """
-
-    logger = get_logger("tools.document")
-    collection_name = input_data.collection_name
-    ids = input_data.ids
-    where = input_data.where
     where_document = input_data.where_document
+    limit = input_data.limit
+    offset = input_data.offset
+    include = input_data.include
 
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not where_document:  # Required by Pydantic, but check
+        raise McpError(
+            ErrorData(code=INVALID_PARAMS, message="Where document filter cannot be empty for this tool variant.")
+        )
+    # --- End Validation ---
+
+    log_limit_offset = f" Limit: {limit}, Offset: {offset}" if limit or offset is not None else ""
+    logger.info(
+        f"Getting documents from '{collection_name}' using WHERE_DOCUMENT filter.{log_limit_offset} Include: {include}"
+    )
     try:
-        # Validation
-        validate_collection_name(collection_name)
-        if not ids and not where and not where_document:
-            raise ValidationError("At least one of ids, where, or where_document must be provided for deletion.")
-
         client = get_chroma_client()
-        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(name=collection_name)
 
-        # Perform the delete
-        # Note: Chroma's delete returns the IDs of the documents *attempted* to be deleted,
-        # not necessarily only those that existed and were successfully deleted.
-        deleted_ids = collection.delete(ids=ids, where=where, where_document=where_document)
-        # We log the number of IDs returned by ChromaDB for info.
-        matched_count = len(deleted_ids) if deleted_ids else 0
-        logger.info(f"Delete operation completed for collection '{collection_name}'. Matched IDs: {matched_count}")
+        logger.info(
+            f"Getting documents from '{collection_name}' with document filter. Limit: {limit}, Offset: {offset}, Include: {include}"
+        )
+        results: GetResult = collection.get(
+            ids=None,
+            where=None,
+            where_document=where_document,
+            limit=limit,
+            offset=offset,
+            include=include or [],
+        )
 
-        # Success result
-        result_data = {
-            "status": "success",
-            "deleted_ids": deleted_ids if deleted_ids else [], # Return empty list if None
-            "collection_name": collection_name,
-            # "deleted_count": matched_count # Consider if this count is meaningful
-        }
-        result_json = json.dumps(result_data, indent=2)
-        # Return content list directly
-        return [types.TextContent(type="text", text=result_json)]
+        serialized_results = json.dumps(results, cls=NumpyEncoder)
+        return [types.TextContent(type="text", text=serialized_results)]
+
+    except ValueError as e:
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for get.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error getting documents from '{collection_name}': {e}", exc_info=True)
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during get: {e}"))
+    except Exception as e:
+        logger.error(f"Unexpected error getting documents from '{collection_name}': {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during get: {e}"))
+
+
+# Restore get all implementation
+async def _get_all_documents_impl(input_data: GetAllDocumentsInput) -> List[types.TextContent]:
+    """Implementation for getting all documents (potentially limited)."""
+    logger = get_logger("tools.document.get_all")
+    collection_name = input_data.collection_name
+    limit = input_data.limit
+    offset = input_data.offset
+    include = input_data.include
+
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    # No specific filter validation needed here
+    # --- End Validation ---
+
+    log_limit_offset = f" Limit: {limit}, Offset: {offset}" if limit or offset is not None else ""
+    logger.info(f"Getting all documents from '{collection_name}'.{log_limit_offset} Include: {include}")
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
+
+        logger.info(
+            f"Getting all documents from '{collection_name}'. Limit: {limit}, Offset: {offset}, Include: {include}"
+        )
+        results: GetResult = collection.get(
+            ids=None,
+            where=None,
+            where_document=None,
+            limit=limit,
+            offset=offset,
+            include=include or [],
+        )
+
+        serialized_results = json.dumps(results, cls=NumpyEncoder)
+        return [types.TextContent(type="text", text=serialized_results)]
+
+    except ValueError as e:
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for get.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error getting documents from '{collection_name}': {e}", exc_info=True)
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during get: {e}"))
+    except Exception as e:
+        logger.error(f"Unexpected error getting documents from '{collection_name}': {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during get: {e}"))
+
+
+# --- Update Document Impl Variants --- #
+
+
+async def _update_document_content_impl(input_data: UpdateDocumentContentInput) -> List[types.TextContent]:
+    """Implementation for updating document content."""
+    logger = get_logger("tools.document.update_content")
+    collection_name = input_data.collection_name
+    id = input_data.id  # Singular
+    document = input_data.document  # Singular
+
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not id:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="ID cannot be empty for update."))
+    # Document content can potentially be empty, maybe don't validate here?
+    # if not document:
+    #     raise McpError(ErrorData(code=INVALID_PARAMS, message="Document content cannot be empty for update."))
+    # --- End Validation ---
+
+    logger.info(f"Updating content for document ID '{id}' in '{collection_name}'.")
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
+
+        logger.info(f"Updating content for document ID '{id}' in '{collection_name}'.")
+        # Update takes lists, even for single items
+        collection.update(ids=[id], documents=[document], metadatas=None)
+
+        return [types.TextContent(type="text", text=json.dumps({"updated_id": id}))]
 
     except ValidationError as e:
-        logger.warning(f"Validation error deleting documents from '{collection_name}': {e}")
-        # Raise McpError
+        logger.warning(f"Validation error updating document in '{collection_name}': {e}")
         raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
     except ValueError as e:
-        error_str = str(e).lower()
-        not_found = False
-        if f"collection {collection_name} does not exist." in error_str:
-            not_found = True
-        if f"collection {collection_name} not found" in error_str:
-             not_found = True
-
-        if not_found:
-            logger.warning(f"Cannot delete documents: Collection '{collection_name}' not found.")
-            # Raise McpError
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found."))
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for update.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
         else:
-            # Reraise other ValueErrors as generic tool errors
-            logger.error(f"Value error deleting documents from '{collection_name}': {e}", exc_info=True)
-            # Raise McpError
-            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error during delete. Details: {e}"))
+            logger.error(f"Value error updating document in '{collection_name}': {e}", exc_info=True)
+            raise McpError(
+                ErrorData(
+                    code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error during update. Details: {e}"
+                )
+            )
     except Exception as e:
-        logger.error(f"Unexpected error deleting documents from '{collection_name}': {e}", exc_info=True)
-        # Raise McpError
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Failed to delete documents. {str(e)}"))
+        logger.error(f"Unexpected error updating document in '{collection_name}': {e}", exc_info=True)
+        raise McpError(
+            ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Failed to update document content. {str(e)}")
+        )
+
+
+async def _update_document_metadata_impl(input_data: UpdateDocumentMetadataInput) -> List[types.TextContent]:
+    """Implementation for updating document metadata."""
+    logger = get_logger("tools.document.update_metadata")
+    collection_name = input_data.collection_name
+    id = input_data.id  # Singular
+    metadata = input_data.metadata  # Singular Dict
+
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not id:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="ID cannot be empty for update."))
+    if metadata is None:  # Check if dict is provided (Pydantic ensures it's a dict if not None)
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Metadata cannot be empty/null for update."))
+    # --- End Validation ---
+
+    logger.info(f"Updating metadata for document ID '{id}' in '{collection_name}'.")
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
+
+        logger.info(f"Updating metadata for document ID '{id}' in '{collection_name}'.")
+        # Update takes lists, even for single items
+        collection.update(ids=[id], documents=None, metadatas=[metadata])
+
+        return [types.TextContent(type="text", text=json.dumps({"updated_id": id}))]
+
+    except ValidationError as e:
+        logger.warning(f"Validation error updating document in '{collection_name}': {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
+    except ValueError as e:
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for update.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error updating document in '{collection_name}': {e}", exc_info=True)
+            raise McpError(
+                ErrorData(
+                    code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error during update. Details: {e}"
+                )
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error updating document in '{collection_name}': {e}", exc_info=True)
+        raise McpError(
+            ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Failed to update document metadata. {str(e)}")
+        )
+
+
+# --- Delete Document Impl Variant (Singular ID) --- #
+
+
+async def _delete_document_by_id_impl(input_data: DeleteDocumentByIdInput) -> List[types.TextContent]:
+    """Implementation for deleting a document by ID."""
+    logger = get_logger("tools.document.delete_by_id")  # Renamed logger
+    collection_name = input_data.collection_name
+    id = input_data.id  # Singular
+
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not id:  # Added check for empty ID
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="ID cannot be empty for delete_document_by_id."))
+    # --- End Validation ---
+
+    logger.info(f"Deleting document by ID '{id}' from '{collection_name}'.")
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
+
+        # Delete the document by its ID
+        logger.debug(f"Attempting to delete document with ID: {id}")
+        # Ensure the ID is passed as a list, even if it's a single ID
+        collection.delete(ids=[id])
+        logger.info(f"Successfully requested deletion of document with ID: {id} from '{collection_name}'")
+
+        # Return success message, including the type field
+        return [types.TextContent(type="text", text=f"Deletion requested for document ID: {id}")]
+    except chromadb.errors.NotFoundError:
+        logger.warning(f"Document with ID '{id}' not found in collection '{collection_name}'.")
+        # Return success-like message as deletion is effectively complete if not found
+        # Include the type field
+        return [types.TextContent(type="text", text=f"Document ID '{id}' not found, no deletion needed.")]
+    except ValidationError as e:
+        logger.error(f"Validation error deleting document '{id}': {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e)))
+    # Add specific handling for ValueError (Collection not found)
+    except ValueError as e:
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for delete.")
+            # Raise McpError with the message expected by the test
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
+        else:
+            # Re-raise other ValueErrors as internal errors with specific message
+            logger.exception(f"Unexpected ValueError deleting document '{id}' from '{collection_name}': {e}")
+            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Failed to delete document. {e}"))
+    except Exception as e:
+        logger.exception(f"Unexpected error deleting document '{id}' from '{collection_name}': {e}")
+        # Format the generic error message as expected by tests
+        if "argument of type 'NoneType' is not iterable" in str(e):
+            # Keep the specific message for the iterable error
+            error_message = f"Internal ChromaDB error likely due to ID format. Check server logs. Original error: {e}"
+        else:
+            # Use the format expected by the tests for other generic errors
+            error_message = f"ChromaDB Error: Failed to delete document. {e}"
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=error_message))
+
+
+# --- Query Documents Impl Variants --- #
+
+
+async def _query_documents_impl(input_data: QueryDocumentsInput) -> List[types.TextContent]:
+    """Implementation for basic document query."""
+    logger = get_logger("tools.document.query")
+    collection_name = input_data.collection_name
+    query_texts = input_data.query_texts
+    n_results = input_data.n_results if input_data.n_results is not None else DEFAULT_QUERY_N_RESULTS
+    include = input_data.include
+
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not query_texts:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Query texts list cannot be empty."))
+    # --- End Validation ---
+
+    logger.info(
+        f"Querying '{collection_name}' with {len(query_texts)} texts, n_results={n_results}. Include: {include}"
+    )
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
+
+        logger.info(
+            f"Querying {len(query_texts)} texts in '{collection_name}' (no filters). N_results: {n_results}, Include: {include}"
+        )
+        results: QueryResult = collection.query(
+            query_texts=query_texts,
+            n_results=n_results,
+            where=None,  # Explicitly None
+            where_document=None,  # Explicitly None
+            include=include or [],  # Pass include or empty list if None
+        )
+
+        # Ensure results are JSON serializable (handle numpy arrays)
+        serialized_results = json.dumps(results, cls=NumpyEncoder)
+        return [types.TextContent(type="text", text=serialized_results)]
+
+    except ValueError as e:
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for query.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error querying '{collection_name}': {e}", exc_info=True)
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during query: {e}"))
+    except Exception as e:
+        logger.error(f"Unexpected error querying '{collection_name}': {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during query: {e}"))
+
+
+# Restore filter query implementations
+async def _query_documents_with_where_filter_impl(
+    input_data: QueryDocumentsWithWhereFilterInput,
+) -> List[types.TextContent]:
+    """Implementation for querying documents with a metadata filter."""
+    logger = get_logger("tools.document.query_where")
+    collection_name = input_data.collection_name
+    query_texts = input_data.query_texts
+    where = input_data.where
+    n_results = input_data.n_results if input_data.n_results is not None else DEFAULT_QUERY_N_RESULTS
+    include = input_data.include
+
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not query_texts:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Query texts list cannot be empty."))
+    if not where:  # where is required by Pydantic, but check anyway
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Where filter cannot be empty for this tool variant."))
+    # --- End Validation ---
+
+    logger.info(
+        f"Querying '{collection_name}' with {len(query_texts)} texts, WHERE filter, n_results={n_results}. Include: {include}"
+    )
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
+
+        logger.info(
+            f"Querying {len(query_texts)} texts in '{collection_name}' with WHERE filter. N_results: {n_results}, Include: {include}"
+        )
+        results: QueryResult = collection.query(
+            query_texts=query_texts,
+            n_results=n_results,
+            where=where,
+            where_document=None,  # Explicitly None
+            include=include or [],
+        )
+
+        serialized_results = json.dumps(results, cls=NumpyEncoder)
+        return [types.TextContent(type="text", text=serialized_results)]
+
+    except ValueError as e:
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for query.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error querying '{collection_name}': {e}", exc_info=True)
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during query: {e}"))
+    except Exception as e:
+        logger.error(f"Unexpected error querying '{collection_name}': {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during query: {e}"))
+
+
+async def _query_documents_with_document_filter_impl(
+    input_data: QueryDocumentsWithDocumentFilterInput,
+) -> List[types.TextContent]:
+    """Implementation for querying documents with a document content filter."""
+    logger = get_logger("tools.document.query_where_doc")
+    collection_name = input_data.collection_name
+    query_texts = input_data.query_texts
+    where_document = input_data.where_document
+    n_results = input_data.n_results if input_data.n_results is not None else DEFAULT_QUERY_N_RESULTS
+    include = input_data.include
+
+    # --- Validation ---
+    validate_collection_name(collection_name)  # Added validation
+    if not query_texts:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Query texts list cannot be empty."))
+    if not where_document:  # where_document is required by Pydantic, but check anyway
+        raise McpError(
+            ErrorData(code=INVALID_PARAMS, message="Where document filter cannot be empty for this tool variant.")
+        )
+    # --- End Validation ---
+
+    logger.info(
+        f"Querying '{collection_name}' with {len(query_texts)} texts, WHERE_DOCUMENT filter, n_results={n_results}. Include: {include}"
+    )
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name=collection_name)
+
+        logger.info(
+            f"Querying {len(query_texts)} texts in '{collection_name}' with document filter. N_results: {n_results}, Include: {include}"
+        )
+        results: QueryResult = collection.query(
+            query_texts=query_texts,
+            n_results=n_results,
+            where=None,  # Explicitly None
+            where_document=where_document,
+            include=include or [],
+        )
+
+        serialized_results = json.dumps(results, cls=NumpyEncoder)
+        return [types.TextContent(type="text", text=serialized_results)]
+
+    except ValueError as e:
+        if f"Collection {collection_name} does not exist" in str(e):
+            logger.warning(f"Collection '{collection_name}' not found for query.")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
+        else:
+            logger.error(f"Value error querying '{collection_name}': {e}", exc_info=True)
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during query: {e}"))
+    except Exception as e:
+        logger.error(f"Unexpected error querying '{collection_name}': {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during query: {e}"))

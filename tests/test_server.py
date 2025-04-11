@@ -71,12 +71,13 @@ def mock_get_logger():
 
 # --- Test server.main function --- #
 
+
 # Patch only the components directly used by server.main
-@patch("src.chroma_mcp.server.stdio.stdio_server") # Patch the context manager
-@patch("src.chroma_mcp.server.server.run") # Patch the server.run call
+@patch("src.chroma_mcp.server.stdio.stdio_server")  # Patch the context manager
+@patch("src.chroma_mcp.server.server.run")  # Patch the server.run call
 def test_main_calls_mcp_run(
-    mock_server_run, # Capture patched server.run
-    mock_stdio_cm, # Capture patched context manager
+    mock_server_run,  # Capture patched server.run
+    mock_stdio_cm,  # Capture patched context manager
 ):
     # Mock the context manager to return mock streams
     mock_stdio_cm.return_value.__aenter__.return_value = (MagicMock(), MagicMock())
@@ -84,7 +85,7 @@ def test_main_calls_mcp_run(
     mock_server_run.return_value = None
 
     # --- Act ---
-    main() # Call the real server.main
+    main()  # Call the real server.main
 
     # --- Assert ---
     # stdio_server context manager should be entered
@@ -94,11 +95,11 @@ def test_main_calls_mcp_run(
 
 
 # Patch only the components directly used by server.main
-@patch("src.chroma_mcp.server.stdio.stdio_server") # Patch the context manager
-@patch("src.chroma_mcp.server.server.run") # Patch the server.run call
+@patch("src.chroma_mcp.server.stdio.stdio_server")  # Patch the context manager
+@patch("src.chroma_mcp.server.server.run")  # Patch the server.run call
 def test_main_catches_mcp_run_mcp_error(
-    mock_server_run, # Capture patched server.run
-    mock_stdio_cm, # Capture patched context manager
+    mock_server_run,  # Capture patched server.run
+    mock_stdio_cm,  # Capture patched context manager
     caplog,
 ):
     # Mock the context manager
@@ -119,11 +120,11 @@ def test_main_catches_mcp_run_mcp_error(
 
 
 # Patch only the components directly used by server.main
-@patch("src.chroma_mcp.server.stdio.stdio_server") # Patch the context manager
-@patch("src.chroma_mcp.server.server.run") # Patch the server.run call
+@patch("src.chroma_mcp.server.stdio.stdio_server")  # Patch the context manager
+@patch("src.chroma_mcp.server.server.run")  # Patch the server.run call
 def test_main_catches_mcp_run_unexpected_error(
-    mock_server_run, # Capture patched server.run
-    mock_stdio_cm, # Capture patched context manager
+    mock_server_run,  # Capture patched server.run
+    mock_stdio_cm,  # Capture patched context manager
     caplog,
 ):
     # Mock the context manager

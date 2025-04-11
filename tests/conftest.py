@@ -24,7 +24,13 @@ from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
 from src.chroma_mcp.types import ChromaClientConfig, ThoughtMetadata
-from src.chroma_mcp.utils import get_chroma_client, get_embedding_function, ValidationError, set_main_logger, set_server_config
+from src.chroma_mcp.utils import (
+    get_chroma_client,
+    get_embedding_function,
+    ValidationError,
+    set_main_logger,
+    set_server_config,
+)
 
 from unittest.mock import MagicMock, patch
 from dotenv import load_dotenv
@@ -40,21 +46,19 @@ from src.chroma_mcp.types import (
     ThoughtMetadata,
     DocumentMetadata,  # Ensure DocumentMetadata is imported
 )
-from src.chroma_mcp.tools.collection_tools import (
-    _create_collection_impl,
-    _list_collections_impl,
-    _get_collection_impl,
-    _set_collection_description_impl,
-    _set_collection_settings_impl,
-    _update_collection_metadata_impl,
-    _rename_collection_impl,
-    _delete_collection_impl,
-    _peek_collection_impl,
-)
-from src.chroma_mcp.tools.thinking_tools import (
-    _sequential_thinking_impl,
-    _find_similar_thoughts_impl,
-)
+
+# from src.chroma_mcp.tools.collection_tools import (
+#     _create_collection_impl,
+#     _list_collections_impl,
+#     _get_collection_impl,
+#     _rename_collection_impl,
+#     _delete_collection_impl,
+#     _peek_collection_impl,
+# )
+# from src.chroma_mcp.tools.thinking_tools import (
+#     _sequential_thinking_impl,
+#     _find_similar_thoughts_impl,
+# )
 
 # --- Start: Logger Configuration for Tests ---
 TEST_LOG_DIR = "logs"
@@ -473,6 +477,7 @@ class MockMCP:
 def patched_mcp():
     """Return a mock MCP instance with all required methods."""
     return MockMCP()
+
 
 # Add this fixture to automatically shut down logging after tests
 @pytest.fixture(autouse=True)

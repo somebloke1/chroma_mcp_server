@@ -4,11 +4,9 @@ This document provides detailed information about the tools available in the Chr
 
 > **Note**: The Chroma MCP Server has been optimized with minimal dependencies. For full functionality including embedding models, install with `pip install chroma-mcp-server[full]`.
 
-**Important Note on Modifying Collection Metadata:** Due to limitations in ChromaDB's handling of immutable settings (like the default `hnsw:*` parameters), tools attempting to modify a collection's metadata after creation (`chroma_set_collection_description`, `chroma_set_collection_settings`, `chroma_update_collection_metadata`) will **fail** if the collection contains such immutable settings. It is **strongly recommended** to set all desired metadata, including custom keys, description, and specific HNSW parameters, using the `metadata` argument during the initial `chroma_create_collection` call.
-
 ## Tool Categories
 
-The Chroma MCP Server provides 15 tools across three categories:
+The Chroma MCP Server provides 26 tools across three categories:
 
 1. [Collection Management Tools](#collection-management-tools)
 2. [Document Operation Tools](#document-operation-tools)
@@ -20,7 +18,7 @@ The Chroma MCP Server provides 15 tools across three categories:
 
 ### `chroma_create_collection`
 
-Creates a new ChromaDB collection with default settings. Use other tools like `chroma_set_collection_description` or `chroma_set_collection_settings` to modify it after creation.
+Creates a new ChromaDB collection. It is **strongly recommended** to set all desired metadata, including custom keys, description, and specific HNSW parameters, using the `metadata` argument during this initial call, as modifying metadata after creation (especially settings) might be limited or impossible depending on the ChromaDB backend implementation.
 
 #### Parameters for chroma_create_collection
 
@@ -112,93 +110,6 @@ A JSON object containing collection details:
 }
 ```
 
-### `chroma_set_collection_description`
-
-Sets or updates the description of a collection. The description is stored within the collection's metadata under the `description` key.
-
-**Note:** Due to ChromaDB limitations, this tool will almost always **fail** on existing collections because they contain immutable settings (like `hnsw:space`). **Set the description using the `metadata` parameter during `chroma_create_collection` instead.**
-
-#### Parameters for chroma_set_collection_description
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `collection_name` | string | Yes | Name of the collection to modify |
-| `description` | string | Yes | The new description string |
-
-#### Returns from chroma_set_collection_description
-
-A JSON object containing the updated collection information (same as `chroma_get_collection` result).
-
-#### Example for chroma_set_collection_description
-
-```json
-{
-  "collection_name": "my_documents",
-  "description": "Documents related to project Alpha."
-}
-```
-
-### `chroma_set_collection_settings`
-
-Sets or updates the settings (e.g., HNSW parameters) of a collection. The settings are stored within the collection's metadata under the `settings` key. **Warning:** This replaces the entire existing `settings` sub-dictionary.
-
-**Since collections typically always have immutable settings (like defaults), this tool will likely always fail.** **Define all settings using the `metadata` parameter during `chroma_create_collection`.**
-
-#### Parameters for chroma_set_collection_settings
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `collection_name` | string | Yes | Name of the collection to modify |
-| `settings` | object | Yes | Dictionary containing the new settings (e.g., `{"hnsw:space": "cosine"}`) |
-
-#### Returns from chroma_set_collection_settings
-
-A JSON object containing the updated collection information (same as `chroma_get_collection` result).
-
-#### Example for chroma_set_collection_settings
-
-```json
-{
-  "collection_name": "my_documents",
-  "settings": {
-    "hnsw:space": "cosine",
-    "hnsw:construction_ef": 128,
-    "hnsw:search_ef": 64
-  }
-}
-```
-
-### `chroma_update_collection_metadata`
-
-Updates or adds custom key-value pairs to a collection's metadata. This performs a merge, preserving existing keys unless overwritten. It does **not** affect the reserved `description` or `settings` keys directly; use the dedicated tools for those.
-
-**Warning:** This REPLACES the entire existing custom metadata block with the provided `metadata_update`.
-
-**Since collections typically always have immutable settings (like defaults), this tool will likely always fail.** **Set all custom metadata using the `metadata` parameter during `chroma_create_collection`.**
-
-#### Parameters for chroma_update_collection_metadata
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `collection_name` | string | Yes | Name of the collection to modify |
-| `metadata_update` | object | Yes | Dictionary containing key-value pairs to update or add |
-
-#### Returns from chroma_update_collection_metadata
-
-A JSON object containing the updated collection information (same as `chroma_get_collection` result).
-
-#### Example for chroma_update_collection_metadata
-
-```json
-{
-  "collection_name": "my_documents",
-  "metadata_update": {
-    "project": "Beta",
-    "status": "active"
-  }
-}
-```
-
 ### `chroma_rename_collection`
 
 Renames an existing collection.
@@ -275,39 +186,139 @@ A JSON object containing the peek results:
 
 ## Document Operation Tools
 
-### `chroma_add_documents`
+### `chroma_add_document`
 
-Adds documents to a ChromaDB collection.
+Add a document to a collection (auto-generates ID, no metadata).
 
-**Client Limitation Note:** Some MCP clients may incorrectly serialize optional list parameters (`ids`, `metadatas`). If encountering validation errors, try omitting these parameters and allowing ChromaDB to auto-generate IDs.
-
-#### Parameters for chroma_add_documents
+#### Parameters for chroma_add_document
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `collection_name` | string | Yes | Name of the target collection |
-| `documents` | array of strings | Yes | Document contents to add |
-| `ids` | array of strings | No | Document IDs (auto-generated if not provided) |
-| `metadatas` | array of objects | No | Metadata for each document |
-| `increment_index` | boolean | No | Whether to increment index for auto-generated IDs (default: true) |
+| `collection_name` | string | Yes | Name of the collection to add the document to. |
+| `document` | string | Yes | The document content (string). |
+| `increment_index` | boolean | No | Whether to immediately index the added document (default: False). |
 
-#### Returns from chroma_add_documents
+#### Returns from chroma_add_document
 
-A JSON object with operation status and IDs of the added documents.
+A JSON object confirming the addition, potentially including the auto-generated ID.
 
-#### Example for chroma_add_documents
+```json
+{
+  "status": "success",
+  "documents_added": 1
+}
+```
+
+#### Example for chroma_add_document
 
 ```json
 {
   "collection_name": "my_documents",
-  "documents": [
-    "This is the first document.",
-    "This is the second document."
-  ],
-  "metadatas": [
-    {"source": "user", "category": "notes"},
-    {"source": "user", "category": "email"}
-  ]
+  "document": "This is a new document added via single-item tool."
+}
+```
+
+### `chroma_add_document_with_id`
+
+Add a document with a specified ID to a collection (no metadata).
+
+#### Parameters for chroma_add_document_with_id
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection to add the document to. |
+| `document` | string | Yes | The document content (string). |
+| `id` | string | Yes | The unique ID for the document. |
+| `increment_index` | boolean | No | Whether to immediately index the added document (default: False). |
+
+#### Returns from chroma_add_document_with_id
+
+A JSON object confirming the addition.
+
+```json
+{
+  "status": "success",
+  "documents_added": 1
+}
+```
+
+#### Example for chroma_add_document_with_id
+
+```json
+{
+  "collection_name": "my_documents",
+  "document": "This document has a specific ID.",
+  "id": "doc-manual-id-001"
+}
+```
+
+### `chroma_add_document_with_metadata`
+
+Add a document with specified metadata to a collection (auto-generates ID).
+
+#### Parameters for chroma_add_document_with_metadata
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection to add the document to. |
+| `document` | string | Yes | The document content (string). |
+| `metadata` | string | Yes | Metadata JSON string for the document (e.g., '{"key": "value"}'). |
+| `increment_index` | boolean | No | Whether to immediately index the added document (default: False). |
+
+#### Returns from chroma_add_document_with_metadata
+
+A JSON object confirming the addition, potentially including the auto-generated ID.
+
+```json
+{
+  "status": "success",
+  "documents_added": 1
+}
+```
+
+#### Example for chroma_add_document_with_metadata
+
+```json
+{
+  "collection_name": "my_documents",
+  "document": "This document includes metadata.",
+  "metadata": "{\"source\": \"api_ref\", \"status\": \"new\"}"
+}
+```
+
+### `chroma_add_document_with_id_and_metadata`
+
+Add a document with specified ID and metadata to a collection.
+
+#### Parameters for chroma_add_document_with_id_and_metadata
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection to add the document to. |
+| `document` | string | Yes | The document content (string). |
+| `id` | string | Yes | The unique ID for the document. |
+| `metadata` | string | Yes | Metadata JSON string for the document. |
+| `increment_index` | boolean | No | Whether to immediately index the added document (default: False). |
+
+#### Returns from chroma_add_document_with_id_and_metadata
+
+A JSON object confirming the addition.
+
+```json
+{
+  "status": "success",
+  "documents_added": 1
+}
+```
+
+#### Example for chroma_add_document_with_id_and_metadata
+
+```json
+{
+  "collection_name": "my_documents",
+  "document": "This document has ID and metadata.",
+  "id": "doc-manual-id-002",
+  "metadata": "{\"source\": \"api_ref\", \"status\": \"complete\"}"
 }
 ```
 
@@ -315,13 +326,15 @@ A JSON object with operation status and IDs of the added documents.
 
 Queries documents by semantic similarity.
 
+**Client Limitation Note:** Some MCP clients may incorrectly serialize list parameters (`query_texts`, `include`) or optional parameters (`where`, `where_document`). If encountering validation errors, ensure lists are correctly formatted or try omitting optional parameters.
+
 #### Parameters for chroma_query_documents
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the target collection |
 | `query_texts` | array of strings | Yes | Query text strings |
-| `n_results` | integer | No | Number of results per query (default: 5) |
+| `n_results` | integer | No | Number of results per query (default: 10) |
 | `where` | object | No | Metadata filters using Chroma's query operators |
 | `where_document` | object | No | Document content filters |
 | `include` | array of strings | No | What to include in response (e.g., "documents", "embeddings", "metadatas", "distances") |
@@ -337,102 +350,290 @@ A JSON object containing query results organized by the query text.
   "collection_name": "my_documents",
   "query_texts": ["How does vector search work?"],
   "n_results": 3,
-  "where": {"category": "technical"},
+  "where": {"source": "technical"},
   "include": ["documents", "metadatas", "distances"]
 }
 ```
 
-### `chroma_get_documents`
+### `chroma_get_documents_by_ids`
 
-Gets documents from a ChromaDB collection by ID or filter.
+Gets documents from a ChromaDB collection by specific IDs.
 
-**Client Limitation Note:** Some MCP clients may incorrectly serialize optional list parameters (`ids`, `include`, `limit`, `offset`). If encountering validation errors when providing these, try omitting them or using alternative filtering (`where`, `where_document`).
+**Client Limitation Note:** Some MCP clients may incorrectly serialize list parameters (`ids`, `include`). If encountering validation errors, ensure lists are correctly formatted JSON arrays.
 
-#### Parameters for chroma_get_documents
+#### Parameters for chroma_get_documents_by_ids
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection |
-| `ids` | array (string) | No | List of document IDs to retrieve |
-| `where` | object | No | Metadata filter |
-| `where_document` | object | No | Document content filter |
-| `limit` | integer | No | Maximum number of documents |
-| `offset` | integer | No | Number of documents to skip |
+| `ids` | array (string) | Yes | List of document IDs to retrieve |
 | `include` | array (string) | No | Fields to include (e.g., `["documents", "metadatas"]`) |
 
-#### Returns from chroma_get_documents
+#### Returns from chroma_get_documents_by_ids
 
-A JSON object containing the matching documents and their metadata.
+A JSON object containing the matching documents and their data (or an empty list if not found).
 
-#### Example for chroma_get_documents
+#### Example for chroma_get_documents_by_ids
 
 ```json
 {
   "collection_name": "my_documents",
-  "where": {"category": "technical"},
+  "ids": ["doc-manual-id-001", "doc-manual-id-002"],
+  "include": ["documents", "metadatas"]
+}
+```
+
+### `chroma_get_documents_with_where_filter`
+
+Gets documents from a ChromaDB collection using a metadata filter.
+
+**Client Limitation Note:** Some MCP clients may incorrectly serialize optional list parameters (`include`, `limit`, `offset`). If encountering validation errors, try omitting them.
+
+#### Parameters for chroma_get_documents_with_where_filter
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection |
+| `where` | object | Yes | Metadata filter (e.g., `{"source": "pdf"}`) |
+| `limit` | integer | No | Maximum number of documents |
+| `offset` | integer | No | Number of documents to skip |
+| `include` | array (string) | No | Fields to include |
+
+#### Returns from chroma_get_documents_with_where_filter
+
+A JSON object containing the matching documents.
+
+#### Example for chroma_get_documents_with_where_filter
+
+```json
+{
+  "collection_name": "my_documents",
+  "where": {"source": "api_ref"},
   "limit": 10,
   "include": ["documents", "metadatas"]
 }
 ```
 
-### `chroma_update_documents`
+### `chroma_get_documents_with_document_filter`
 
-Updates existing documents in a ChromaDB collection.
+Gets documents from a ChromaDB collection using a document content filter.
 
-**Client Limitation Note:** Some MCP clients may incorrectly serialize optional list parameters (`documents`, `metadatas`). If encountering validation errors when providing these, try omitting them.
+**Client Limitation Note:** Some MCP clients may incorrectly serialize optional list parameters (`include`, `limit`, `offset`). If encountering validation errors, try omitting them.
 
-#### Parameters for chroma_update_documents
+#### Parameters for chroma_get_documents_with_document_filter
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `collection_name` | string | Yes | Name of the target collection |
-| `ids` | array of strings | Yes | Document IDs to update |
-| `documents` | array of strings | No | New document contents |
-| `metadatas` | array of objects | No | New metadata dictionaries |
+| `collection_name` | string | Yes | Name of the collection |
+| `where_document` | object | Yes | Document content filter (e.g., `{"$contains": "metadata"}`) |
+| `limit` | integer | No | Maximum number of documents |
+| `offset` | integer | No | Number of documents to skip |
+| `include` | array (string) | No | Fields to include |
 
-#### Returns from chroma_update_documents
+#### Returns from chroma_get_documents_with_document_filter
 
-A JSON object with update status.
+A JSON object containing the matching documents.
 
-#### Example for chroma_update_documents
+#### Example for chroma_get_documents_with_document_filter
 
 ```json
 {
   "collection_name": "my_documents",
-  "ids": ["doc1", "doc2"],
-  "documents": ["Updated content 1", "Updated content 2"],
-  "metadatas": [
-    {"status": "updated", "timestamp": "2025-03-29"},
-    {"status": "updated", "timestamp": "2025-03-29"}
-  ]
+  "where_document": {"$contains": "specific ID"},
+  "limit": 5,
+  "include": ["documents"]
 }
 ```
 
-### `chroma_delete_documents`
+### `chroma_get_all_documents`
 
-Deletes documents from a ChromaDB collection by ID or filter.
+Gets all documents from a ChromaDB collection (use with caution on large collections).
 
-**Client Limitation Note:** Some MCP clients may incorrectly serialize the optional list parameter `ids`. If encountering validation errors when providing `ids`, try omitting it and using `where` or `where_document` filters instead.
+**Client Limitation Note:** Some MCP clients may incorrectly serialize optional list parameters (`include`, `limit`, `offset`). If encountering validation errors, try omitting them.
 
-#### Parameters for chroma_delete_documents
+#### Parameters for chroma_get_all_documents
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `collection_name` | string | Yes | Name of the target collection |
-| `ids` | array of strings | No | Document IDs to delete |
-| `where` | object | No | Metadata filters for deletion |
-| `where_document` | object | No | Document content filters for deletion |
+| `collection_name` | string | Yes | Name of the collection |
+| `limit` | integer | No | Maximum number of documents |
+| `offset` | integer | No | Number of documents to skip |
+| `include` | array (string) | No | Fields to include |
 
-#### Returns from chroma_delete_documents
+#### Returns from chroma_get_all_documents
 
-A JSON object with deletion status.
+A JSON object containing all documents (up to the limit).
 
-#### Example for chroma_delete_documents
+#### Example for chroma_get_all_documents
 
 ```json
 {
   "collection_name": "my_documents",
-  "ids": ["doc1", "doc2", "doc3"]
+  "limit": 100,
+  "include": ["ids", "metadatas"]
+}
+```
+
+### `chroma_update_document_content`
+
+Updates the content of an existing document by ID.
+
+#### Parameters for chroma_update_document_content
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection containing the document. |
+| `id` | string | Yes | The document ID to update. |
+| `document` | string | Yes | The new document content. |
+
+#### Returns from chroma_update_document_content
+
+A JSON object confirming the update request.
+
+```json
+{
+  "status": "success",
+  "documents_updated_request": 1
+}
+```
+
+#### Example for chroma_update_document_content
+
+```json
+{
+  "collection_name": "my_documents",
+  "id": "doc-manual-id-001",
+  "document": "Updated content for this specific document."
+}
+```
+
+### `chroma_update_document_metadata`
+
+Updates the metadata of an existing document by ID.
+
+#### Parameters for chroma_update_document_metadata
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection containing the document. |
+| `id` | string | Yes | The document ID to update. |
+| `metadata` | object | Yes | The new metadata dictionary (replaces existing metadata). |
+
+#### Returns from chroma_update_document_metadata
+
+A JSON object confirming the update request.
+
+```json
+{
+  "status": "success",
+  "documents_updated_request": 1
+}
+```
+
+#### Example for chroma_update_document_metadata
+
+```json
+{
+  "collection_name": "my_documents",
+  "id": "doc-manual-id-002",
+  "metadata": {
+    "source": "api_ref",
+    "status": "updated",
+    "reviewed": true
+  }
+}
+```
+
+### `chroma_delete_document_by_id`
+
+Delete a document from a collection by its specific ID.
+
+#### Parameters for chroma_delete_document_by_id
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection to delete the document from. |
+| `id` | string | Yes | The document ID to delete. |
+
+#### Returns from chroma_delete_document_by_id
+
+A JSON object confirming the delete request.
+
+```json
+{
+  "status": "success",
+  "documents_deleted_request": 1
+}
+```
+
+#### Example for chroma_delete_document_by_id
+
+```json
+{
+  "collection_name": "my_documents",
+  "id": "doc-manual-id-001"
+}
+```
+
+### `chroma_delete_documents_by_where_filter`
+
+Deletes documents from a ChromaDB collection using a metadata filter.
+
+#### Parameters for chroma_delete_documents_by_where_filter
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection |
+| `where` | object | Yes | Metadata filter to select documents for deletion |
+
+#### Returns from chroma_delete_documents_by_where_filter
+
+A JSON object confirming the request and the filter used.
+
+```json
+{
+  "status": "success",
+  "filter_used": {"source": "obsolete"}
+}
+```
+
+#### Example for chroma_delete_documents_by_where_filter
+
+```json
+{
+  "collection_name": "my_documents",
+  "where": {"status": "archived"}
+}
+```
+
+### `chroma_delete_documents_by_document_filter`
+
+Deletes documents from a ChromaDB collection using a document content filter.
+
+#### Parameters for chroma_delete_documents_by_document_filter
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection |
+| `where_document` | object | Yes | Document content filter for deletion |
+
+#### Returns from chroma_delete_documents_by_document_filter
+
+A JSON object confirming the request and the filter used.
+
+```json
+{
+  "status": "success",
+  "filter_used": {"$contains": "temporary"}
+}
+```
+
+#### Example for chroma_delete_documents_by_document_filter
+
+```json
+{
+  "collection_name": "my_documents",
+  "where_document": {"$contains": "old project data"}
 }
 ```
 
