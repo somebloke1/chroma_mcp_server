@@ -314,6 +314,8 @@ IMPL_FUNCTIONS = {
 @server.list_tools()
 async def list_tools() -> List[types.Tool]:
     """Registers all available tools with the MCP server."""
+    # Get logger instance
+    logger = get_logger("list_tools")
     tool_definitions = [
         # Collection Tools
         types.Tool(
@@ -420,6 +422,10 @@ async def list_tools() -> List[types.Tool]:
             },
         ),
     ]
+    # Add debug log
+    logger.debug(f"Returning {len(tool_definitions)} tool definitions: {[t.name for t in tool_definitions]}")
+    # Optionally log the full definitions if needed for deep debugging:
+    logger.debug(f"Full tool definitions: {json.dumps(tool_definitions)}")
     return tool_definitions
 
 
@@ -439,8 +445,9 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
         try:
             version = importlib.metadata.version("chroma-mcp-server")
             result_text = json.dumps({"package": "chroma-mcp-server", "version": version})
-            # Return list directly
-            return [types.TextContent(type="text", text=result_text)]
+            content_list = [types.TextContent(type="text", text=result_text)]
+            logger.debug(f"Returning result for {name}: {content_list}") # Log before return
+            return content_list
         except importlib.metadata.PackageNotFoundError as e:
             logger.error(f"Error getting server version: {str(e)}", exc_info=True)
             # Raise exception for Server to handle
@@ -466,9 +473,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
         logger.debug(f"Validation successful for {name}")
     except ValidationError as e:
         logger.warning(f"Input validation failed for {name}: {e}")
-        # Re-raise the validation error for Server to handle
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Input Error: {str(e)}")) # Wrap in McpError
-    # <--- Pydantic Validation Done ---
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Input Error: {str(e)}"))
 
     # --- Call Core Logic --- >
     logger.debug(f"Calling implementation function for {name}")
@@ -477,20 +482,9 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
     content_list: List[types.TextContent] = await impl_function(validated_input)
     logger.debug(f"Implementation function for {name} returned content list.")
 
-    # Return the content list directly
+    # Add debug log before returning
+    logger.debug(f"Returning result for {name}: {json.dumps(content_list)}") # Log before return
     return content_list
-
-    # REMOVE outer exception handler - let exceptions propagate
-    # except Exception as error:
-    #     logger.error(f"Unexpected error processing tool call {name}: {error}", exc_info=True)
-    #     return types.CallToolResult(
-    #         isError=True,
-    #         content=[
-    #             types.TextContent(
-    #                 type="text", text=f"Tool Execution Error: An unexpected error occurred. Details: {str(error)}"
-    #             )
-    #         ],
-    #     )
 
 
 def main() -> None:
