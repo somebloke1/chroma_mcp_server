@@ -437,7 +437,9 @@ async def list_tools() -> List[types.Tool]:
 async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
     """Handles incoming tool calls, validates input, and dispatches to implementation functions."""
     logger = get_logger("call_tool")
-    logger.debug(f"Received tool call: {name} with arguments: {arguments}")
+    # Add this line to log raw arguments
+    logger.debug(f"Raw arguments received for tool '{name}': {arguments}")
+    # logger.debug(f"Received tool call: {name} with arguments: {arguments}")
 
     # REMOVE the outer try...except block. Let Server handle exceptions.
     # try:

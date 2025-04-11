@@ -32,7 +32,7 @@ jobs:
     
     - name: Combine coverage data (if needed)
       # Important if tests were run in parallel, harmless otherwise
-      run: hatch run coverage combine
+      run: hatch run coverage combine || true
     
     - name: Generate coverage XML report
       # Use hatch to run coverage in the correct environment
