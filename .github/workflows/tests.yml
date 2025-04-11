@@ -20,17 +20,31 @@ jobs:
       with:
         python-version: '3.10'
     
-    - name: Install hatch
+    - name: Install hatch and coverage
       run: |
         python -m pip install --upgrade pip
-        pip install hatch
+        pip install hatch coverage # Install coverage explicitly
     
-    - name: Run tests with coverage
-      run: hatch run test:cov
+    - name: Run tests with coverage run
+      # Run tests using 'coverage run' managed by hatch environment
+      # Pass arguments like timeout/no-xdist directly to pytest
+      run: hatch run test:coverage run -m pytest --timeout=120 -p no:xdist tests/
+    
+    - name: Combine coverage data (if needed)
+      # Important if tests were run in parallel, harmless otherwise
+      run: hatch run coverage combine || true
+    
+    - name: Generate coverage XML report
+      # Use hatch to run coverage in the correct environment
+      run: hatch run coverage xml -o coverage.xml
+    
+    - name: Generate coverage report summary
+      # Display summary in the logs
+      run: hatch run coverage report -m
     
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
+        file: ./coverage.xml # Should exist now
         fail_ci_if_error: true 
