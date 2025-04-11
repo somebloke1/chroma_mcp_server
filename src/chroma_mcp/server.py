@@ -425,7 +425,8 @@ async def list_tools() -> List[types.Tool]:
     # Add debug log
     logger.debug(f"Returning {len(tool_definitions)} tool definitions: {[t.name for t in tool_definitions]}")
     # Optionally log the full definitions if needed for deep debugging:
-    logger.debug(f"Full tool definitions: {json.dumps(tool_definitions)}")
+    logger.debug(f"Full tool definitions: {tool_definitions}")
+    logger.debug("Finished listing tools.")
     return tool_definitions
 
 
@@ -483,7 +484,9 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
     logger.debug(f"Implementation function for {name} returned content list.")
 
     # Add debug log before returning
-    logger.debug(f"Returning result for {name}: {json.dumps(content_list)}") # Log before return
+    logger.debug("Debug log for call_tool result.")
+    logger.debug(f"Returning call_tool result for {name}: {content_list}") # Log before return
+    logger.debug("Finished debug log for call_tool result.")
     return content_list
 
 

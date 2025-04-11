@@ -177,12 +177,12 @@ async def call_tool(name: str, arguments: dict) -> types.CallToolResult:
 - [x] **Code Review:** Perform a thorough review focusing on Pydantic usage, removal of Optionals, error handling consistency, and adherence to `mcp-reference.md`. (Reviewed `list_tools` and `call_tool`)
 - [x] **Run Tests:** Execute the full test suite (`hatch run test`). Address any failures. (Test suite successfully executed via `./scripts/test.sh`, all tests passed or skipped as expected).
 - [ ] **Manual Testing (MCP Inspector):**
-  - [ ] Test valid inputs for all tools.
-  - [ ] Test invalid inputs (missing required fields, wrong types) and verify clear `Input Error:` messages are returned via `isError=True`.
+  - [x] Test valid inputs for all tools.
+  - [x] Test invalid inputs (missing required fields, wrong types) and verify clear `Input Error:` messages are returned via `isError=True`.
   - [ ] Test scenarios causing execution errors (e.g., deleting a non-existent collection) and verify `Tool Execution Error:` messages via `isError=True`.
 - [ ] **Manual Testing (Integrated Clients - Cursor, etc.):**
-  - [ ] Verify successful tool calls work as expected.
-  - [ ] Observe how clients handle the `isError=True` results for both validation and execution errors. Does the feedback help the user/LLM?
+  - [x] Verify successful tool calls work as expected.
+  - [x] Observe how clients handle the `isError=True` results for both validation and execution errors. Does the feedback help the user/LLM?
   - [ ] Test scenarios where optional parameters are omitted and provided.
-- [ ] **Server Log Verification:** Check logs for clarity, especially for validation failures vs. execution errors.
+- [x] **Server Log Verification:** Check logs for clarity, especially for validation failures vs. execution errors.
 - [x] **Linting/Formatting:** Run tools (`hatch run lint`). (`black` successful, `pylint` skipped)
