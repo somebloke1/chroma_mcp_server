@@ -113,7 +113,8 @@ class QueryDocumentsWithWhereFilterInput(BaseModel):
 
     collection_name: str = Field(..., description="Name of the collection to query.")
     query_texts: List[str] = Field(..., description="List of query strings for semantic search.")
-    where: Dict[str, Any] = Field(..., description="Metadata filter to apply (e.g., {'source': 'pdf'}).")
+    # Change to string, expect JSON
+    where: str = Field(..., description='Metadata filter as a JSON string (e.g., \'{"source": "pdf"}\').')
     n_results: Optional[int] = Field(10, ge=1, description="Maximum number of results per query.")
     include: Optional[List[str]] = Field(None, description="Optional list of fields to include.")
 
@@ -125,8 +126,9 @@ class QueryDocumentsWithDocumentFilterInput(BaseModel):
 
     collection_name: str = Field(..., description="Name of the collection to query.")
     query_texts: List[str] = Field(..., description="List of query strings for semantic search.")
-    where_document: Dict[str, Any] = Field(
-        ..., description="Document content filter to apply (e.g., {'$contains': 'keyword'})."
+    # Change to string, expect JSON
+    where_document: str = Field(
+        ..., description='Document content filter as a JSON string (e.g., \'{"$contains": "keyword"}\').'
     )
     n_results: Optional[int] = Field(10, ge=1, description="Maximum number of results per query.")
     include: Optional[List[str]] = Field(None, description="Optional list of fields to include.")
@@ -153,7 +155,8 @@ class GetDocumentsWithWhereFilterInput(BaseModel):
     """Input model for getting documents using a metadata filter."""
 
     collection_name: str = Field(..., description="Name of the collection to get documents from.")
-    where: Dict[str, Any] = Field(..., description="Metadata filter to apply (e.g., {'source': 'pdf'}).")
+    # Change to string, expect JSON
+    where: str = Field(..., description='Metadata filter as a JSON string (e.g., \'{"source": "pdf"}\').')
     limit: Optional[int] = Field(None, ge=1, description="Maximum number of documents to return.")
     offset: Optional[int] = Field(None, ge=0, description="Number of documents to skip.")
     include: Optional[List[str]] = Field(None, description="Optional list of fields to include.")
@@ -165,8 +168,9 @@ class GetDocumentsWithDocumentFilterInput(BaseModel):
     """Input model for getting documents using a document content filter."""
 
     collection_name: str = Field(..., description="Name of the collection to get documents from.")
-    where_document: Dict[str, Any] = Field(
-        ..., description="Document content filter to apply (e.g., {'$contains': 'keyword'})."
+    # Change to string, expect JSON
+    where_document: str = Field(
+        ..., description='Document content filter as a JSON string (e.g., \'{"$contains": "keyword"}\').'
     )
     limit: Optional[int] = Field(None, ge=1, description="Maximum number of documents to return.")
     offset: Optional[int] = Field(None, ge=0, description="Number of documents to skip.")
@@ -205,7 +209,8 @@ class UpdateDocumentMetadataInput(BaseModel):
 
     collection_name: str = Field(..., description="Name of the collection containing the document.")
     id: str = Field(..., description="Document ID to update.")
-    metadata: Dict[str, Any] = Field(..., description="New metadata dictionary for the document.")
+    # Change to string, expect JSON
+    metadata: str = Field(..., description='New metadata as a JSON string (e.g., \'{"key": "new_value"}\').')
 
     model_config = ConfigDict(extra="forbid")
 
@@ -510,104 +515,100 @@ async def _get_documents_with_where_filter_impl(
     input_data: GetDocumentsWithWhereFilterInput,
 ) -> List[types.TextContent]:
     """Implementation for getting documents using a metadata filter."""
-    logger = get_logger("tools.document.get_where")
+    logger = get_logger("tools.document.get")
     collection_name = input_data.collection_name
-    where = input_data.where
+    where_str = input_data.where  # Now a string
     limit = input_data.limit
     offset = input_data.offset
-    include = input_data.include
+    include_list = input_data.include
 
     # --- Validation ---
-    validate_collection_name(collection_name)  # Added validation
-    if not where:  # Required by Pydantic, but check
-        raise McpError(ErrorData(code=INVALID_PARAMS, message="Where filter cannot be empty for this tool variant."))
+    validate_collection_name(collection_name)
+    try:
+        where_dict = json.loads(where_str)
+        if not isinstance(where_dict, dict):
+            raise ValueError("Decoded JSON is not a dictionary")
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Invalid JSON format for where filter: {where_str} - Error: {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid JSON format for where filter: {e}"))
     # --- End Validation ---
 
-    log_limit_offset = f" Limit: {limit}, Offset: {offset}" if limit or offset is not None else ""
-    logger.info(f"Getting documents from '{collection_name}' using WHERE filter.{log_limit_offset} Include: {include}")
+    logger.info(
+        f"Getting documents from '{collection_name}' with where filter: {where_dict}, limit: {limit}, offset: {offset}"
+    )
     try:
         client = get_chroma_client()
         collection = client.get_collection(name=collection_name)
 
-        logger.info(
-            f"Getting documents from '{collection_name}' with WHERE filter. Limit: {limit}, Offset: {offset}, Include: {include}"
-        )
-        results: GetResult = collection.get(
-            ids=None,
-            where=where,
-            where_document=None,
+        get_result: GetResult = collection.get(
+            where=where_dict,  # Pass parsed dict
             limit=limit,
             offset=offset,
-            include=include or [],
+            include=include_list if include_list else [],  # Ensure list or default
         )
 
-        serialized_results = json.dumps(results, cls=NumpyEncoder)
-        return [types.TextContent(type="text", text=serialized_results)]
-
+        result_json = json.dumps(get_result, cls=NumpyEncoder, indent=2)
+        return [types.TextContent(type="text", text=result_json)]
     except ValueError as e:
-        if f"Collection {collection_name} does not exist" in str(e):
-            logger.warning(f"Collection '{collection_name}' not found for get.")
+        # Handle collection not found specifically
+        if f"Collection {collection_name} does not exist." in str(e):
+            logger.warning(f"Collection '{collection_name}' not found.")
             raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
         else:
             logger.error(f"Value error getting documents from '{collection_name}': {e}", exc_info=True)
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during get: {e}"))
+            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error: {e}"))
     except Exception as e:
         logger.error(f"Unexpected error getting documents from '{collection_name}': {e}", exc_info=True)
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during get: {e}"))
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: {str(e)}"))
 
 
 async def _get_documents_with_document_filter_impl(
     input_data: GetDocumentsWithDocumentFilterInput,
 ) -> List[types.TextContent]:
     """Implementation for getting documents using a document content filter."""
-    logger = get_logger("tools.document.get_where_doc")
+    logger = get_logger("tools.document.get")
     collection_name = input_data.collection_name
-    where_document = input_data.where_document
+    where_document_str = input_data.where_document  # Now a string
     limit = input_data.limit
     offset = input_data.offset
-    include = input_data.include
+    include_list = input_data.include
 
     # --- Validation ---
-    validate_collection_name(collection_name)  # Added validation
-    if not where_document:  # Required by Pydantic, but check
-        raise McpError(
-            ErrorData(code=INVALID_PARAMS, message="Where document filter cannot be empty for this tool variant.")
-        )
+    validate_collection_name(collection_name)
+    try:
+        where_document_dict = json.loads(where_document_str)
+        if not isinstance(where_document_dict, dict):
+            raise ValueError("Decoded JSON is not a dictionary")
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Invalid JSON format for where_document filter: {where_document_str} - Error: {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid JSON format for where_document filter: {e}"))
     # --- End Validation ---
 
-    log_limit_offset = f" Limit: {limit}, Offset: {offset}" if limit or offset is not None else ""
     logger.info(
-        f"Getting documents from '{collection_name}' using WHERE_DOCUMENT filter.{log_limit_offset} Include: {include}"
+        f"Getting documents from '{collection_name}' with document filter: {where_document_dict}, limit: {limit}, offset: {offset}"
     )
     try:
         client = get_chroma_client()
         collection = client.get_collection(name=collection_name)
 
-        logger.info(
-            f"Getting documents from '{collection_name}' with document filter. Limit: {limit}, Offset: {offset}, Include: {include}"
-        )
-        results: GetResult = collection.get(
-            ids=None,
-            where=None,
-            where_document=where_document,
+        get_result: GetResult = collection.get(
+            where_document=where_document_dict,  # Pass parsed dict
             limit=limit,
             offset=offset,
-            include=include or [],
+            include=include_list if include_list else [],
         )
-
-        serialized_results = json.dumps(results, cls=NumpyEncoder)
-        return [types.TextContent(type="text", text=serialized_results)]
-
+        result_json = json.dumps(get_result, cls=NumpyEncoder, indent=2)
+        return [types.TextContent(type="text", text=result_json)]
     except ValueError as e:
-        if f"Collection {collection_name} does not exist" in str(e):
-            logger.warning(f"Collection '{collection_name}' not found for get.")
+        if f"Collection {collection_name} does not exist." in str(e):
+            logger.warning(f"Collection '{collection_name}' not found.")
             raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
         else:
             logger.error(f"Value error getting documents from '{collection_name}': {e}", exc_info=True)
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during get: {e}"))
+            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error: {e}"))
     except Exception as e:
         logger.error(f"Unexpected error getting documents from '{collection_name}': {e}", exc_info=True)
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during get: {e}"))
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: {str(e)}"))
 
 
 # Restore get all implementation
@@ -709,50 +710,48 @@ async def _update_document_content_impl(input_data: UpdateDocumentContentInput) 
 
 
 async def _update_document_metadata_impl(input_data: UpdateDocumentMetadataInput) -> List[types.TextContent]:
-    """Implementation for updating document metadata."""
-    logger = get_logger("tools.document.update_metadata")
+    """Implementation for updating the metadata of an existing document."""
+    logger = get_logger("tools.document.update")
     collection_name = input_data.collection_name
-    id = input_data.id  # Singular
-    metadata = input_data.metadata  # Singular Dict
+    document_id = input_data.id
+    metadata_str = input_data.metadata  # Now a string
 
     # --- Validation ---
-    validate_collection_name(collection_name)  # Added validation
-    if not id:
-        raise McpError(ErrorData(code=INVALID_PARAMS, message="ID cannot be empty for update."))
-    if metadata is None:  # Check if dict is provided (Pydantic ensures it's a dict if not None)
-        raise McpError(ErrorData(code=INVALID_PARAMS, message="Metadata cannot be empty/null for update."))
+    validate_collection_name(collection_name)
+    if not document_id:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Document ID cannot be empty."))
+    try:
+        metadata_dict = json.loads(metadata_str)
+        if not isinstance(metadata_dict, dict):
+            raise ValueError("Decoded JSON is not a dictionary")
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Invalid JSON format for metadata: {metadata_str} - Error: {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid JSON format for metadata: {e}"))
     # --- End Validation ---
 
-    logger.info(f"Updating metadata for document ID '{id}' in '{collection_name}'.")
+    logger.info(f"Updating metadata for document '{document_id}' in '{collection_name}' with: {metadata_dict}")
     try:
         client = get_chroma_client()
         collection = client.get_collection(name=collection_name)
 
-        logger.info(f"Updating metadata for document ID '{id}' in '{collection_name}'.")
-        # Update takes lists, even for single items
-        collection.update(ids=[id], documents=None, metadatas=[metadata])
+        # Update the metadata
+        collection.update(
+            ids=[document_id],
+            metadatas=[metadata_dict],  # Pass parsed dict in a list
+        )
+        logger.info(f"Successfully requested metadata update for document '{document_id}'.")
 
-        return [types.TextContent(type="text", text=json.dumps({"updated_id": id}))]
-
-    except ValidationError as e:
-        logger.warning(f"Validation error updating document in '{collection_name}': {e}")
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
+        return [types.TextContent(type="text", text=json.dumps({"updated_id": document_id}))]
     except ValueError as e:
         if f"Collection {collection_name} does not exist" in str(e):
             logger.warning(f"Collection '{collection_name}' not found for update.")
             raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
         else:
-            logger.error(f"Value error updating document in '{collection_name}': {e}", exc_info=True)
-            raise McpError(
-                ErrorData(
-                    code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error during update. Details: {e}"
-                )
-            )
+            logger.error(f"Value error updating document '{document_id}' metadata: {e}", exc_info=True)
+            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error: {e}"))
     except Exception as e:
-        logger.error(f"Unexpected error updating document in '{collection_name}': {e}", exc_info=True)
-        raise McpError(
-            ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Failed to update document metadata. {str(e)}")
-        )
+        logger.error(f"Unexpected error updating document '{document_id}' metadata: {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: {str(e)}"))
 
 
 # --- Delete Document Impl Variant (Singular ID) --- #
@@ -869,103 +868,103 @@ async def _query_documents_with_where_filter_impl(
     input_data: QueryDocumentsWithWhereFilterInput,
 ) -> List[types.TextContent]:
     """Implementation for querying documents with a metadata filter."""
-    logger = get_logger("tools.document.query_where")
+    logger = get_logger("tools.document.query")
     collection_name = input_data.collection_name
     query_texts = input_data.query_texts
-    where = input_data.where
-    n_results = input_data.n_results if input_data.n_results is not None else DEFAULT_QUERY_N_RESULTS
-    include = input_data.include
+    where_str = input_data.where  # Now a string
+    n_results = input_data.n_results
+    include_list = input_data.include
 
     # --- Validation ---
-    validate_collection_name(collection_name)  # Added validation
+    validate_collection_name(collection_name)
     if not query_texts:
-        raise McpError(ErrorData(code=INVALID_PARAMS, message="Query texts list cannot be empty."))
-    if not where:  # where is required by Pydantic, but check anyway
-        raise McpError(ErrorData(code=INVALID_PARAMS, message="Where filter cannot be empty for this tool variant."))
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Query texts cannot be empty."))
+    try:
+        where_dict = json.loads(where_str)
+        if not isinstance(where_dict, dict):
+            raise ValueError("Decoded JSON is not a dictionary")
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Invalid JSON format for where filter: {where_str} - Error: {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid JSON format for where filter: {e}"))
     # --- End Validation ---
 
-    logger.info(
-        f"Querying '{collection_name}' with {len(query_texts)} texts, WHERE filter, n_results={n_results}. Include: {include}"
-    )
+    logger.info(f"Querying '{collection_name}' with where filter: {where_dict}")
     try:
         client = get_chroma_client()
-        collection = client.get_collection(name=collection_name)
+        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
 
-        logger.info(
-            f"Querying {len(query_texts)} texts in '{collection_name}' with WHERE filter. N_results: {n_results}, Include: {include}"
-        )
-        results: QueryResult = collection.query(
+        query_result: QueryResult = collection.query(
             query_texts=query_texts,
-            n_results=n_results,
-            where=where,
-            where_document=None,  # Explicitly None
-            include=include or [],
+            n_results=n_results if n_results is not None else DEFAULT_QUERY_N_RESULTS,
+            where=where_dict,  # Pass parsed dict
+            include=include_list if include_list else [],
         )
 
-        serialized_results = json.dumps(results, cls=NumpyEncoder)
-        return [types.TextContent(type="text", text=serialized_results)]
-
+        result_json = json.dumps(query_result, cls=NumpyEncoder, indent=2)
+        return [types.TextContent(type="text", text=result_json)]
     except ValueError as e:
-        if f"Collection {collection_name} does not exist" in str(e):
+        if f"Collection {collection_name} does not exist." in str(e):
             logger.warning(f"Collection '{collection_name}' not found for query.")
             raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
         else:
             logger.error(f"Value error querying '{collection_name}': {e}", exc_info=True)
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during query: {e}"))
+            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error: {e}"))
+    except InvalidDimensionException as e:
+        logger.error(f"Dimension error querying '{collection_name}': {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Invalid dimension. {str(e)}"))
     except Exception as e:
         logger.error(f"Unexpected error querying '{collection_name}': {e}", exc_info=True)
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during query: {e}"))
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: {str(e)}"))
 
 
 async def _query_documents_with_document_filter_impl(
     input_data: QueryDocumentsWithDocumentFilterInput,
 ) -> List[types.TextContent]:
     """Implementation for querying documents with a document content filter."""
-    logger = get_logger("tools.document.query_where_doc")
+    logger = get_logger("tools.document.query")
     collection_name = input_data.collection_name
     query_texts = input_data.query_texts
-    where_document = input_data.where_document
-    n_results = input_data.n_results if input_data.n_results is not None else DEFAULT_QUERY_N_RESULTS
-    include = input_data.include
+    where_document_str = input_data.where_document  # Now a string
+    n_results = input_data.n_results
+    include_list = input_data.include
 
     # --- Validation ---
-    validate_collection_name(collection_name)  # Added validation
+    validate_collection_name(collection_name)
     if not query_texts:
-        raise McpError(ErrorData(code=INVALID_PARAMS, message="Query texts list cannot be empty."))
-    if not where_document:  # where_document is required by Pydantic, but check anyway
-        raise McpError(
-            ErrorData(code=INVALID_PARAMS, message="Where document filter cannot be empty for this tool variant.")
-        )
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="Query texts cannot be empty."))
+    try:
+        where_document_dict = json.loads(where_document_str)
+        if not isinstance(where_document_dict, dict):
+            raise ValueError("Decoded JSON is not a dictionary")
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Invalid JSON format for where_document filter: {where_document_str} - Error: {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid JSON format for where_document filter: {e}"))
     # --- End Validation ---
 
-    logger.info(
-        f"Querying '{collection_name}' with {len(query_texts)} texts, WHERE_DOCUMENT filter, n_results={n_results}. Include: {include}"
-    )
+    logger.info(f"Querying '{collection_name}' with document filter: {where_document_dict}")
     try:
         client = get_chroma_client()
-        collection = client.get_collection(name=collection_name)
+        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
 
-        logger.info(
-            f"Querying {len(query_texts)} texts in '{collection_name}' with document filter. N_results: {n_results}, Include: {include}"
-        )
-        results: QueryResult = collection.query(
+        query_result: QueryResult = collection.query(
             query_texts=query_texts,
-            n_results=n_results,
-            where=None,  # Explicitly None
-            where_document=where_document,
-            include=include or [],
+            n_results=n_results if n_results is not None else DEFAULT_QUERY_N_RESULTS,
+            where_document=where_document_dict,  # Pass parsed dict
+            include=include_list if include_list else [],
         )
 
-        serialized_results = json.dumps(results, cls=NumpyEncoder)
-        return [types.TextContent(type="text", text=serialized_results)]
-
+        result_json = json.dumps(query_result, cls=NumpyEncoder, indent=2)
+        return [types.TextContent(type="text", text=result_json)]
     except ValueError as e:
-        if f"Collection {collection_name} does not exist" in str(e):
+        if f"Collection {collection_name} does not exist." in str(e):
             logger.warning(f"Collection '{collection_name}' not found for query.")
             raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
         else:
             logger.error(f"Value error querying '{collection_name}': {e}", exc_info=True)
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid parameter during query: {e}"))
+            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Unexpected value error: {e}"))
+    except InvalidDimensionException as e:
+        logger.error(f"Dimension error querying '{collection_name}': {e}", exc_info=True)
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: Invalid dimension. {str(e)}"))
     except Exception as e:
         logger.error(f"Unexpected error querying '{collection_name}': {e}", exc_info=True)
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred during query: {e}"))
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: {str(e)}"))

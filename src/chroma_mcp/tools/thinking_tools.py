@@ -69,7 +69,9 @@ class SequentialThinkingInput(BaseModel):
 
 
 class SequentialThinkingWithCustomDataInput(SequentialThinkingInput):
-    custom_data: Dict[str, Any] = Field(description="Dictionary for arbitrary metadata.")
+    custom_data: str = Field(
+        description='Dictionary for arbitrary metadata as a JSON string (e.g., \'{"key": "value"}\').'
+    )
 
 
 class FindSimilarThoughtsInput(BaseModel):
@@ -119,7 +121,7 @@ async def _sequential_thinking_impl(input_data: SequentialThinkingInput) -> type
         A CallToolResult object.
     """
     # Pass custom_data as None explicitly
-    return await _base_sequential_thinking_impl(input_data, custom_data=None)
+    return await _base_sequential_thinking_impl(input_data, custom_data_json=None)
 
 
 # Wrapper for the variant with custom_data
@@ -135,18 +137,18 @@ async def _sequential_thinking_with_custom_data_impl(
         A CallToolResult object.
     """
     # Extract custom_data and pass it to the base implementation
-    return await _base_sequential_thinking_impl(input_data, custom_data=input_data.custom_data)
+    return await _base_sequential_thinking_impl(input_data, custom_data_json=input_data.custom_data)
 
 
 # Base implementation (renamed from original _sequential_thinking_impl)
 async def _base_sequential_thinking_impl(
-    input_data: SequentialThinkingInput, custom_data: Optional[Dict[str, Any]]
+    input_data: SequentialThinkingInput, custom_data_json: Optional[str]
 ) -> types.CallToolResult:
     """Base implementation for recording a thought.
 
     Args:
         input_data: A SequentialThinkingInput (or subclass that conforms) object.
-        custom_data: The custom data dictionary (can be None).
+        custom_data_json: The custom data as a JSON string (can be None).
 
     Returns:
         A CallToolResult object.
@@ -162,7 +164,24 @@ async def _base_sequential_thinking_impl(
         branch_id = input_data.branch_id  # Could be None
         branch_from_thought = input_data.branch_from_thought  # Could be None
         next_thought_needed = input_data.next_thought_needed  # Has default
-        # custom_data is now passed as an argument
+        # custom_data_json is now passed as an argument
+
+        # --- Parse Custom Data JSON --- #
+        parsed_custom_data: Optional[Dict[str, Any]] = None
+        if custom_data_json:
+            try:
+                parsed_custom_data = json.loads(custom_data_json)
+                if not isinstance(parsed_custom_data, dict):
+                    raise ValueError("Custom data string must decode to a JSON object (dictionary).")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse custom_data JSON string: {e}")
+                raise McpError(
+                    ErrorData(code=INVALID_PARAMS, message=f"Invalid JSON format for custom_data string: {str(e)}")
+                )
+            except ValueError as e:  # Catch the isinstance check
+                logger.warning(f"Custom data did not decode to a dictionary: {e}")
+                raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e)))
+        # --- End Parsing --- #
 
         effective_session_id = session_id if session_id else str(uuid.uuid4())
         timestamp = int(time.time())
@@ -174,7 +193,7 @@ async def _base_sequential_thinking_impl(
             branch_from_thought=branch_from_thought,
             branch_id=branch_id,
             next_thought_needed=next_thought_needed,
-            custom_data=custom_data,  # Use passed custom_data argument
+            custom_data=parsed_custom_data,  # Use parsed custom_data dict
         )
 
         client = get_chroma_client()
@@ -327,10 +346,14 @@ async def _base_sequential_thinking_impl(
         )
     except McpError as e:  # Catch known McpError
         logger.error(f"MCP Error during sequential thinking: {e}", exc_info=True)
+        # Attempt to get the ErrorData object passed during creation
+        error_data_obj = (
+            e.args[0] if e.args and isinstance(e.args[0], ErrorData) else ErrorData(code=INTERNAL_ERROR, message=str(e))
+        )
         return types.CallToolResult(
             isError=True,
             content=[types.TextContent(type="text", text=str(e))],
-            errorData=e.error_data,
+            errorData=error_data_obj,  # Use the retrieved/constructed ErrorData
         )
     except Exception as e:
         logger.error(f"Unexpected error during sequential thinking: {e}", exc_info=True)

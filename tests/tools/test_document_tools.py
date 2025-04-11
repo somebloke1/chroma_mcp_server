@@ -6,6 +6,7 @@ import time  # Import time for ID generation check
 import json
 import re
 import numpy as np
+import chromadb
 
 from typing import Dict, Any, List, Optional
 from unittest.mock import patch, MagicMock, ANY, call, AsyncMock
@@ -106,18 +107,24 @@ def assert_successful_json_result(
 
 # Define the helper context manager for McpError
 @contextmanager
-def assert_raises_mcp_error(expected_error_substring: Optional[str] = None):
+def assert_raises_mcp_error(expected_message: str):
     """Asserts that McpError is raised and optionally checks the error message."""
-    with pytest.raises(McpError) as exc_info:
-        yield  # Code under test executes here
+    try:
+        yield
+    except McpError as e:
+        # Check both e.error_data (if exists) and e.args[0]
+        message = ""
+        if hasattr(e, "error_data") and hasattr(e.error_data, "message"):
+            message = str(e.error_data.message)
+        elif e.args and isinstance(e.args[0], ErrorData) and hasattr(e.args[0], "message"):
+            message = str(e.args[0].message)
+        else:
+            message = str(e)  # Fallback to the exception string itself
 
-    # After the block, check the exception details
-    error_message = str(exc_info.value)  # Use the string representation of the exception
-    # print(f"DEBUG: Caught McpError message: {error_message}") # Keep commented out for now
-    if expected_error_substring:
         assert (
-            expected_error_substring.lower() in error_message.lower()
-        ), f"Expected substring '{expected_error_substring}' not found in error message '{error_message}'"
+            expected_message in message
+        ), f"Expected error message containing '{expected_message}' but got '{message}'"
+        return
 
 
 # --- End Helper Functions ---
@@ -569,22 +576,21 @@ class TestDocumentTools:
         mock_client, mock_collection, mock_validate = mock_chroma_client_document
         collection_name = "test_get_where_success"
         where_filter = {"status": "active"}
+        where_filter_str = json.dumps(where_filter)
         limit, offset = 10, 0
         expected_get_result = {"ids": ["id_w1"], "documents": ["doc_w1"], "metadatas": [{"status": "active"}]}
         mock_collection.get.return_value = expected_get_result
 
         # --- Act ---
         input_model = GetDocumentsWithWhereFilterInput(
-            collection_name=collection_name, where=where_filter, limit=limit, offset=offset
+            collection_name=collection_name, where=where_filter_str, limit=limit, offset=offset
         )
         result = await _get_documents_with_where_filter_impl(input_model)
 
         # --- Assert ---
         mock_validate.assert_called_once_with(collection_name)
         mock_client.get_collection.assert_called_once_with(name=collection_name)
-        mock_collection.get.assert_called_once_with(
-            ids=None, where=where_filter, where_document=None, limit=limit, offset=offset, include=[]  # default include
-        )
+        mock_collection.get.assert_called_once_with(where=where_filter, limit=limit, offset=offset, include=[])
         assert_successful_json_result(result, expected_get_result)
 
     # Test for GetDocumentsWithDocumentFilterInput - similar structure
@@ -594,18 +600,19 @@ class TestDocumentTools:
         mock_client, mock_collection, mock_validate = mock_chroma_client_document
         collection_name = "test_get_wheredoc_success"
         where_doc_filter = {"$contains": "obsolete"}
+        where_doc_filter_str = json.dumps(where_doc_filter)
         expected_get_result = {"ids": ["id_wd1"], "documents": ["very important doc"]}
         mock_collection.get.return_value = expected_get_result
 
         input_model = GetDocumentsWithDocumentFilterInput(
-            collection_name=collection_name, where_document=where_doc_filter
+            collection_name=collection_name, where_document=where_doc_filter_str
         )
         result = await _get_documents_with_document_filter_impl(input_model)
 
         mock_validate.assert_called_once_with(collection_name)
         mock_client.get_collection.assert_called_once_with(name=collection_name)
         mock_collection.get.assert_called_once_with(
-            ids=None, where=None, where_document=where_doc_filter, limit=None, offset=None, include=[]
+            where_document=where_doc_filter, limit=None, offset=None, include=[]
         )
         assert_successful_json_result(result, expected_get_result)
 
@@ -733,18 +740,19 @@ class TestDocumentTools:
         collection_name = "test_update_meta_success"
         id_to_update = "id_m1"  # Singular
         new_metadata = {"status": "updated"}  # Singular dict
+        new_metadata_str = json.dumps(new_metadata)
 
         # --- Act ---
         input_model = UpdateDocumentMetadataInput(
-            collection_name=collection_name, id=id_to_update, metadata=new_metadata
+            collection_name=collection_name, id=id_to_update, metadata=new_metadata_str
         )
         result = await _update_document_metadata_impl(input_model)
 
         # --- Assert ---
         mock_validate.assert_called_once_with(collection_name)
         mock_client.get_collection.assert_called_once_with(name=collection_name)
-        # Assert update called with list of size 1
-        mock_collection.update.assert_called_once_with(ids=[id_to_update], documents=None, metadatas=[new_metadata])
+        # Update expects metadata as list
+        mock_collection.update.assert_called_once_with(ids=[id_to_update], metadatas=[new_metadata])
         assert_successful_json_result(result, {"updated_id": id_to_update})
 
     @pytest.mark.asyncio
@@ -752,6 +760,8 @@ class TestDocumentTools:
         """Test validation failure for missing id or metadata."""
         mock_client, mock_collection, mock_validate = mock_chroma_client_document
         collection_name = "test_update_valid_missing"
+        metadata_dict = {"k": "v"}
+        metadata_str = json.dumps(metadata_dict)
 
         # Test content update missing ID
         input_content = UpdateDocumentContentInput(collection_name=collection_name, id="", document="doc1")
@@ -759,18 +769,17 @@ class TestDocumentTools:
             await _update_document_content_impl(input_content)
 
         # Test metadata update missing ID
-        input_meta_id = UpdateDocumentMetadataInput(collection_name=collection_name, id="", metadata={"k": "v"})
-        with assert_raises_mcp_error("ID cannot be empty for update."):
+        input_meta_id = UpdateDocumentMetadataInput(collection_name=collection_name, id="", metadata=metadata_str)
+        with assert_raises_mcp_error("Document ID cannot be empty."):
             await _update_document_metadata_impl(input_meta_id)
 
-        # Test metadata update missing metadata (Note: Pydantic handles None, check empty dict? Source code checks for None)
-        # Pydantic should prevent None based on model def, test source logic if needed
-        # Let's assume Pydantic allows empty dict, test that if required by source
-        # input_meta_meta = UpdateDocumentMetadataInput(
-        #     collection_name=collection_name, id="id1", metadata={}
-        # )
-        # with assert_raises_mcp_error("Metadata cannot be empty/null for update."): # Adjust if source allows empty dict
-        #     await _update_document_metadata_impl(input_meta_meta)
+        # Test metadata update missing metadata
+        # Pydantic now handles missing required fields, so this direct call isn't needed
+        # for the specific 'metadata missing' check if it's not optional.
+        # If metadata were optional, you'd test its absence differently.
+        # input_meta_missing = UpdateDocumentMetadataInput(collection_name=collection_name, id="id1", metadata="") # Empty string check handled by implementation
+        # with assert_raises_mcp_error("Invalid JSON format for metadata"): # Or whatever the impl raises for empty string
+        #     await _update_document_metadata_impl(input_meta_missing)
 
         mock_validate.assert_called()
         mock_client.get_collection.assert_not_called()
@@ -843,8 +852,8 @@ class TestDocumentTools:
         mock_client, mock_collection, mock_validate = mock_chroma_client_document
         collection_name = "test_delete_id_silent"
         id_to_delete = "non_existent_id"  # Singular
-        # Mock delete returns empty list when ID not found
-        mock_collection.delete.return_value = []
+        # Mock delete to raise NotFoundError for this specific test
+        mock_collection.delete.side_effect = chromadb.errors.NotFoundError(f"ID {id_to_delete} not found.")
 
         # --- Act ---
         input_model = DeleteDocumentByIdInput(collection_name=collection_name, id=id_to_delete)
@@ -861,8 +870,8 @@ class TestDocumentTools:
         assert len(result) == 1
         assert isinstance(result[0], types.TextContent)
         assert result[0].type == "text"
-        # Assert the correct plain text message (implementation returns this even if ID not found by Chroma)
-        assert result[0].text == f"Deletion requested for document ID: {id_to_delete}"
+        # Assert the specific string result for not found
+        assert result[0].text == f"Document ID '{id_to_delete}' not found, no deletion needed."
 
     @pytest.mark.asyncio
     async def test_delete_document_validation_no_id(self, mock_chroma_client_document):

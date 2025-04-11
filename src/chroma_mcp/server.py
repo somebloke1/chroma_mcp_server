@@ -360,141 +360,136 @@ async def list_tools() -> List[types.Tool]:
         # Collection Tools
         types.Tool(
             name=TOOL_NAMES["CREATE_COLLECTION"],
-            description="Create a new ChromaDB collection using server default settings.",
+            description="Create a new ChromaDB collection using server default settings. Requires: `collection_name`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["CREATE_COLLECTION"]].model_json_schema(),
         ),
-        # --- Re-enable the metadata tool --- #
         types.Tool(
             name=TOOL_NAMES["CREATE_COLLECTION_WITH_META"],
-            description="Create a new ChromaDB collection with specific metadata/settings provided (as JSON string).",
-            inputSchema=INPUT_MODELS[
-                TOOL_NAMES["CREATE_COLLECTION_WITH_META"]
-            ].model_json_schema(),  # Schema now expects a string
+            description="Create a new ChromaDB collection with specific metadata/settings provided. Requires: `collection_name`, `metadata` (JSON string).",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["CREATE_COLLECTION_WITH_META"]].model_json_schema(),
         ),
-        # --- End Re-enable --- #
         types.Tool(
             name=TOOL_NAMES["LIST_COLLECTIONS"],
-            description="List all collections with optional filtering and pagination.",
+            description="List all collections. Optional: `limit`, `offset`, `name_contains`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["LIST_COLLECTIONS"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["GET_COLLECTION"],
-            description="Get information about a specific collection.",
+            description="Get information about a specific collection. Requires: `collection_name`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["GET_COLLECTION"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["RENAME_COLLECTION"],
-            description="Renames an existing collection.",
+            description="Renames an existing collection. Requires: `collection_name`, `new_name`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["RENAME_COLLECTION"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["DELETE_COLLECTION"],
-            description="Delete a collection.",
+            description="Delete a collection. Requires: `collection_name`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["DELETE_COLLECTION"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["PEEK_COLLECTION"],
-            description="Get a sample of documents from a collection.",
+            description="Get a sample of documents from a collection. Requires: `collection_name`. Optional: `limit`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["PEEK_COLLECTION"]].model_json_schema(),
         ),
         # Document Tools
         types.Tool(
             name=TOOL_NAMES["ADD_DOCS"],
-            description="Add documents to a collection (auto-generates IDs, no metadata).",
+            description="Add a document (auto-generates ID, no metadata). Requires: `collection_name`, `document`. Optional: `increment_index`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["ADD_DOCS"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["ADD_DOCS_IDS"],
-            description="Add documents with specified IDs to a collection (no metadata).",
+            description="Add a document with a specified ID (no metadata). Requires: `collection_name`, `document`, `id`. Optional: `increment_index`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["ADD_DOCS_IDS"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["ADD_DOCS_META"],
-            description="Add documents with specified metadata to a collection (auto-generates IDs).",
+            description="Add a document with specified metadata (auto-generates ID). Requires: `collection_name`, `document`, `metadata` (JSON string). Optional: `increment_index`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["ADD_DOCS_META"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["ADD_DOCS_IDS_META"],
-            description="Add documents with specified IDs and metadata to a collection.",
+            description="Add a document with specified ID and metadata. Requires: `collection_name`, `document`, `id`, `metadata` (JSON string). Optional: `increment_index`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["ADD_DOCS_IDS_META"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["QUERY_DOCS"],
-            description="Query documents using semantic search (no filters).",
+            description="Query documents using semantic search (no filters). Requires: `collection_name`, `query_texts`. Optional: `n_results`, `include`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["QUERY_DOCS"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["QUERY_DOCS_WHERE"],
-            description="Query documents using semantic search with a metadata filter.",
+            description="Query documents using semantic search with a metadata filter. Requires: `collection_name`, `query_texts`, `where`. Optional: `n_results`, `include`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["QUERY_DOCS_WHERE"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["QUERY_DOCS_DOC"],
-            description="Query documents using semantic search with a document content filter.",
+            description="Query documents using semantic search with a document content filter. Requires: `collection_name`, `query_texts`, `where_document`. Optional: `n_results`, `include`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["QUERY_DOCS_DOC"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["GET_DOCS_IDS"],
-            description="Get documents from a collection by specific IDs.",
+            description="Get documents from a collection by specific IDs. Requires: `collection_name`, `ids`. Optional: `include`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_IDS"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["GET_DOCS_WHERE"],
-            description="Get documents from a collection using a metadata filter.",
+            description="Get documents from a collection using a metadata filter. Requires: `collection_name`, `where`. Optional: `limit`, `offset`, `include`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_WHERE"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["GET_DOCS_DOC"],
-            description="Get documents from a collection using a document content filter.",
+            description="Get documents from a collection using a document content filter. Requires: `collection_name`, `where_document`. Optional: `limit`, `offset`, `include`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_DOC"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["GET_DOCS_ALL"],
-            description="Get all documents from a collection (optional limit/offset).",
+            description="Get all documents from a collection. Requires: `collection_name`. Optional: `limit`, `offset`, `include`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_ALL"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["DELETE_DOCS"],
-            description="Delete documents from a collection by specific IDs.",
+            description="Delete a document from a collection by its specific ID. Requires: `collection_name`, `id`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["DELETE_DOCS"]].model_json_schema(),
         ),
         # Update Document Variants
         types.Tool(
             name=TOOL_NAMES["UPDATE_DOC_CONTENT"],
-            description="Update the content of existing documents by ID.",
+            description="Update the content of an existing document by ID. Requires: `collection_name`, `id`, `document`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["UPDATE_DOC_CONTENT"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["UPDATE_DOC_META"],
-            description="Update the metadata of existing documents by ID.",
+            description="Update the metadata of an existing document by ID. Requires: `collection_name`, `id`, `metadata` (dict).",
             inputSchema=INPUT_MODELS[TOOL_NAMES["UPDATE_DOC_META"]].model_json_schema(),
         ),
         # Thinking Tools
         types.Tool(
             name=TOOL_NAMES["SEQ_THINKING"],
-            description="Records a single thought as part of a sequential thinking process or workflow.",
+            description="Records a single thought. Requires: `thought`, `thought_number`, `total_thoughts`. Optional: `session_id`, `branch_id`, `branch_from_thought`, `next_thought_needed`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["SEQ_THINKING"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["FIND_THOUGHTS"],
-            description="Finds thoughts across one or all sessions that are semantically similar to a given query.",
+            description="Finds thoughts semantically similar to a query. Requires: `query`. Optional: `session_id`, `n_results`, `threshold`, `include_branches`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["FIND_THOUGHTS"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["GET_SUMMARY"],
-            description="Retrieves all thoughts recorded within a specific thinking session, ordered sequentially.",
+            description="Retrieves all thoughts recorded within a specific thinking session. Requires: `session_id`. Optional: `include_branches`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["GET_SUMMARY"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["FIND_SESSIONS"],
-            description="Finds thinking sessions whose overall content is semantically similar to a given query.",
+            description="Finds thinking sessions similar to a query. Requires: `query`. Optional: `n_results`, `threshold`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["FIND_SESSIONS"]].model_json_schema(),
         ),
-        # Utility Tool (Corrected Input Schema)
+        # Utility Tool
         types.Tool(
             name=TOOL_NAMES["GET_VERSION"],
-            description="Return the installed version of the chroma-mcp-server package.",
-            # Use a valid schema for an object with no properties
+            description="Return the installed version of the chroma-mcp-server package. Takes no parameters.",
             inputSchema={
                 "type": "object",
                 "properties": {},
@@ -534,13 +529,15 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
         except importlib.metadata.PackageNotFoundError as e:
             logger.error(f"Error getting server version: {str(e)}", exc_info=True)
             # Raise exception for Server to handle
-            raise McpError(ErrorData(code=INTERNAL_ERROR, message="Tool Error: chroma-mcp-server package not found."))
+            error_data = ErrorData(code=INTERNAL_ERROR, message="Tool Error: chroma-mcp-server package not found.")
+            raise McpError(error_data)
         except Exception as e:
             logger.error(f"Error getting server version: {str(e)}", exc_info=True)
             # Raise exception for Server to handle
-            raise McpError(
-                ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Could not get server version. Details: {str(e)}")
+            error_data = ErrorData(
+                code=INTERNAL_ERROR, message=f"Tool Error: Could not get server version. Details: {str(e)}"
             )
+            raise McpError(error_data)
 
     # --- Get Pydantic Model and Implementation Function --- >
     InputModel = INPUT_MODELS.get(name)
@@ -548,8 +545,9 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
 
     if not InputModel or not impl_function:
         logger.error(f"Unknown tool name received: {name}")
-        # Raise exception for Server to handle
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Unknown tool name '{name}'"))
+        # Raise exception for Server to handle, wrapping ErrorData
+        error_data = ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Unknown tool name '{name}'")
+        raise McpError(error_data)
 
     # --- Pydantic Validation --- >
     try:
@@ -558,7 +556,9 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
         logger.debug(f"Validation successful for {name}")
     except ValidationError as e:
         logger.warning(f"Input validation failed for {name}: {e}")
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Input Error: {str(e)}"))
+        # Wrap Pydantic error message in McpError with ErrorData
+        error_data = ErrorData(code=INVALID_PARAMS, message=f"Input Error: {str(e)}")
+        raise McpError(error_data)
 
     # --- Call Core Logic --- >
     logger.debug(f"Calling implementation function for {name}")
@@ -616,13 +616,18 @@ def main() -> None:
         if logger:
             logger.error(f"MCP Error: {str(e)}")
         # Re-raise McpError to potentially be caught by CLI
-        raise
+        # Ensure ErrorData is propagated if available, otherwise use the message
+        err_data = (
+            e.args[0] if e.args and isinstance(e.args[0], ErrorData) else ErrorData(code=INTERNAL_ERROR, message=str(e))
+        )
+        raise McpError(err_data)
     except Exception as e:
         error_msg = f"Critical error running MCP server: {str(e)}"
         if logger:
             logger.error(error_msg)
         # Convert unexpected errors to McpError for consistent exit
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=error_msg))
+        err_data = ErrorData(code=INTERNAL_ERROR, message=error_msg)
+        raise McpError(err_data)
 
 
 if __name__ == "__main__":

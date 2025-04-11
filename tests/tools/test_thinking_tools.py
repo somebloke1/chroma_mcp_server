@@ -4,6 +4,7 @@ import pytest
 import uuid
 import time
 import json
+from contextlib import contextmanager
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -65,6 +66,31 @@ def assert_error_result(result: types.CallToolResult, expected_error_substring: 
     assert isinstance(result.content[0], types.TextContent)
     assert result.content[0].type == "text"
     assert expected_error_substring in result.content[0].text
+
+
+# Context manager to assert McpError is raised
+@contextmanager
+def assert_raises_mcp_error(expected_message: str):
+    """Context manager to check if a specific McpError is raised."""
+    try:
+        yield
+    except McpError as e:
+        # Check both e.error_data (if exists) and e.args[0]
+        message = ""
+        if hasattr(e, "error_data") and hasattr(e.error_data, "message"):
+            message = str(e.error_data.message)
+        elif e.args and isinstance(e.args[0], ErrorData) and hasattr(e.args[0], "message"):
+            message = str(e.args[0].message)
+        else:
+            message = str(e)  # Fallback to the exception string itself
+
+        assert (
+            expected_message in message
+        ), f"Expected error message containing '{expected_message}' but got '{message}'"
+        return
+    except Exception as e:
+        pytest.fail(f"Expected McpError but got {type(e).__name__}: {e}")
+    pytest.fail("Expected McpError but no exception was raised.")
 
 
 # --- End Helper Functions ---
@@ -212,7 +238,8 @@ class TestThinkingTools:
 
         session_id = "branch_session"
         thought = "Alternative idea"
-        custom_data = {"rating": 5, "approved": True}
+        custom_data_dict = {"rating": 5, "approved": True}
+        custom_data_json = json.dumps(custom_data_dict)
 
         # ACT
         # FIX: Use the correct input model and implementation function for custom data
@@ -223,7 +250,7 @@ class TestThinkingTools:
             session_id=session_id,
             branch_from_thought=1,
             branch_id="alt_path",
-            custom_data=custom_data,  # This is now a defined field
+            custom_data=custom_data_json,  # Pass the JSON string
         )
         # FIX: Call the correct implementation wrapper
         result = await _sequential_thinking_with_custom_data_impl(input_model)
@@ -279,6 +306,35 @@ class TestThinkingTools:
         # If the function remains, ensure it passes or skip it
         # This test might become obsolete if all validation is purely Pydantic
         assert True  # Placeholder if no specific _impl validation to test
+
+    @pytest.mark.asyncio
+    async def test_sequential_thinking_invalid_custom_json(self, mock_chroma_client_thinking):
+        """Test recording a thought with invalid custom_data JSON."""
+        mock_client, mock_collection, _ = mock_chroma_client_thinking
+
+        session_id = "invalid_json_session"
+        thought = "Idea with bad custom data"
+        invalid_json_string = '{"key": "value"'  # Missing closing brace
+
+        # ACT
+        input_model = SequentialThinkingWithCustomDataInput(
+            thought=thought,
+            thought_number=1,
+            total_thoughts=1,
+            session_id=session_id,
+            custom_data=invalid_json_string,  # Pass invalid JSON
+        )
+
+        # ASSERT
+        # The function now catches the McpError internally and returns CallToolResult
+        # So, we don't use assert_raises_mcp_error anymore.
+        # with assert_raises_mcp_error("Invalid JSON format for custom_data string"):
+        #    await _sequential_thinking_with_custom_data_impl(input_model)
+        result = await _sequential_thinking_with_custom_data_impl(input_model)
+        assert_error_result(result, "Invalid JSON format for custom_data string")
+
+        # Ensure add was not called
+        mock_collection.add.assert_not_called()
 
     # --- _find_similar_thoughts_impl Tests ---
     @pytest.mark.asyncio  # Mark as async

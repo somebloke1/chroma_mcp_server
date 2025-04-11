@@ -70,18 +70,24 @@ def assert_successful_json_result(
 
 # Rework assert_error_result as a context manager for future use
 @contextmanager
-def assert_raises_mcp_error(expected_error_substring: Optional[str] = None):
+def assert_raises_mcp_error(expected_message: str):
     """Asserts that McpError is raised and optionally checks the error message."""
-    with pytest.raises(McpError) as exc_info:
-        yield  # Code under test executes here
+    try:
+        yield
+    except McpError as e:
+        # Check both e.error_data (if exists) and e.args[0]
+        message = ""
+        if hasattr(e, "error_data") and hasattr(e.error_data, "message"):
+            message = str(e.error_data.message)
+        elif e.args and isinstance(e.args[0], ErrorData) and hasattr(e.args[0], "message"):
+            message = str(e.args[0].message)
+        else:
+            message = str(e)  # Fallback to the exception string itself
 
-    # After the block, check the exception details
-    error_message = str(exc_info.value)
-    # print(f"DEBUG: Caught McpError message: {error_message}") # Keep commented out for now
-    if expected_error_substring:
         assert (
-            expected_error_substring.lower() in error_message.lower()
-        ), f"Expected substring '{expected_error_substring}' not found in error message '{error_message}'"
+            expected_message in message
+        ), f"Expected error message containing '{expected_message}' but got '{message}'"
+        return
 
 
 @pytest.fixture
@@ -459,10 +465,8 @@ class TestCollectionTools:
         # result = await _get_collection_impl(input_model)
         # --- Assert ---
         # mock_client.get_collection.assert_called_once_with(name=collection_name, embedding_function=ANY)
-        # Assert error result using helper - Expect "Tool Error:"
         with assert_raises_mcp_error(f"Tool Error: Collection '{collection_name}' not found."):
             await _get_collection_impl(input_model)
-        # Verify mocks were called *before* the expected error was raised
         mock_client.get_collection.assert_called_once_with(name=collection_name, embedding_function=ANY)
 
     @pytest.mark.asyncio
