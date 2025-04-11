@@ -46,24 +46,32 @@ from mcp import types  # Import base MCP types
 # Import all Pydantic input models
 from .tools.collection_tools import (
     CreateCollectionInput,
+    CreateCollectionWithMetadataInput,
     ListCollectionsInput,
     GetCollectionInput,
-    SetCollectionDescriptionInput,
-    SetCollectionSettingsInput,
-    UpdateCollectionMetadataInput,
     RenameCollectionInput,
     DeleteCollectionInput,
     PeekCollectionInput,
 )
 from .tools.document_tools import (
-    AddDocumentsInput,
+    AddDocumentInput,
+    AddDocumentWithIDInput,
+    AddDocumentWithMetadataInput,
+    AddDocumentWithIDAndMetadataInput,
     QueryDocumentsInput,
-    GetDocumentsInput,
-    UpdateDocumentsInput,
-    DeleteDocumentsInput,
+    QueryDocumentsWithWhereFilterInput,
+    QueryDocumentsWithDocumentFilterInput,
+    GetDocumentsByIdsInput,
+    GetDocumentsWithWhereFilterInput,
+    GetDocumentsWithDocumentFilterInput,
+    GetAllDocumentsInput,
+    UpdateDocumentContentInput,
+    UpdateDocumentMetadataInput,
+    DeleteDocumentByIdInput,
 )
 from .tools.thinking_tools import (
     SequentialThinkingInput,
+    SequentialThinkingWithCustomDataInput,
     FindSimilarThoughtsInput,
     GetSessionSummaryInput,
     FindSimilarSessionsInput,
@@ -72,24 +80,32 @@ from .tools.thinking_tools import (
 # Import all _impl functions
 from .tools.collection_tools import (
     _create_collection_impl,
+    _create_collection_with_metadata_impl,
     _list_collections_impl,
     _get_collection_impl,
-    _set_collection_description_impl,
-    _set_collection_settings_impl,
-    _update_collection_metadata_impl,
     _rename_collection_impl,
     _delete_collection_impl,
     _peek_collection_impl,
 )
 from .tools.document_tools import (
-    _add_documents_impl,
+    _add_document_impl,
+    _add_document_with_id_impl,
+    _add_document_with_metadata_impl,
+    _add_document_with_id_and_metadata_impl,
     _query_documents_impl,
-    _get_documents_impl,
-    _update_documents_impl,
-    _delete_documents_impl,
+    _query_documents_with_where_filter_impl,
+    _query_documents_with_document_filter_impl,
+    _get_documents_by_ids_impl,
+    _get_documents_with_where_filter_impl,
+    _get_documents_with_document_filter_impl,
+    _get_all_documents_impl,
+    _update_document_content_impl,
+    _update_document_metadata_impl,
+    _delete_document_by_id_impl,
 )
 from .tools.thinking_tools import (
     _sequential_thinking_impl,
+    _sequential_thinking_with_custom_data_impl,
     _find_similar_thoughts_impl,
     _get_session_summary_impl,
     _find_similar_sessions_impl,
@@ -244,70 +260,94 @@ def config_server(args: argparse.Namespace) -> None:
 # Tool names dictionary for consistency
 TOOL_NAMES = {
     "CREATE_COLLECTION": "chroma_create_collection",
+    "CREATE_COLLECTION_WITH_META": "chroma_create_collection_with_metadata",
     "LIST_COLLECTIONS": "chroma_list_collections",
     "GET_COLLECTION": "chroma_get_collection",
-    "SET_COLLECTION_DESC": "chroma_set_collection_description",
-    "SET_COLLECTION_SETTINGS": "chroma_set_collection_settings",
-    "UPDATE_COLLECTION_META": "chroma_update_collection_metadata",
     "RENAME_COLLECTION": "chroma_rename_collection",
     "DELETE_COLLECTION": "chroma_delete_collection",
     "PEEK_COLLECTION": "chroma_peek_collection",
-    "ADD_DOCS": "chroma_add_documents",
+    "ADD_DOCS": "chroma_add_document",
+    "ADD_DOCS_IDS": "chroma_add_document_with_id",
+    "ADD_DOCS_META": "chroma_add_document_with_metadata",
+    "ADD_DOCS_IDS_META": "chroma_add_document_with_id_and_metadata",
     "QUERY_DOCS": "chroma_query_documents",
-    "GET_DOCS": "chroma_get_documents",
-    "UPDATE_DOCS": "chroma_update_documents",
-    "DELETE_DOCS": "chroma_delete_documents",
+    "QUERY_DOCS_WHERE": "chroma_query_documents_with_where_filter",
+    "QUERY_DOCS_DOC": "chroma_query_documents_with_document_filter",
+    "GET_DOCS_IDS": "chroma_get_documents_by_ids",
+    "GET_DOCS_WHERE": "chroma_get_documents_with_where_filter",
+    "GET_DOCS_DOC": "chroma_get_documents_with_document_filter",
+    "GET_DOCS_ALL": "chroma_get_all_documents",
+    "DELETE_DOCS": "chroma_delete_document_by_id",
     "SEQ_THINKING": "chroma_sequential_thinking",
+    "SEQ_THINKING_CUSTOM": "chroma_sequential_thinking_with_custom_data",
     "FIND_THOUGHTS": "chroma_find_similar_thoughts",
     "GET_SUMMARY": "chroma_get_session_summary",
     "FIND_SESSIONS": "chroma_find_similar_sessions",
     "GET_VERSION": "chroma_get_server_version",
+    "UPDATE_DOC_CONTENT": "chroma_update_document_content",
+    "UPDATE_DOC_META": "chroma_update_document_metadata",
 }
 
 # Pydantic models mapping
 INPUT_MODELS = {
     TOOL_NAMES["CREATE_COLLECTION"]: CreateCollectionInput,
+    TOOL_NAMES["CREATE_COLLECTION_WITH_META"]: CreateCollectionWithMetadataInput,
     TOOL_NAMES["LIST_COLLECTIONS"]: ListCollectionsInput,
     TOOL_NAMES["GET_COLLECTION"]: GetCollectionInput,
-    TOOL_NAMES["SET_COLLECTION_DESC"]: SetCollectionDescriptionInput,
-    TOOL_NAMES["SET_COLLECTION_SETTINGS"]: SetCollectionSettingsInput,
-    TOOL_NAMES["UPDATE_COLLECTION_META"]: UpdateCollectionMetadataInput,
     TOOL_NAMES["RENAME_COLLECTION"]: RenameCollectionInput,
     TOOL_NAMES["DELETE_COLLECTION"]: DeleteCollectionInput,
     TOOL_NAMES["PEEK_COLLECTION"]: PeekCollectionInput,
-    TOOL_NAMES["ADD_DOCS"]: AddDocumentsInput,
+    TOOL_NAMES["ADD_DOCS"]: AddDocumentInput,
+    TOOL_NAMES["ADD_DOCS_IDS"]: AddDocumentWithIDInput,
+    TOOL_NAMES["ADD_DOCS_META"]: AddDocumentWithMetadataInput,
+    TOOL_NAMES["ADD_DOCS_IDS_META"]: AddDocumentWithIDAndMetadataInput,
     TOOL_NAMES["QUERY_DOCS"]: QueryDocumentsInput,
-    TOOL_NAMES["GET_DOCS"]: GetDocumentsInput,
-    TOOL_NAMES["UPDATE_DOCS"]: UpdateDocumentsInput,
-    TOOL_NAMES["DELETE_DOCS"]: DeleteDocumentsInput,
+    TOOL_NAMES["QUERY_DOCS_WHERE"]: QueryDocumentsWithWhereFilterInput,
+    TOOL_NAMES["QUERY_DOCS_DOC"]: QueryDocumentsWithDocumentFilterInput,
+    TOOL_NAMES["GET_DOCS_IDS"]: GetDocumentsByIdsInput,
+    TOOL_NAMES["GET_DOCS_WHERE"]: GetDocumentsWithWhereFilterInput,
+    TOOL_NAMES["GET_DOCS_DOC"]: GetDocumentsWithDocumentFilterInput,
+    TOOL_NAMES["GET_DOCS_ALL"]: GetAllDocumentsInput,
+    TOOL_NAMES["DELETE_DOCS"]: DeleteDocumentByIdInput,
     TOOL_NAMES["SEQ_THINKING"]: SequentialThinkingInput,
+    TOOL_NAMES["SEQ_THINKING_CUSTOM"]: SequentialThinkingWithCustomDataInput,
     TOOL_NAMES["FIND_THOUGHTS"]: FindSimilarThoughtsInput,
     TOOL_NAMES["GET_SUMMARY"]: GetSessionSummaryInput,
     TOOL_NAMES["FIND_SESSIONS"]: FindSimilarSessionsInput,
-    # GET_VERSION has no input model
+    TOOL_NAMES["UPDATE_DOC_CONTENT"]: UpdateDocumentContentInput,
+    TOOL_NAMES["UPDATE_DOC_META"]: UpdateDocumentMetadataInput,
+    TOOL_NAMES["GET_VERSION"]: None,  # GET_VERSION has no input model
 }
 
 # Tool implementation function mapping
 IMPL_FUNCTIONS = {
     TOOL_NAMES["CREATE_COLLECTION"]: _create_collection_impl,
+    TOOL_NAMES["CREATE_COLLECTION_WITH_META"]: _create_collection_with_metadata_impl,
     TOOL_NAMES["LIST_COLLECTIONS"]: _list_collections_impl,
     TOOL_NAMES["GET_COLLECTION"]: _get_collection_impl,
-    TOOL_NAMES["SET_COLLECTION_DESC"]: _set_collection_description_impl,
-    TOOL_NAMES["SET_COLLECTION_SETTINGS"]: _set_collection_settings_impl,
-    TOOL_NAMES["UPDATE_COLLECTION_META"]: _update_collection_metadata_impl,
     TOOL_NAMES["RENAME_COLLECTION"]: _rename_collection_impl,
     TOOL_NAMES["DELETE_COLLECTION"]: _delete_collection_impl,
     TOOL_NAMES["PEEK_COLLECTION"]: _peek_collection_impl,
-    TOOL_NAMES["ADD_DOCS"]: _add_documents_impl,
+    TOOL_NAMES["ADD_DOCS"]: _add_document_impl,
+    TOOL_NAMES["ADD_DOCS_IDS"]: _add_document_with_id_impl,
+    TOOL_NAMES["ADD_DOCS_META"]: _add_document_with_metadata_impl,
+    TOOL_NAMES["ADD_DOCS_IDS_META"]: _add_document_with_id_and_metadata_impl,
     TOOL_NAMES["QUERY_DOCS"]: _query_documents_impl,
-    TOOL_NAMES["GET_DOCS"]: _get_documents_impl,
-    TOOL_NAMES["UPDATE_DOCS"]: _update_documents_impl,
-    TOOL_NAMES["DELETE_DOCS"]: _delete_documents_impl,
+    TOOL_NAMES["QUERY_DOCS_WHERE"]: _query_documents_with_where_filter_impl,
+    TOOL_NAMES["QUERY_DOCS_DOC"]: _query_documents_with_document_filter_impl,
+    TOOL_NAMES["GET_DOCS_IDS"]: _get_documents_by_ids_impl,
+    TOOL_NAMES["GET_DOCS_WHERE"]: _get_documents_with_where_filter_impl,
+    TOOL_NAMES["GET_DOCS_DOC"]: _get_documents_with_document_filter_impl,
+    TOOL_NAMES["GET_DOCS_ALL"]: _get_all_documents_impl,
+    TOOL_NAMES["DELETE_DOCS"]: _delete_document_by_id_impl,
     TOOL_NAMES["SEQ_THINKING"]: _sequential_thinking_impl,
+    TOOL_NAMES["SEQ_THINKING_CUSTOM"]: _sequential_thinking_with_custom_data_impl,
     TOOL_NAMES["FIND_THOUGHTS"]: _find_similar_thoughts_impl,
     TOOL_NAMES["GET_SUMMARY"]: _get_session_summary_impl,
     TOOL_NAMES["FIND_SESSIONS"]: _find_similar_sessions_impl,
-    # GET_VERSION needs a simple handler
+    TOOL_NAMES["UPDATE_DOC_CONTENT"]: _update_document_content_impl,
+    TOOL_NAMES["UPDATE_DOC_META"]: _update_document_metadata_impl,
+    TOOL_NAMES["GET_VERSION"]: None,  # GET_VERSION needs a simple handler
 }
 
 
@@ -320,101 +360,136 @@ async def list_tools() -> List[types.Tool]:
         # Collection Tools
         types.Tool(
             name=TOOL_NAMES["CREATE_COLLECTION"],
-            description="Create a new ChromaDB collection with specific or default settings. If `metadata` is provided, it overrides the default settings (e.g., HNSW parameters). If `metadata` is None or omitted, default settings are used. Use other tools like 'set_collection_description' to modify mutable metadata later.",
+            description="Create a new ChromaDB collection using server default settings. Requires: `collection_name`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["CREATE_COLLECTION"]].model_json_schema(),
         ),
         types.Tool(
+            name=TOOL_NAMES["CREATE_COLLECTION_WITH_META"],
+            description="Create a new ChromaDB collection with specific metadata/settings provided. Requires: `collection_name`, `metadata` (JSON string).",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["CREATE_COLLECTION_WITH_META"]].model_json_schema(),
+        ),
+        types.Tool(
             name=TOOL_NAMES["LIST_COLLECTIONS"],
-            description="List all collections with optional filtering and pagination.",
+            description="List all collections. Optional: `limit`, `offset`, `name_contains`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["LIST_COLLECTIONS"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["GET_COLLECTION"],
-            description="Get information about a specific collection.",
+            description="Get information about a specific collection. Requires: `collection_name`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["GET_COLLECTION"]].model_json_schema(),
         ),
         types.Tool(
-            name=TOOL_NAMES["SET_COLLECTION_DESC"],
-            description="Sets or updates the description of a collection. Note: Due to ChromaDB limitations, this tool will likely fail on existing collections. Set description during creation via metadata instead.",
-            inputSchema=INPUT_MODELS[TOOL_NAMES["SET_COLLECTION_DESC"]].model_json_schema(),
-        ),
-        types.Tool(
-            name=TOOL_NAMES["SET_COLLECTION_SETTINGS"],
-            description="Sets or updates the settings (e.g., HNSW parameters) of a collection. Warning: This replaces existing settings. This will likely fail on existing collections due to immutable settings. Define settings during creation via metadata.",
-            inputSchema=INPUT_MODELS[TOOL_NAMES["SET_COLLECTION_SETTINGS"]].model_json_schema(),
-        ),
-        types.Tool(
-            name=TOOL_NAMES["UPDATE_COLLECTION_META"],
-            description="Updates or adds custom key-value pairs to a collection's metadata (merge). Warning: This REPLACES the entire existing custom metadata block. This will likely fail on existing collections due to immutable settings. Set metadata during creation.",
-            inputSchema=INPUT_MODELS[TOOL_NAMES["UPDATE_COLLECTION_META"]].model_json_schema(),
-        ),
-        types.Tool(
             name=TOOL_NAMES["RENAME_COLLECTION"],
-            description="Renames an existing collection.",
+            description="Renames an existing collection. Requires: `collection_name`, `new_name`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["RENAME_COLLECTION"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["DELETE_COLLECTION"],
-            description="Delete a collection.",
+            description="Delete a collection. Requires: `collection_name`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["DELETE_COLLECTION"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["PEEK_COLLECTION"],
-            description="Get a sample of documents from a collection.",
+            description="Get a sample of documents from a collection. Requires: `collection_name`. Optional: `limit`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["PEEK_COLLECTION"]].model_json_schema(),
         ),
         # Document Tools
         types.Tool(
             name=TOOL_NAMES["ADD_DOCS"],
-            description="Add documents to a ChromaDB collection.",
+            description="Add a document (auto-generates ID, no metadata). Requires: `collection_name`, `document`. Optional: `increment_index`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["ADD_DOCS"]].model_json_schema(),
         ),
         types.Tool(
+            name=TOOL_NAMES["ADD_DOCS_IDS"],
+            description="Add a document with a specified ID (no metadata). Requires: `collection_name`, `document`, `id`. Optional: `increment_index`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["ADD_DOCS_IDS"]].model_json_schema(),
+        ),
+        types.Tool(
+            name=TOOL_NAMES["ADD_DOCS_META"],
+            description="Add a document with specified metadata (auto-generates ID). Requires: `collection_name`, `document`, `metadata` (JSON string). Optional: `increment_index`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["ADD_DOCS_META"]].model_json_schema(),
+        ),
+        types.Tool(
+            name=TOOL_NAMES["ADD_DOCS_IDS_META"],
+            description="Add a document with specified ID and metadata. Requires: `collection_name`, `document`, `id`, `metadata` (JSON string). Optional: `increment_index`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["ADD_DOCS_IDS_META"]].model_json_schema(),
+        ),
+        types.Tool(
             name=TOOL_NAMES["QUERY_DOCS"],
-            description="Query documents in a ChromaDB collection using semantic search.",
+            description="Query documents using semantic search (no filters). Requires: `collection_name`, `query_texts`. Optional: `n_results`, `include`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["QUERY_DOCS"]].model_json_schema(),
         ),
         types.Tool(
-            name=TOOL_NAMES["GET_DOCS"],
-            description="Get documents from a ChromaDB collection by ID or filter.",
-            inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS"]].model_json_schema(),
+            name=TOOL_NAMES["QUERY_DOCS_WHERE"],
+            description="Query documents using semantic search with a metadata filter. Requires: `collection_name`, `query_texts`, `where`. Optional: `n_results`, `include`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["QUERY_DOCS_WHERE"]].model_json_schema(),
         ),
         types.Tool(
-            name=TOOL_NAMES["UPDATE_DOCS"],
-            description="Update existing documents in a ChromaDB collection.",
-            inputSchema=INPUT_MODELS[TOOL_NAMES["UPDATE_DOCS"]].model_json_schema(),
+            name=TOOL_NAMES["QUERY_DOCS_DOC"],
+            description="Query documents using semantic search with a document content filter. Requires: `collection_name`, `query_texts`, `where_document`. Optional: `n_results`, `include`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["QUERY_DOCS_DOC"]].model_json_schema(),
+        ),
+        types.Tool(
+            name=TOOL_NAMES["GET_DOCS_IDS"],
+            description="Get documents from a collection by specific IDs. Requires: `collection_name`, `ids`. Optional: `include`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_IDS"]].model_json_schema(),
+        ),
+        types.Tool(
+            name=TOOL_NAMES["GET_DOCS_WHERE"],
+            description="Get documents from a collection using a metadata filter. Requires: `collection_name`, `where`. Optional: `limit`, `offset`, `include`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_WHERE"]].model_json_schema(),
+        ),
+        types.Tool(
+            name=TOOL_NAMES["GET_DOCS_DOC"],
+            description="Get documents from a collection using a document content filter. Requires: `collection_name`, `where_document`. Optional: `limit`, `offset`, `include`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_DOC"]].model_json_schema(),
+        ),
+        types.Tool(
+            name=TOOL_NAMES["GET_DOCS_ALL"],
+            description="Get all documents from a collection. Requires: `collection_name`. Optional: `limit`, `offset`, `include`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_ALL"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["DELETE_DOCS"],
-            description="Delete documents from a ChromaDB collection by ID or filter.",
+            description="Delete a document from a collection by its specific ID. Requires: `collection_name`, `id`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["DELETE_DOCS"]].model_json_schema(),
+        ),
+        # Update Document Variants
+        types.Tool(
+            name=TOOL_NAMES["UPDATE_DOC_CONTENT"],
+            description="Update the content of an existing document by ID. Requires: `collection_name`, `id`, `document`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["UPDATE_DOC_CONTENT"]].model_json_schema(),
+        ),
+        types.Tool(
+            name=TOOL_NAMES["UPDATE_DOC_META"],
+            description="Update the metadata of an existing document by ID. Requires: `collection_name`, `id`, `metadata` (dict).",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["UPDATE_DOC_META"]].model_json_schema(),
         ),
         # Thinking Tools
         types.Tool(
             name=TOOL_NAMES["SEQ_THINKING"],
-            description="Records a single thought as part of a sequential thinking process or workflow.",
+            description="Records a single thought. Requires: `thought`, `thought_number`, `total_thoughts`. Optional: `session_id`, `branch_id`, `branch_from_thought`, `next_thought_needed`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["SEQ_THINKING"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["FIND_THOUGHTS"],
-            description="Finds thoughts across one or all sessions that are semantically similar to a given query.",
+            description="Finds thoughts semantically similar to a query. Requires: `query`. Optional: `session_id`, `n_results`, `threshold`, `include_branches`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["FIND_THOUGHTS"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["GET_SUMMARY"],
-            description="Retrieves all thoughts recorded within a specific thinking session, ordered sequentially.",
+            description="Retrieves all thoughts recorded within a specific thinking session. Requires: `session_id`. Optional: `include_branches`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["GET_SUMMARY"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["FIND_SESSIONS"],
-            description="Finds thinking sessions whose overall content is semantically similar to a given query.",
+            description="Finds thinking sessions similar to a query. Requires: `query`. Optional: `n_results`, `threshold`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["FIND_SESSIONS"]].model_json_schema(),
         ),
-        # Utility Tool (Corrected Input Schema)
+        # Utility Tool
         types.Tool(
             name=TOOL_NAMES["GET_VERSION"],
-            description="Return the installed version of the chroma-mcp-server package.",
-            # Use a valid schema for an object with no properties
+            description="Return the installed version of the chroma-mcp-server package. Takes no parameters.",
             inputSchema={
                 "type": "object",
                 "properties": {},
@@ -449,16 +524,20 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
             version = importlib.metadata.version("chroma-mcp-server")
             result_text = json.dumps({"package": "chroma-mcp-server", "version": version})
             content_list = [types.TextContent(type="text", text=result_text)]
-            logger.debug(f"Returning result for {name}: {content_list}") # Log before return
+            logger.debug(f"Returning result for {name}: {content_list}")  # Log before return
             return content_list
         except importlib.metadata.PackageNotFoundError as e:
             logger.error(f"Error getting server version: {str(e)}", exc_info=True)
             # Raise exception for Server to handle
-            raise McpError(ErrorData(code=INTERNAL_ERROR, message="Tool Error: chroma-mcp-server package not found."))
+            error_data = ErrorData(code=INTERNAL_ERROR, message="Tool Error: chroma-mcp-server package not found.")
+            raise McpError(error_data)
         except Exception as e:
             logger.error(f"Error getting server version: {str(e)}", exc_info=True)
             # Raise exception for Server to handle
-            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tool Error: Could not get server version. Details: {str(e)}"))
+            error_data = ErrorData(
+                code=INTERNAL_ERROR, message=f"Tool Error: Could not get server version. Details: {str(e)}"
+            )
+            raise McpError(error_data)
 
     # --- Get Pydantic Model and Implementation Function --- >
     InputModel = INPUT_MODELS.get(name)
@@ -466,8 +545,9 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
 
     if not InputModel or not impl_function:
         logger.error(f"Unknown tool name received: {name}")
-        # Raise exception for Server to handle
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Unknown tool name '{name}'"))
+        # Raise exception for Server to handle, wrapping ErrorData
+        error_data = ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Unknown tool name '{name}'")
+        raise McpError(error_data)
 
     # --- Pydantic Validation --- >
     try:
@@ -476,7 +556,9 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
         logger.debug(f"Validation successful for {name}")
     except ValidationError as e:
         logger.warning(f"Input validation failed for {name}: {e}")
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Input Error: {str(e)}"))
+        # Wrap Pydantic error message in McpError with ErrorData
+        error_data = ErrorData(code=INVALID_PARAMS, message=f"Input Error: {str(e)}")
+        raise McpError(error_data)
 
     # --- Call Core Logic --- >
     logger.debug(f"Calling implementation function for {name}")
@@ -487,7 +569,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
 
     # Add debug log before returning
     logger.debug("Debug log for call_tool result.")
-    logger.debug(f"Returning call_tool result for {name}: {content_list}") # Log before return
+    logger.debug(f"Returning call_tool result for {name}: {content_list}")  # Log before return
     logger.debug("Finished debug log for call_tool result.")
     return content_list
 
@@ -515,9 +597,7 @@ def main() -> None:
                 version = importlib.metadata.version("chroma-mcp-server")
             except importlib.metadata.PackageNotFoundError:
                 version = "unknown"
-            logger.info(
-                f"Chroma MCP server v{version} started. Using stdio transport."
-            )
+            logger.info(f"Chroma MCP server v{version} started. Using stdio transport.")
 
         # Start server with stdio transport using the IMPORTED shared 'server' instance
         # The run method now needs the read/write streams and options
@@ -536,13 +616,18 @@ def main() -> None:
         if logger:
             logger.error(f"MCP Error: {str(e)}")
         # Re-raise McpError to potentially be caught by CLI
-        raise
+        # Ensure ErrorData is propagated if available, otherwise use the message
+        err_data = (
+            e.args[0] if e.args and isinstance(e.args[0], ErrorData) else ErrorData(code=INTERNAL_ERROR, message=str(e))
+        )
+        raise McpError(err_data)
     except Exception as e:
         error_msg = f"Critical error running MCP server: {str(e)}"
         if logger:
             logger.error(error_msg)
         # Convert unexpected errors to McpError for consistent exit
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=error_msg))
+        err_data = ErrorData(code=INTERNAL_ERROR, message=error_msg)
+        raise McpError(err_data)
 
 
 if __name__ == "__main__":

@@ -205,8 +205,8 @@ The `release.sh` script provides a streamlined process for releasing a new versi
 
 ## Dependencies
 
-* **Core:** `python-dotenv`, `pydantic`, `fastapi`, `uvicorn`, `chromadb`, `fastmcp`, `numpy`.
-* **Optional (`[full]`):** `onnxruntime`, `sentence-transformers`, `httpx`.
+* **Core:** `python-dotenv`, `pydantic`, `fastapi`, `uvicorn`, `chromadb`, `fastmcp`, `numpy`, `onnxruntime`.
+* **Optional (`[full]`):** `sentence-transformers`, `httpx`.
 * **Development (`dev`):** `pytest`, `pytest-asyncio`, `pytest-cov`, `pytest-mock`, `pytest-xdist`, `black`, `isort`, `mypy`, `pylint`, `types-PyYAML`.
 
 See `pyproject.toml` for specific version constraints.

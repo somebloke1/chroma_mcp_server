@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.65"
+version = "0.1.84"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,13 +34,13 @@ dependencies = [
     "fastmcp>=0.4.1",
     # These are needed by our code directly
     "numpy>=2.2.0",  # For numpy arrays in handlers
+    # For embeddings generation
+    "onnxruntime>=1.21.0",
 ]
 
 [project.optional-dependencies]
 # Optional dependencies for extended functionality
 full = [
-    # For embeddings generation
-    "onnxruntime>=1.21.0",
     "sentence-transformers>=4.0.1",
     # Only needed if using HTTP client
     "httpx>=0.28.0",

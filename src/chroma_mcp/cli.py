@@ -111,11 +111,10 @@ def main() -> int:
         return server_main()
     except KeyboardInterrupt:
         print("Server stopped by user", file=sys.stderr)
+        return 0
     except Exception as e:
         print(f"Error running server: {e}", file=sys.stderr)
         return 1
-
-    return 0
 
 
 if __name__ == "__main__":

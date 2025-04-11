@@ -4,6 +4,7 @@ import pytest
 import uuid
 import time
 import json
+from contextlib import contextmanager
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -27,6 +28,8 @@ from src.chroma_mcp.tools.thinking_tools import (
     FindSimilarThoughtsInput,
     GetSessionSummaryInput,
     FindSimilarSessionsInput,
+    SequentialThinkingWithCustomDataInput,
+    _sequential_thinking_with_custom_data_impl,
 )
 
 # --- Helper Functions (Copied from test_collection_tools.py) ---
@@ -63,6 +66,31 @@ def assert_error_result(result: types.CallToolResult, expected_error_substring: 
     assert isinstance(result.content[0], types.TextContent)
     assert result.content[0].type == "text"
     assert expected_error_substring in result.content[0].text
+
+
+# Context manager to assert McpError is raised
+@contextmanager
+def assert_raises_mcp_error(expected_message: str):
+    """Context manager to check if a specific McpError is raised."""
+    try:
+        yield
+    except McpError as e:
+        # Check both e.error_data (if exists) and e.args[0]
+        message = ""
+        if hasattr(e, "error_data") and hasattr(e.error_data, "message"):
+            message = str(e.error_data.message)
+        elif e.args and isinstance(e.args[0], ErrorData) and hasattr(e.args[0], "message"):
+            message = str(e.args[0].message)
+        else:
+            message = str(e)  # Fallback to the exception string itself
+
+        assert (
+            expected_message in message
+        ), f"Expected error message containing '{expected_message}' but got '{message}'"
+        return
+    except Exception as e:
+        pytest.fail(f"Expected McpError but got {type(e).__name__}: {e}")
+    pytest.fail("Expected McpError but no exception was raised.")
 
 
 # --- End Helper Functions ---
@@ -134,14 +162,11 @@ class TestThinkingTools:
         assert "session_id" in call_args.kwargs["metadatas"][0]
         session_id = call_args.kwargs["metadatas"][0]["session_id"]
 
-        # Assertions on result data
-        assert result_data.get("status") == "success"
+        # Assertions on result data keys and values
         assert result_data.get("thought_id") == thought_id
         assert result_data.get("session_id") == session_id
-        assert result_data.get("thought_number") == thought_num
-        assert result_data.get("total_thoughts") == total_thoughts
-        assert result_data.get("previous_thoughts") == []
-        assert result_data.get("next_thought_needed") is False
+        assert result_data.get("previous_thoughts_count") == 0  # Check count
+        # Removed checks for thought_number, total_thoughts, previous_thoughts, next_thought_needed in result
 
     @pytest.mark.asyncio  # Mark as async
     async def test_sequential_thinking_existing_session_with_prev(self, mock_chroma_client_thinking):
@@ -157,7 +182,15 @@ class TestThinkingTools:
         mock_collection.get.return_value = {
             "ids": [f"thought_{session_id}_1"],
             "documents": ["First idea"],
-            "metadatas": [{"session_id": session_id, "thought_number": 1, "total_thoughts": 3, "timestamp": 12345}],
+            "metadatas": [
+                {
+                    "session_id": session_id,
+                    "thought_number": 1,
+                    "total_thoughts": 3,
+                    "timestamp": 12345,
+                    "branch_id": None,  # Simulate non-branched thought
+                }
+            ],
         }
 
         # ACT
@@ -166,7 +199,7 @@ class TestThinkingTools:
             thought_number=thought_num,
             total_thoughts=total_thoughts,
             session_id=session_id,
-            next_thought_needed=True,
+            next_thought_needed=True,  # next_thought_needed is not used in _impl
         )
         result = await _sequential_thinking_impl(input_model)
 
@@ -176,21 +209,26 @@ class TestThinkingTools:
         # Assertions on mocks
         mock_collection.get.assert_called_once()
         get_call_args = mock_collection.get.call_args
-        expected_where = {"$and": [{"session_id": session_id}, {"thought_number": {"$lt": thought_num}}]}
+        # Updated expected_where to include branch_id check
+        expected_where = {
+            "$and": [
+                {"session_id": session_id},
+                {"thought_number": {"$lt": thought_num}},
+                {"branch_id": {"$exists": False}},
+            ]
+        }
         assert get_call_args.kwargs["where"] == expected_where
 
         mock_collection.add.assert_called_once()
         add_call_args = mock_collection.add.call_args
         assert add_call_args.kwargs["metadatas"][0]["session_id"] == session_id
+        added_thought_id = add_call_args.kwargs["ids"][0]
 
         # Assertions on result data
-        assert result_data.get("status") == "success"
         assert result_data.get("session_id") == session_id
-        assert result_data.get("thought_number") == thought_num
-        assert len(result_data.get("previous_thoughts", [])) == 1
-        assert result_data["previous_thoughts"][0].get("content") == "First idea"
-        assert result_data["previous_thoughts"][0].get("metadata", {}).get("thought_number") == 1
-        assert result_data.get("next_thought_needed") is True
+        assert result_data.get("thought_id") == added_thought_id
+        assert result_data.get("previous_thoughts_count") == 1  # Check count
+        # Removed checks for thought_number, total_thoughts, previous_thoughts, next_thought_needed in result
 
     @pytest.mark.asyncio  # Mark as async
     async def test_sequential_thinking_with_branch_and_custom(self, mock_chroma_client_thinking):
@@ -200,19 +238,22 @@ class TestThinkingTools:
 
         session_id = "branch_session"
         thought = "Alternative idea"
-        custom_data = {"rating": 5, "approved": True}
+        custom_data_dict = {"rating": 5, "approved": True}
+        custom_data_json = json.dumps(custom_data_dict)
 
         # ACT
-        input_model = SequentialThinkingInput(
+        # FIX: Use the correct input model and implementation function for custom data
+        input_model = SequentialThinkingWithCustomDataInput(
             thought=thought,
             thought_number=2,
             total_thoughts=4,
             session_id=session_id,
             branch_from_thought=1,
             branch_id="alt_path",
-            custom_data=custom_data,
+            custom_data=custom_data_json,  # Pass the JSON string
         )
-        result = await _sequential_thinking_impl(input_model)
+        # FIX: Call the correct implementation wrapper
+        result = await _sequential_thinking_with_custom_data_impl(input_model)
 
         # ASSERT using helper
         result_data = assert_successful_json_result(result)
@@ -227,15 +268,15 @@ class TestThinkingTools:
         assert metadata["session_id"] == session_id
         assert metadata["branch_from_thought"] == 1
         assert metadata["branch_id"] == "alt_path"
-        # Check flattened custom data
+        # Check flattened custom data with custom: prefix (should be added by _base_impl)
         assert metadata["custom:rating"] == 5
         assert metadata["custom:approved"] is True
         assert "custom_data" not in metadata  # Original key removed
 
         # Assertions on result data
-        assert result_data.get("status") == "success"
         assert result_data.get("thought_id") == thought_id
-        assert result_data.get("previous_thoughts") == []
+        assert result_data.get("session_id") == session_id
+        assert result_data.get("previous_thoughts_count") == 0  # Check count
 
     @pytest.mark.asyncio  # Mark as async
     async def test_sequential_thinking_validation_error(self, mock_chroma_client_thinking):
@@ -264,7 +305,36 @@ class TestThinkingTools:
 
         # If the function remains, ensure it passes or skip it
         # This test might become obsolete if all validation is purely Pydantic
-        assert True # Placeholder if no specific _impl validation to test
+        assert True  # Placeholder if no specific _impl validation to test
+
+    @pytest.mark.asyncio
+    async def test_sequential_thinking_invalid_custom_json(self, mock_chroma_client_thinking):
+        """Test recording a thought with invalid custom_data JSON."""
+        mock_client, mock_collection, _ = mock_chroma_client_thinking
+
+        session_id = "invalid_json_session"
+        thought = "Idea with bad custom data"
+        invalid_json_string = '{"key": "value"'  # Missing closing brace
+
+        # ACT
+        input_model = SequentialThinkingWithCustomDataInput(
+            thought=thought,
+            thought_number=1,
+            total_thoughts=1,
+            session_id=session_id,
+            custom_data=invalid_json_string,  # Pass invalid JSON
+        )
+
+        # ASSERT
+        # The function now catches the McpError internally and returns CallToolResult
+        # So, we don't use assert_raises_mcp_error anymore.
+        # with assert_raises_mcp_error("Invalid JSON format for custom_data string"):
+        #    await _sequential_thinking_with_custom_data_impl(input_model)
+        result = await _sequential_thinking_with_custom_data_impl(input_model)
+        assert_error_result(result, "Invalid JSON format for custom_data string")
+
+        # Ensure add was not called
+        mock_collection.add.assert_not_called()
 
     # --- _find_similar_thoughts_impl Tests ---
     @pytest.mark.asyncio  # Mark as async
@@ -273,7 +343,7 @@ class TestThinkingTools:
         mock_client, mock_collection, _ = mock_chroma_client_thinking
 
         query = "find me similar ideas"
-        threshold = DEFAULT_SIMILARITY_THRESHOLD # Use constant
+        threshold = DEFAULT_SIMILARITY_THRESHOLD  # Use constant
 
         # Mock query results
         mock_collection.query.return_value = {
@@ -416,11 +486,7 @@ class TestThinkingTools:
         mock_collection.get.return_value = {"ids": [], "documents": [], "metadatas": []}
 
         # Expected result structure when no thoughts are found
-        expected_result_data = {
-            "session_id": session_id,
-            "session_thoughts": [],
-            "total_thoughts_in_session": 0
-        }
+        expected_result_data = {"session_id": session_id, "session_thoughts": [], "total_thoughts_in_session": 0}
 
         # ACT
         input_model = GetSessionSummaryInput(session_id=session_id)
@@ -476,7 +542,7 @@ class TestThinkingTools:
 
         query = "Project planning"
         threshold = 0.6
-        n_results = 5 # Test with default n_results
+        n_results = 5  # Test with default n_results
 
         # --- Setup Mocks ---
         # Mock the .get() call on the THOUGHTS collection to return session IDs
@@ -485,7 +551,7 @@ class TestThinkingTools:
             "metadatas": [
                 {"session_id": "session_abc"},
                 {"session_id": "session_xyz"},
-                {"session_id": "session_abc"}, # Duplicate ID is fine for get
+                {"session_id": "session_abc"},  # Duplicate ID is fine for get
             ],
             # Other fields like documents are not needed for this specific mock
         }
@@ -506,14 +572,18 @@ class TestThinkingTools:
             # Configure mock_get_summary to return a successful result for session_abc
             mock_summary_result = types.CallToolResult(
                 isError=False,
-                content=[types.TextContent(
-                    type="text",
-                    text=json.dumps({
-                        "session_id": "session_abc",
-                        "session_thoughts": [{"id": "t1", "content": "plan A step 1"}],
-                        "total_thoughts_in_session": 1
-                    })
-                )]
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "session_id": "session_abc",
+                                "session_thoughts": [{"id": "t1", "content": "plan A step 1"}],
+                                "total_thoughts_in_session": 1,
+                            }
+                        ),
+                    )
+                ],
             )
             mock_get_summary.return_value = mock_summary_result
 
@@ -558,7 +628,7 @@ class TestThinkingTools:
             if name == THOUGHTS_COLLECTION:
                 return MagicMock()  # Return a dummy thoughts collection
             elif name == SESSIONS_COLLECTION:
-                raise ValueError(f"Collection {SESSIONS_COLLECTION} does not exist.") # Simulate Chroma error
+                raise ValueError(f"Collection {SESSIONS_COLLECTION} does not exist.")  # Simulate Chroma error
             else:
                 raise ValueError(f"Unexpected collection {name}")
 

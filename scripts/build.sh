@@ -19,6 +19,10 @@ fi
 echo "Cleaning previous builds..."
 rm -rf dist/ build/ *.egg-info
 
+# Format code before building
+echo "Formatting code with Black via Hatch..."
+hatch run black .
+
 # Build the package
 echo "Building package with Hatch..."
 hatch build

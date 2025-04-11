@@ -3,10 +3,14 @@
 import pytest
 import argparse
 import os
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
+import logging
 
 # Import the function to test
 from src.chroma_mcp.cli import parse_args
+
+# Assume cli.py is in the parent directory structure or PYTHONPATH is set
+from src.chroma_mcp import cli
 
 # Define a dictionary of default expected values (based on cli.py defaults and getenv fallbacks)
 # Note: data_dir, log_dir, host, port, tenant, database, api_key default to None if env var not set
@@ -147,3 +151,56 @@ def test_parse_args_ssl_variations():
 
         # Default (should be True based on cli.py getenv default)
         assert parse_args([]).ssl is True
+
+
+# --- Tests for cli.main() Error Handling ---
+
+
+@patch("src.chroma_mcp.cli.parse_args")
+@patch("src.chroma_mcp.server.logging.getLogger")  # Patch internal call of config_server
+@patch("asyncio.run")  # Patch global asyncio.run
+def test_cli_main_keyboard_interrupt(mock_asyncio_run, mock_get_logger, mock_parse):
+    """Test cli.main() handles KeyboardInterrupt gracefully."""
+    mock_parse.return_value = MagicMock()
+    mock_asyncio_run.side_effect = KeyboardInterrupt  # Simulate interrupt during server run
+    # Need a dummy logger for config_server to proceed
+    mock_get_logger.return_value = MagicMock(spec=logging.Logger)
+
+    # Call main and check return code
+    result = cli.main()
+    # Assert 0 as KeyboardInterrupt should be caught and lead to clean exit
+    assert result == 0
+    # Assert the patched internal functions were called
+    mock_get_logger.assert_called()  # Check config_server was entered
+
+
+@patch("src.chroma_mcp.cli.parse_args")
+@patch("src.chroma_mcp.server.logging.getLogger")  # Patch internal call of config_server
+@patch("asyncio.run")  # Patch global asyncio.run
+def test_cli_main_generic_exception(mock_asyncio_run, mock_get_logger, mock_parse):
+    """Test cli.main() handles generic Exceptions and returns 1."""
+    mock_parse.return_value = MagicMock()
+    error_message = "Something went wrong"
+    mock_asyncio_run.side_effect = Exception(error_message)  # Simulate exception during server run
+    mock_get_logger.return_value = MagicMock(spec=logging.Logger)
+
+    # Call main and check return code
+    result = cli.main()
+    assert result == 1
+    mock_get_logger.assert_called()  # Check config_server was entered
+    mock_asyncio_run.assert_called_once()  # Check server_main called asyncio.run
+
+
+@patch("src.chroma_mcp.cli.parse_args")
+@patch("src.chroma_mcp.server.logging.getLogger")  # Patch internal call of config_server
+# No need to patch asyncio.run here
+def test_cli_main_config_exception(mock_get_logger, mock_parse):
+    """Test cli.main() handles exceptions during config_server."""
+    mock_parse.return_value = MagicMock()
+    error_message = "Config failed"
+    mock_get_logger.side_effect = Exception(error_message)  # Simulate exception during config
+
+    # Call main and check return code
+    result = cli.main()
+    assert result == 1
+    mock_get_logger.assert_called()  # Check config_server was entered and called getLogger

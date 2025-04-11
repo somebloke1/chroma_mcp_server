@@ -182,6 +182,16 @@ class TestChromaClient:
 class TestEmbeddingFunction:
     """Test cases for embedding function operations."""
 
+    def setup_method(self, method):
+        """Reset client before each test."""
+        reset_client()
+        client_module._embedding_function = None
+
+    def teardown_method(self, method):
+        """Ensure client is reset after each test."""
+        reset_client()
+        client_module._embedding_function = None
+
     def test_initialize_embedding_function_default(self):
         """Test initializing embedding function with default settings."""
         initialize_embedding_function()
@@ -198,6 +208,47 @@ class TestEmbeddingFunction:
             with pytest.raises(McpError) as exc_info:
                 initialize_embedding_function()
             assert "Failed to initialize embedding function" in str(exc_info.value)
+
+    @pytest.mark.skipif(
+        not platform.system() == "Darwin" or not ("Intel" in platform.processor() or platform.processor() == "i386"),
+        reason="Test specific to Intel Mac environment where CPU provider is forced",
+    )
+    def test_embedding_function_cpu_provider_add_document(self, tmp_path):
+        """Test adding a document using the embedding function forced to CPU provider."""
+        # Setup: Create a real persistent client in a temporary directory
+        data_dir = str(tmp_path / "embedding_test_data")
+        config = ChromaClientConfig(
+            client_type="persistent",
+            data_dir=data_dir,
+            use_cpu_provider=True,  # Force CPU provider like in the detected scenario
+        )
+
+        # 1. Initialize client (this also initializes the embedding function)
+        try:
+            client = get_chroma_client(config)
+            assert client is not None, "Client should be initialized"
+            ef = get_embedding_function()
+            assert ef is not None, "Embedding function should be initialized"
+
+            # 2. Create a collection
+            collection_name = "embedding_cpu_test_coll"
+            # Use get_or_create for safety in test environment
+            collection = client.get_or_create_collection(name=collection_name, embedding_function=ef)
+            assert collection is not None, "Collection should be created"
+
+            # 3. Attempt to add a document (this triggers the embedding)
+            collection.add(documents=["This is a test document for embedding."], ids=["test_doc_1"])
+
+            # 4. Basic verification (optional)
+            assert collection.count() == 1, "Document should have been added"
+
+        except Exception as e:
+            # Fail the test explicitly if any exception occurs during the process
+            pytest.fail(f"Embedding test failed with exception: {e}")
+        finally:
+            # Cleanup: Ensure client is reset even if test fails mid-way
+            # Use the existing reset_client utility which handles the global state
+            reset_client()
 
 
 # Error Handling Tests
