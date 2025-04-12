@@ -25,7 +25,7 @@ Creates a new ChromaDB collection. It is **strongly recommended** to set all des
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection to create |
-| `metadata` | object | No | Dictionary containing initial collection metadata (including custom keys, description, and HNSW settings) |
+| `metadata` | string | No | Initial collection metadata (including settings) as JSON string |
 
 #### Returns from chroma_create_collection
 
@@ -59,9 +59,9 @@ Lists all available collections with optional filtering and pagination.
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `limit` | integer | No | Maximum number of collections to return |
-| `offset` | integer | No | Number of collections to skip |
-| `name_contains` | string | No | Filter collections by name substring |
+| `limit` | integer | No | Maximum number of collections to return (default: 0 = no limit) |
+| `offset` | integer | No | Number of collections to skip (default: 0) |
+| `name_contains` | string | No | Filter collections by name substring (default: "") |
 
 #### Returns from chroma_list_collections
 
@@ -196,7 +196,7 @@ Add a document to a collection (auto-generates ID, no metadata).
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection to add the document to. |
 | `document` | string | Yes | The document content (string). |
-| `increment_index` | boolean | No | Whether to immediately index the added document (default: False). |
+| `increment_index` | boolean | No | Whether to immediately index the added document (default: True). |
 
 #### Returns from chroma_add_document
 
@@ -229,7 +229,7 @@ Add a document with a specified ID to a collection (no metadata).
 | `collection_name` | string | Yes | Name of the collection to add the document to. |
 | `document` | string | Yes | The document content (string). |
 | `id` | string | Yes | The unique ID for the document. |
-| `increment_index` | boolean | No | Whether to immediately index the added document (default: False). |
+| `increment_index` | boolean | No | Whether to immediately index the added document (default: True). |
 
 #### Returns from chroma_add_document_with_id
 
@@ -263,7 +263,7 @@ Add a document with specified metadata to a collection (auto-generates ID).
 | `collection_name` | string | Yes | Name of the collection to add the document to. |
 | `document` | string | Yes | The document content (string). |
 | `metadata` | string | Yes | Metadata JSON string for the document (e.g., '{"key": "value"}'). |
-| `increment_index` | boolean | No | Whether to immediately index the added document (default: False). |
+| `increment_index` | boolean | No | Whether to immediately index the added document (default: True). |
 
 #### Returns from chroma_add_document_with_metadata
 
@@ -298,7 +298,7 @@ Add a document with specified ID and metadata to a collection.
 | `document` | string | Yes | The document content (string). |
 | `id` | string | Yes | The unique ID for the document. |
 | `metadata` | string | Yes | Metadata JSON string for the document. |
-| `increment_index` | boolean | No | Whether to immediately index the added document (default: False). |
+| `increment_index` | boolean | No | Whether to immediately index the added document (default: True). |
 
 #### Returns from chroma_add_document_with_id_and_metadata
 
@@ -335,9 +335,9 @@ Queries documents by semantic similarity.
 | `collection_name` | string | Yes | Name of the target collection |
 | `query_texts` | array of strings | Yes | Query text strings |
 | `n_results` | integer | No | Number of results per query (default: 10) |
-| `where` | object | No | Metadata filters using Chroma's query operators |
-| `where_document` | object | No | Document content filters |
-| `include` | array of strings | No | What to include in response (e.g., "documents", "embeddings", "metadatas", "distances") |
+| `where` | string | No | Metadata filters as JSON string (e.g., '{"source": "technical"}') |
+| `where_document` | string | No | Document content filters as JSON string |
+| `include` | array of strings | No | (DEPRECATED) What to include in response |
 
 #### Returns from chroma_query_documents
 
@@ -394,10 +394,10 @@ Gets documents from a ChromaDB collection using a metadata filter.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection |
-| `where` | object | Yes | Metadata filter (e.g., `{"source": "pdf"}`) |
-| `limit` | integer | No | Maximum number of documents |
-| `offset` | integer | No | Number of documents to skip |
-| `include` | array (string) | No | Fields to include |
+| `where` | string | Yes | Metadata filter as JSON string (e.g., '{"source": "pdf"}') |
+| `limit` | integer | No | Maximum number of documents (default: 0 = no limit) |
+| `offset` | integer | No | Number of documents to skip (default: 0) |
+| `include` | array (string) | No | (DEPRECATED) Fields to include |
 
 #### Returns from chroma_get_documents_with_where_filter
 
@@ -425,10 +425,10 @@ Gets documents from a ChromaDB collection using a document content filter.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection |
-| `where_document` | object | Yes | Document content filter (e.g., `{"$contains": "metadata"}`) |
-| `limit` | integer | No | Maximum number of documents |
-| `offset` | integer | No | Number of documents to skip |
-| `include` | array (string) | No | Fields to include |
+| `where_document` | string | Yes | Document content filter as JSON string |
+| `limit` | integer | No | Maximum number of documents (default: 0 = no limit) |
+| `offset` | integer | No | Number of documents to skip (default: 0) |
+| `include` | array (string) | No | (DEPRECATED) Fields to include |
 
 #### Returns from chroma_get_documents_with_document_filter
 
@@ -517,7 +517,7 @@ Updates the metadata of an existing document by ID.
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection containing the document. |
 | `id` | string | Yes | The document ID to update. |
-| `metadata` | object | Yes | The new metadata dictionary (replaces existing metadata). |
+| `metadata` | string | Yes | New metadata as JSON string (e.g., '{"key": "new_value"}'). |
 
 #### Returns from chroma_update_document_metadata
 
@@ -584,7 +584,7 @@ Deletes documents from a ChromaDB collection using a metadata filter.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection |
-| `where` | object | Yes | Metadata filter to select documents for deletion |
+| `where` | string | Yes | Metadata filter as JSON string to select documents for deletion |
 
 #### Returns from chroma_delete_documents_by_where_filter
 
@@ -615,7 +615,7 @@ Deletes documents from a ChromaDB collection using a document content filter.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection |
-| `where_document` | object | Yes | Document content filter for deletion |
+| `where_document` | string | Yes | Document content filter as JSON string for deletion |
 
 #### Returns from chroma_delete_documents_by_document_filter
 
@@ -652,11 +652,11 @@ Records a thought in a sequential thinking process.
 | `thought` | string | Yes | The current thought content |
 | `thought_number` | integer | Yes | Position in the thought sequence (1-based) |
 | `total_thoughts` | integer | Yes | Total expected thoughts in the sequence |
-| `session_id` | string | No | Session identifier (generated if not provided) |
-| `branch_from_thought` | integer | No | Thought number this branches from |
-| `branch_id` | string | No | Branch identifier for parallel thought paths |
+| `session_id` | string | No | Session identifier (default: "" = new session) |
+| `branch_from_thought` | integer | No | Thought number this branches from (default: 0 = no branch) |
+| `branch_id` | string | No | Branch identifier (default: "") |
 | `next_thought_needed` | boolean | No | Whether another thought is needed (default: false) |
-| `custom_data` | object | No | Additional metadata |
+| `custom_data` | string | No | Additional metadata as JSON string |
 
 #### Returns from chroma_sequential_thinking
 
@@ -687,8 +687,8 @@ Finds similar thoughts across all or specific thinking sessions.
 |------|------|----------|-------------|
 | `query` | string | Yes | The thought or concept to search for |
 | `n_results` | integer | No | Number of similar thoughts to return (default: 5) |
-| `threshold` | number | No | Similarity threshold (0-1, default: 0.75) |
-| `session_id` | string | No | Optional session ID to limit search scope |
+| `threshold` | number | No | Similarity threshold (0.0-1.0, default: -1.0 = use 0.75) |
+| `session_id` | string | No | Session ID to limit search scope (default: "" = global) |
 | `include_branches` | boolean | No | Whether to include thoughts from branch paths (default: true) |
 
 #### Returns from chroma_find_similar_thoughts
@@ -738,8 +738,8 @@ Finds thinking sessions with similar content or patterns.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `query` | string | Yes | The concept or pattern to search for |
-| `n_results` | integer | No | Number of similar sessions to return (default: 3) |
-| `threshold` | number | No | Similarity threshold (0-1, default: 0.75) |
+| `n_results` | integer | No | Number of similar sessions to return (default: 5) |
+| `threshold` | number | No | Similarity threshold (0.0-1.0, default: -1.0 = use 0.75) |
 
 #### Returns from chroma_find_similar_sessions
 

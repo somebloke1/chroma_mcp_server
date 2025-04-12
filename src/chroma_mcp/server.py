@@ -68,6 +68,8 @@ from .tools.document_tools import (
     UpdateDocumentContentInput,
     UpdateDocumentMetadataInput,
     DeleteDocumentByIdInput,
+    GetDocumentsByIdsEmbeddingsInput,
+    GetDocumentsByIdsAllInput,
 )
 from .tools.thinking_tools import (
     SequentialThinkingInput,
@@ -102,6 +104,8 @@ from .tools.document_tools import (
     _update_document_content_impl,
     _update_document_metadata_impl,
     _delete_document_by_id_impl,
+    _get_documents_by_ids_embeddings_impl,
+    _get_documents_by_ids_all_impl,
 )
 from .tools.thinking_tools import (
     _sequential_thinking_impl,
@@ -277,6 +281,8 @@ TOOL_NAMES = {
     "GET_DOCS_WHERE": "chroma_get_documents_with_where_filter",
     "GET_DOCS_DOC": "chroma_get_documents_with_document_filter",
     "GET_DOCS_ALL": "chroma_get_all_documents",
+    "GET_DOCS_IDS_EMBEDDINGS": "chroma_get_documents_by_ids_embeddings",
+    "GET_DOCS_IDS_ALL": "chroma_get_documents_by_ids_all",
     "DELETE_DOCS": "chroma_delete_document_by_id",
     "SEQ_THINKING": "chroma_sequential_thinking",
     "SEQ_THINKING_CUSTOM": "chroma_sequential_thinking_with_custom_data",
@@ -308,6 +314,8 @@ INPUT_MODELS = {
     TOOL_NAMES["GET_DOCS_WHERE"]: GetDocumentsWithWhereFilterInput,
     TOOL_NAMES["GET_DOCS_DOC"]: GetDocumentsWithDocumentFilterInput,
     TOOL_NAMES["GET_DOCS_ALL"]: GetAllDocumentsInput,
+    TOOL_NAMES["GET_DOCS_IDS_EMBEDDINGS"]: GetDocumentsByIdsEmbeddingsInput,
+    TOOL_NAMES["GET_DOCS_IDS_ALL"]: GetDocumentsByIdsAllInput,
     TOOL_NAMES["DELETE_DOCS"]: DeleteDocumentByIdInput,
     TOOL_NAMES["SEQ_THINKING"]: SequentialThinkingInput,
     TOOL_NAMES["SEQ_THINKING_CUSTOM"]: SequentialThinkingWithCustomDataInput,
@@ -339,6 +347,8 @@ IMPL_FUNCTIONS = {
     TOOL_NAMES["GET_DOCS_WHERE"]: _get_documents_with_where_filter_impl,
     TOOL_NAMES["GET_DOCS_DOC"]: _get_documents_with_document_filter_impl,
     TOOL_NAMES["GET_DOCS_ALL"]: _get_all_documents_impl,
+    TOOL_NAMES["GET_DOCS_IDS_EMBEDDINGS"]: _get_documents_by_ids_embeddings_impl,
+    TOOL_NAMES["GET_DOCS_IDS_ALL"]: _get_documents_by_ids_all_impl,
     TOOL_NAMES["DELETE_DOCS"]: _delete_document_by_id_impl,
     TOOL_NAMES["SEQ_THINKING"]: _sequential_thinking_impl,
     TOOL_NAMES["SEQ_THINKING_CUSTOM"]: _sequential_thinking_with_custom_data_impl,
@@ -449,6 +459,18 @@ async def list_tools() -> List[types.Tool]:
             description="Get all documents from a collection. Requires: `collection_name`. Optional: `limit`, `offset`, `include`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_ALL"]].model_json_schema(),
         ),
+        # --- Start: Add New Include Variants ---
+        types.Tool(
+            name=TOOL_NAMES["GET_DOCS_IDS_EMBEDDINGS"],
+            description="Get documents from a collection by specific IDs, including embeddings only. Requires: `collection_name`, `ids`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_IDS_EMBEDDINGS"]].model_json_schema(),
+        ),
+        types.Tool(
+            name=TOOL_NAMES["GET_DOCS_IDS_ALL"],
+            description="Get documents from a collection by specific IDs, including all available data. Requires: `collection_name`, `ids`.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_IDS_ALL"]].model_json_schema(),
+        ),
+        # --- End: Add New Include Variants ---
         types.Tool(
             name=TOOL_NAMES["DELETE_DOCS"],
             description="Delete a document from a collection by its specific ID. Requires: `collection_name`, `id`.",

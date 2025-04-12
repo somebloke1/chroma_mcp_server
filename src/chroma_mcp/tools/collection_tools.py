@@ -74,42 +74,40 @@ class CreateCollectionWithMetadataInput(BaseModel):
 class ListCollectionsInput(BaseModel):
     """Input model for listing collections."""
 
-    limit: Optional[int] = Field(
-        default=None, ge=0, description="Maximum number of collections to return (0 or None for no limit)."
-    )
-    offset: Optional[int] = Field(default=None, ge=0, description="Number of collections to skip.")
-    name_contains: Optional[str] = Field(
-        default=None, description="Filter collections by name (case-insensitive contains)."
+    limit: int = Field(default=0, ge=0, description="Maximum number of collections to return. 0 for no limit.")
+    offset: int = Field(default=0, ge=0, description="Number of collections to skip. 0 for default.")
+    name_contains: str = Field(
+        default="", description="Filter collections by name (case-insensitive contains). Empty for no filter."
     )
 
 
 class GetCollectionInput(BaseModel):
     """Input model for retrieving collection information."""
 
-    collection_name: str = Field(description="The name of the collection to retrieve information for.")
+    collection_name: str = Field(..., description="The name of the collection to retrieve information for.")
 
 
 class RenameCollectionInput(BaseModel):
     """Input model for renaming a collection."""
 
-    collection_name: str = Field(description="The current name of the collection to rename.")
-    new_name: str = Field(description="The new name for the collection.")
+    collection_name: str = Field(..., description="The current name of the collection to rename.")
+    new_name: str = Field(..., description="The new name for the collection.")
 
 
 class DeleteCollectionInput(BaseModel):
     """Input model for deleting a collection."""
 
-    collection_name: str = Field(description="The name of the collection to delete.")
+    collection_name: str = Field(..., description="The name of the collection to delete.")
 
 
 class PeekCollectionInput(BaseModel):
     """Input model for peeking into a collection."""
 
-    collection_name: str = Field(description="The name of the collection to peek into.")
-    limit: Optional[int] = Field(
-        default=None,
+    collection_name: str = Field(..., description="The name of the collection to peek into.")
+    limit: int = Field(
+        default=10,
         ge=1,
-        description="Maximum number of documents to return (defaults to ChromaDB's internal default, often 10). Must be >= 1.",
+        description="Maximum number of documents to return (defaults to 10). Must be >= 1.",
     )
 
 
@@ -275,9 +273,10 @@ async def _list_collections_impl(input_data: ListCollectionsInput) -> List[types
         total_matching_count = len(filtered_names)
 
         # Apply pagination
-        paginated_names = filtered_names
-        start_index = offset if offset is not None else 0
-        end_index = (start_index + limit) if limit is not None else None
+        effective_limit = limit if limit > 0 else None
+        effective_offset = offset
+        start_index = offset if offset > 0 else 0
+        end_index = (start_index + effective_limit) if effective_limit is not None else None
 
         if start_index < 0:
             start_index = 0  # Ensure start index is not negative
@@ -312,12 +311,15 @@ async def _get_collection_impl(input_data: GetCollectionInput) -> List[types.Tex
 
     Raises:
         McpError: If the collection is not found or another error occurs.
+        # ValidationError is caught and wrapped in McpError
     """
     logger = get_logger("tools.collection")
     collection_name = input_data.collection_name
 
     try:
+        # --- Validation Inside ---
         validate_collection_name(collection_name)
+        # -------------------------
         client = get_chroma_client()
         # Use get_collection which raises an error if not found
         collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
@@ -368,6 +370,9 @@ async def _get_collection_impl(input_data: GetCollectionInput) -> List[types.Tex
                     code=INVALID_PARAMS, message=f"Tool Error: Invalid parameter getting collection. Details: {e}"
                 )
             )
+    except ValidationError as e:
+        logger.warning(f"Validation error getting collection '{collection_name}': {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
     except Exception as e:
         logger.error(f"Unexpected error getting collection '{collection_name}': {e}", exc_info=True)
         # Raise McpError
@@ -387,24 +392,25 @@ async def _rename_collection_impl(input_data: RenameCollectionInput) -> List[typ
         List containing a single TextContent object confirming the rename.
 
     Raises:
-        McpError: If validation fails, collection not found, name exists, or another error occurs.
+        McpError: If validation fails (McpError used internally), collection not found, name exists, or another error occurs.
+        # ValidationError is caught and wrapped in McpError
     """
     logger = get_logger("tools.collection")
     original_name = input_data.collection_name
     new_name = input_data.new_name
 
     try:
-        # Validate both names first
+        # --- Validation Inside ---
         validate_collection_name(original_name)
         validate_collection_name(new_name)
-
+        # -------------------------
         client = get_chroma_client()
 
         # Check if original collection exists
+        logger.info(f"Attempting to rename collection '{original_name}' to '{new_name}'.")
         collection = client.get_collection(name=original_name)
 
         # Attempt to modify the name
-        logger.info(f"Attempting to rename collection '{original_name}' to '{new_name}'.")
         collection.modify(name=new_name)  # Use modify with the new name
         logger.info(f"Collection rename attempt from '{original_name}' to '{new_name}' completed.")
 
@@ -414,7 +420,7 @@ async def _rename_collection_impl(input_data: RenameCollectionInput) -> List[typ
         ]
 
     except ValidationError as e:
-        logger.warning(f"Validation error renaming collection '{original_name}': {e}")
+        logger.warning(f"Validation error renaming collection '{original_name}' or '{new_name}': {e}")
         # Raise McpError for validation failure
         raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
     except ValueError as e:
@@ -468,12 +474,15 @@ async def _delete_collection_impl(input_data: DeleteCollectionInput) -> List[typ
 
     Raises:
         McpError: If the collection is not found or another error occurs.
+        # ValidationError is caught and wrapped in McpError
     """
     logger = get_logger("tools.collection")
     collection_name = input_data.collection_name
 
     try:
+        # --- Validation Inside ---
         validate_collection_name(collection_name)
+        # -------------------------
         client = get_chroma_client()
 
         # Attempt to delete the collection
@@ -506,6 +515,9 @@ async def _delete_collection_impl(input_data: DeleteCollectionInput) -> List[typ
                     code=INVALID_PARAMS, message=f"Tool Error: Invalid parameter deleting collection. Details: {e}"
                 )
             )
+    except ValidationError as e:
+        logger.warning(f"Validation error deleting collection '{collection_name}': {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
     except Exception as e:
         logger.error(f"Unexpected error deleting collection '{collection_name}': {e}", exc_info=True)
         # Raise McpError
@@ -526,19 +538,21 @@ async def _peek_collection_impl(input_data: PeekCollectionInput) -> List[types.T
 
     Raises:
         McpError: If the collection is not found or another error occurs.
+        # ValidationError is caught and wrapped in McpError
     """
     logger = get_logger("tools.collection")
     collection_name = input_data.collection_name
     limit = input_data.limit
 
     try:
+        # --- Validation Inside ---
         validate_collection_name(collection_name)
-
+        # -------------------------
         client = get_chroma_client()
         collection = client.get_collection(name=collection_name)
 
-        # Call peek with the validated limit (or None if not provided, letting Chroma use its default)
-        peek_results = collection.peek(limit=limit if limit is not None else 10)  # Pass explicit default if None
+        # Call peek with the validated limit (pass directly as it has a non-zero default)
+        peek_results = collection.peek(limit=limit)
         # --- DEBUG LOGGING ---
         logger.debug(f"Peek results raw type: {type(peek_results)}")
         logger.debug(f"Peek results raw content: {peek_results}")
@@ -609,6 +623,9 @@ async def _peek_collection_impl(input_data: PeekCollectionInput) -> List[types.T
                     message=f"Tool Error: Problem accessing collection '{collection_name}'. Details: {e}",
                 )
             )
+    except ValidationError as e:
+        logger.warning(f"Validation error peeking collection '{collection_name}': {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
     except Exception as e:
         logger.error(f"Unexpected error peeking collection '{collection_name}': {e}", exc_info=True)
         # Raise McpError

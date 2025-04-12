@@ -94,15 +94,23 @@ Once configured, Cursor will automatically start the Chroma MCP Server when need
 ```python
 # Example usage in Cursor chat
 mcp_chroma_create_collection(collection_name="my_docs")
-mcp_chroma_add_documents(
+# Add documents individually using the appropriate tool
+mcp_chroma_add_document_with_id_and_metadata(
     collection_name="my_docs",
-    documents=["This is document 1", "This is document 2"],
-    metadatas=[{"source": "file1"}, {"source": "file2"}]
+    document="This is document 1",
+    id="doc1",
+    metadata='{"source": "file1"}'
+)
+mcp_chroma_add_document_with_id_and_metadata(
+    collection_name="my_docs",
+    document="This is document 2",
+    id="doc2",
+    metadata='{"source": "file2"}'
 )
 results = mcp_chroma_query_documents(
     collection_name="my_docs",
     query_texts=["document"],
-    n_results=2
+    n_results=2 # Optional, defaults to 10
 )
 ```
 
