@@ -12,15 +12,18 @@ This document outlines a sequence of Model Context Protocol (MCP) tool calls to 
 
 - All tool implementations now raise `mcp.shared.exceptions.McpError` on failure (e.g., validation errors, collection not found, ChromaDB errors). Expect error responses to be structured accordingly, rather than returning `isError=True`.
 
-**Client-Side Limitations Note (Updated):**
+**Client-Side/Framework Limitations Note (Important):**
 
-- Testing has revealed that some MCP clients (including the one used in Cursor/VS Code during recent tests) may have **limitations in correctly serializing list parameters**, especially optional ones. This can also affect required list parameters used in **query and get** tool variants.
-- Providing values for these lists through such clients may result in a **string representation** being sent to the server (e.g., `'["id1", "id2"]'`) instead of a proper JSON array, leading to server-side **Pydantic validation errors (`type=list_type, input_type=str`)**.
-- **Workaround:** When using affected clients for **query/get** operations:
-  - For *optional* lists, omit them and rely on defaults or alternative methods.
-  - For *required* lists (e.g., `ids` in `get_documents_by_ids`), this workaround might not be possible, and these specific tool variants may be unusable with that client.
-- **Single-item operations** (add, update, delete) should not be affected by this list issue.
-- Steps in this flow relying on list parameters for *query/get* (Steps 7, 8, 10, 12, 12b) might fail or need skipping with affected clients.
+- Testing has revealed that some MCP clients or the framework layer (particularly the test harness) might have limitations in correctly serializing or interpreting tool parameters, especially lists or values **explicitly provided** for parameters that were originally designed as optional.
+- Specifically:
+  - **Formerly Optional Parameters:** Providing values for parameters like `limit`, `offset`, `n_results`, `session_id`, `branch_id`, `threshold`, `increment_index` in a test tool call can lead to errors like `Parameter '...' must be of type undefined, got number/string`. The framework layer seems to misinterpret the argument *before* it reaches Python/Pydantic validation.
+  - **List Parameters:** Required list parameters like `ids` or `query_texts` may be incorrectly serialized as strings by some clients (e.g., `'["id1", "id2"]'`) instead of proper JSON arrays, causing Pydantic validation errors on the server.
+- **Workarounds (Mainly for Test Environment):**
+  - **Omit formerly optional parameters** (`limit`, `offset`, `n_results`, `session_id`, `branch_id`, `threshold`, `increment_index`) in tool calls whenever possible, especially in the test harness. Rely on the default values defined in the implementation (e.g., `limit=0`, `offset=0`, `n_results=10`, `session_id=""`, `threshold=-1.0`, `increment_index=True`). The implementation code handles these defaults correctly.
+  - For specifying included fields in `get` operations, use the dedicated tool variants (`chroma_get_documents_by_ids_embeddings`, `chroma_get_documents_by_ids_all`). Base tools now always use ChromaDB defaults.
+  - **JSON String Parameters:** Ensure `metadata`, `where`, `where_document` are passed as valid **JSON strings** (e.g., `'{"key": "value"}'`). Do not pass Python dictionaries directly for these.
+  - Required lists (`ids`, `query_texts`) remain potentially susceptible to client-side list serialization bugs, which might make tools requiring them unusable with certain clients.
+- Single-item operations (add, update, delete) and simple *required* string/boolean parameters are generally unaffected by these issues.
 
 ## Test Sequence
 
@@ -195,7 +198,7 @@ Perform a query filtering by metadata.
 print(default_api.mcp_chroma_test_chroma_query_documents_with_where_filter(
     collection_name="mcp_flow_test_coll",
     query_texts=["Tell me about pangrams"],
-    where={'topic': 'pangram'} # Filter for topic
+    where='{"topic": "pangram"}' # Filter for topic as JSON string
 ))
 ```
 
@@ -209,7 +212,7 @@ Perform a query filtering by document content.
 print(default_api.mcp_chroma_test_chroma_query_documents_with_document_filter(
     collection_name="mcp_flow_test_coll",
     query_texts=["Tell me about general test documents"],
-    where_document={'$contains': 'first test'} # Filter for content
+    where_document='{"$contains": "first test"}' # Filter for content as JSON string
 ))
 ```
 
@@ -238,7 +241,7 @@ Retrieve documents filtering by metadata.
 ```tool_code
 print(default_api.mcp_chroma_test_chroma_get_documents_with_where_filter(
     collection_name="mcp_flow_test_coll",
-    where={'source': 'test_flow'} # Filter for source
+    where='{"source": "test_flow"}' # Filter for source as JSON string
 ))
 ```
 
@@ -251,7 +254,7 @@ Retrieve documents filtering by content.
 ```tool_code
 print(default_api.mcp_chroma_test_chroma_get_documents_with_document_filter(
     collection_name="mcp_flow_test_coll",
-    where_document={'$contains': 'basic document'} # Filter for content
+    where_document='{"$contains": "basic document"}' # Filter for content as JSON string
 ))
 ```
 
@@ -282,26 +285,26 @@ Update the metadata of a document.
 print(default_api.mcp_chroma_test_chroma_update_document_metadata(
     collection_name="mcp_flow_test_coll",
     id="test-doc-pangram",
-    metadata={"source": "test_flow_updated", "topic": "pangram", "status": "updated"} # New metadata dict
+    metadata='{"source": "test_flow_updated", "topic": "pangram", "status": "updated"}' # New metadata as JSON string
 ))
 ```
 
 *Expected Outcome:* Confirmation of metadata update request.
 
-### 10. Verify Update with Get
+### 10. Verify Update with Get (All Data)
 
-Retrieve the updated document using its ID. **This step might fail with affected clients due to list handling.**
+Retrieve the updated documents using their IDs and the "all" variant tool to see the changes. **Required `ids` list might still fail with affected clients.**
 
 ```tool_code
-# Use the same ID used in Step 9.
-print(default_api.mcp_chroma_test_chroma_get_documents_by_ids(
+# Use the same IDs used in Step 9/9b.
+print(default_api.mcp_chroma_test_chroma_get_documents_by_ids_all(
     collection_name="mcp_flow_test_coll",
-    ids=["test-doc-2"] # Required list
+    ids=["test-doc-2", "test-doc-pangram"] # Required list
 ))
 ```
 
 *Expected Outcome (in affected clients):* Likely failure due to client list handling.
-*Expected Outcome (if successful):* JSON containing the document with ID "test-doc-2" showing the updated content.
+*Expected Outcome (if successful):* JSON containing `ids`, `documents`, `metadatas`, `embeddings` for the requested documents, showing the updated content for `test-doc-2` and updated metadata for `test-doc-pangram`. May raise an `McpError` with code `INVALID_PARAMS` if the collection doesn't support loading URIs/data.
 
 ### 11. Delete Document by ID
 
@@ -410,34 +413,34 @@ print(default_api.mcp_chroma_test_chroma_list_collections())
 
 ## Advanced: Thinking Tools (Example Flow)
 
-This section demonstrates a basic workflow using the sequential thinking tools. These tools operate independently of the standard document/collection tools and use their own internal storage mechanisms.
+This section demonstrates a more realistic workflow using the sequential thinking tools, simulating debugging and feature planning. These tools operate independently and use their own internal storage mechanisms.
 
-**Note:** These tools manage session state. A `session_id` will be returned on the first call if not provided and should be reused for subsequent calls within the same thinking sequence.
+**Note:** A `session_id` is generated on the first call for a new sequence and should be reused for subsequent thoughts in that sequence.
 
-### T1. Start a Thinking Sequence
+### T1. Start Session 1: Debugging Login
 
-Record the first thought in a new session.
+Record the first thought in a new session about a login issue.
 
 ```tool_code
 print(default_api.mcp_chroma_test_chroma_sequential_thinking(
-    thought="Initial idea: Refactor the database schema.",
+    thought="User reports login fails frequently after recent deployment. Need to check server logs for errors.",
     thought_number=1,
     total_thoughts=3
-    # session_id is omitted, will be generated
+    # session_id is omitted, will be generated for session 1
 ))
 ```
 
-*Expected Outcome:* Confirmation, including the generated `session_id`.
+*Expected Outcome:* Confirmation, including the generated `session_id` (let's call it `session_id_1`).
 
-### T2. Continue the Sequence
+### T2. Continue Session 1: Identify Error
 
-Record the second thought, reusing the `session_id`.
+Record the second thought, using `session_id_1`.
 
 ```tool_code
-# Replace 'generated_session_id' with the ID from the previous step's output
+# Replace 'session_id_1' with the actual ID from T1's output
 print(default_api.mcp_chroma_test_chroma_sequential_thinking(
-    session_id="generated_session_id",
-    thought="Second step: Identify primary keys and relationships.",
+    session_id="session_id_1",
+    thought="Logs show intermittent 'InvalidCredentialsError'. Suspect password hashing or comparison logic in auth_utils.py.",
     thought_number=2,
     total_thoughts=3
 ))
@@ -445,66 +448,95 @@ print(default_api.mcp_chroma_test_chroma_sequential_thinking(
 
 *Expected Outcome:* Confirmation.
 
-### T3. Branch the Thought Process
+### T3. Continue Session 1: Found Bug
 
-Create a branch from the first thought to explore an alternative.
+Record the final thought for the debugging session.
 
 ```tool_code
-# Replace 'generated_session_id' with the session ID
+# Replace 'session_id_1' with the actual ID from T1's output
 print(default_api.mcp_chroma_test_chroma_sequential_thinking(
-    session_id="generated_session_id",
-    thought="Alternative idea: Use a NoSQL approach instead?",
-    thought_number=1, # Start branch numbering from 1
-    total_thoughts=2, # Total thoughts in this branch
-    branch_id="alternative-nosql",
-    branch_from_thought=1 # Branch from the first thought of the main sequence
+    session_id="session_id_1",
+    thought="Found the bug! Salt generation during registration used a non-deterministic source. Fixing auth_utils.py.",
+    thought_number=3,
+    total_thoughts=3
 ))
 ```
 
 *Expected Outcome:* Confirmation.
 
-### T4. Get Session Summary
+### T4. Start Session 2: Planning MFA
 
-Retrieve all thoughts for the session (optionally including branches).
+Start a new session for planning a new feature.
 
 ```tool_code
-# Replace 'generated_session_id' with the session ID
-print(default_api.mcp_chroma_test_chroma_get_session_summary(
-    session_id="generated_session_id",
-    include_branches=True
+print(default_api.mcp_chroma_test_chroma_sequential_thinking(
+    thought="Product requirement: Add multi-factor authentication (MFA) for enhanced security.",
+    thought_number=1,
+    total_thoughts=3
+    # session_id is omitted, will be generated for session 2
 ))
 ```
 
-*Expected Outcome:* A structured summary of thoughts in the session, including the main sequence and the branch.
+*Expected Outcome:* Confirmation, including a *new* generated `session_id` (let's call it `session_id_2`).
 
-### T5. Find Similar Thoughts
+### T5. Continue Session 2: Research Options
 
-Search for thoughts similar to a query within the session.
+Record the second thought for the MFA planning.
 
 ```tool_code
-# Replace 'generated_session_id' with the session ID
-print(default_api.mcp_chroma_test_chroma_find_similar_thoughts(
-    session_id="generated_session_id",
-    query="database design ideas",
-    n_results=3
+# Replace 'session_id_2' with the actual ID from T4's output
+print(default_api.mcp_chroma_test_chroma_sequential_thinking(
+    session_id="session_id_2",
+    thought="Researching MFA options. TOTP (like Google Authenticator) seems the best balance of security and user experience vs SMS/Email codes. Will investigate the 'pyotp' library.",
+    thought_number=2,
+    total_thoughts=3
 ))
 ```
 
-*Expected Outcome:* A list of thoughts from the session semantically similar to the query.
+*Expected Outcome:* Confirmation.
+
+### T5a. Continue Session 2: Implementation Plan
+
+Record the final thought outlining the implementation plan.
+
+```tool_code
+# Replace 'session_id_2' with the actual ID from T4's output
+print(default_api.mcp_chroma_test_chroma_sequential_thinking(
+    session_id="session_id_2",
+    thought="MFA Implementation Plan: 1. Update User model (add TOTP secret field). 2. Integrate 'pyotp' library. 3. Create QR code setup flow in user profile page. 4. Modify login view/API to check for TOTP code after password validation.",
+    thought_number=3,
+    total_thoughts=3
+))
+```
+
+*Expected Outcome:* Confirmation.
+
+### T5b. Ensure Sessions Collection Exists
+
+Ensure the internal collection used by `find_similar_sessions` exists. This might normally be handled by server initialization, but we include it here for test robustness.
+
+```tool_code
+# This command remains the same
+print(default_api.mcp_chroma_test_chroma_create_collection(collection_name="thinking_sessions"))
+```
+
+*Expected Outcome:* Confirmation of creation or an McpError indicating it already exists (which is also acceptable for the test).
 
 ### T6. Find Similar Sessions
 
-Search for entire sessions similar to a query (across all stored sessions).
+Search for entire sessions similar to a query related to the new examples. We will test with different thresholds.
 
 ```tool_code
+# Query relevant to both Session 1 (login issue) and Session 2 (MFA involves auth)
 print(default_api.mcp_chroma_test_chroma_find_similar_sessions(
-    query="Schema refactoring discussions",
-    n_results=2
+    query="User authentication issues",
+    # We will vary the threshold in the actual test runs (e.g., 0.5, 0.75)
+    threshold=0.5 # Placeholder value, will be changed in execution
 ))
 ```
 
-*Expected Outcome:* A list of session IDs and summaries that are semantically similar to the query.
+*Expected Outcome:* A list of session IDs and summaries that are semantically similar to the query, depending on the threshold used during execution.
 
 ---
 
-This flow covers the primary CRUD operations, filter/query variations, and provides a basic example of the thinking tools. Client limitations with list parameters may still affect query/get operations.
+This flow covers the primary CRUD operations, filter/query variations, and provides a more detailed example of the thinking tools. Client limitations with list parameters may still affect query/get operations.

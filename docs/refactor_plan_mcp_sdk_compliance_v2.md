@@ -36,7 +36,7 @@
 
 - [x] **Identify Tools for Refactoring:** Primarily `document_tools.py` for single-item simplification, and other tools for variant creation if needed to avoid complex optionals.
 - [x] **Define Simplified/Variant Models:**
-  - [ ] `collection_tools.py` variants (e.g., `CreateCollectionInput`, `CreateCollectionWithMetadataInput`).
+  - [x] `collection_tools.py` variants (e.g., `CreateCollectionInput`, `CreateCollectionWithMetadataInput`).
   - [x] `document_tools.py`:
     - **Single-Item Models:** Define models for single-item operations (e.g., `AddDocumentInput`, `AddDocumentWithIdInput`, `AddDocumentWithMetadataInput`, `AddDocumentWithIdAndMetadataInput`, `UpdateDocumentContentInput`, `UpdateDocumentMetadataInput`, `DeleteDocumentByIdInput`). These models will have fields like `document: str`, `id: str`, `metadata: str` or `metadata: Dict` instead of lists.
     - **List-Based Query/Get Variants:** Define specific variants for query and get operations that still need lists (e.g., `QueryDocumentsInput`, `QueryDocumentsWithWhereFilterInput`, `GetDocumentsByIdsInput`, `GetAllDocumentsInput`). These models will use `query_texts: List[str]`, `ids: List[str]`, etc.
@@ -103,7 +103,7 @@
 **Goal:** Review utility functions in light of the new structure.
 
 - [x] **`src/chroma_mcp/utils/errors.py`:** No changes likely needed beyond Phase V1/V2 adjustments. `handle_chroma_error` can still be used to convert Chroma errors to `McpError` within `_impl` functions.
-- [ ] **Shared Logic Helpers:** Consider creating new utility functions if significant logic is shared between the new `_impl` variants (as mentioned in Phase 4).
+- [x] **Shared Logic Helpers:** Consider creating new utility functions if significant logic is shared between the new `_impl` variants (as mentioned in Phase 4).
 
 ---
 
@@ -122,7 +122,7 @@
 
 **Specific Test Modules:**
 
-- [ ] **`tests/tools/test_collection_tools.py`:** Add tests for `create_collection_with_metadata`.
+- [x] **`tests/tools/test_collection_tools.py`:** Add tests for `create_collection_with_metadata`.
 - [x] **`tests/tools/test_document_tools.py`:** Add tests for all **single-item** `add`, `update`, `delete` tools and **list-based** `query`, `get`, filter-delete variants. Skip/remove tests for original list-based modification tools.
 - [x] **`tests/tools/test_thinking_tools.py`:** Add tests for `sequential_thinking_with_data`.
 
@@ -134,12 +134,12 @@
 
 - [x] **Code Review:** Perform a thorough review focusing on the single-item tools, list-based variants, Pydantic models, `_impl` logic (especially list wrapping for single-item calls), `McpError` usage, and test coverage.
 - [x] **Run Tests:** Execute the full test suite (`hatch run test`). Address any failures.
-- [ ] **Manual Testing (MCP Inspector / Client):**
-  - [ ] Verify the *original list-based* add/update/delete tools no longer appear.
-  - [ ] Verify the *new single-item* add/update/delete tools appear correctly.
-  - [ ] Verify the *new list-based* query/get variants appear correctly.
-  - [ ] Test valid inputs for all *new* tools.
-  - [ ] Test invalid inputs for tools (e.g., missing required fields) and verify `McpError` (`INVALID_PARAMS`).
-  - [ ] Test execution errors and verify `McpError`.
+- [x] **Manual Testing (MCP Inspector / Client):**
+  - [x] Verify the *original list-based* add/update/delete tools no longer appear.
+  - [x] Verify the *new single-item* add/update/delete tools appear correctly.
+  - [x] Verify the *new list-based* query/get variants appear correctly.
+  - [x] Test valid inputs for all *new* tools.
+  - [x] Test invalid inputs for tools (e.g., missing required fields) and verify `McpError` (`INVALID_PARAMS`).
+  - [x] Test execution errors and verify `McpError`.
 - [x] **Server Log Verification:** Check logs.
-- [ ] **Linting/Formatting:** Run tools (`hatch run lint`).
+- [x] **Linting/Formatting:** Run tools (`hatch run lint`).
