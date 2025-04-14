@@ -534,7 +534,7 @@ Search for entire sessions similar to a query related to the new examples. We wi
 ```tool_code
 # Query relevant to both Session 1 (login issue) and Session 2 (MFA involves auth)
 print(default_api.mcp_chroma_test_chroma_find_similar_sessions(
-    query="User authentication issues",
+    query="frequent login failures after deployment",
     # We will vary the threshold in the actual test runs (e.g., 0.5, 0.75)
     threshold=0.5 # Placeholder value, will be changed in execution
 ))
