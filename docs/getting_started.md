@@ -77,8 +77,11 @@ The server primarily uses environment variables for configuration. A `.env` file
 
 - `CHROMA_CLIENT_TYPE`: `persistent` or `ephemeral` (default)
 - `CHROMA_DATA_DIR`: Path for persistent storage (required if `persistent`)
-- `CHROMA_LOG_DIR`: Directory where the `chroma_mcp_server.log` file will be created. If not set, logs only go to the console.
-- `LOG_LEVEL`: Standard Python log level (e.g., `DEBUG`, `INFO`).
+- `CHROMA_LOG_DIR`: Path for log files (defaults to a temporary directory).
+- `LOG_LEVEL`: Logging verbosity (e.g., `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). Defaults to `INFO`.
+- `MCP_LOG_LEVEL`: Specific logging verbosity for the MCP server components.
+- `CHROMA_EMBEDDING_FUNCTION`: Specifies the embedding function to use (e.g., `default`, `accurate`, `openai`). See README or API reference for all options. Requires API keys for non-local models.
+- API Keys: If using API-based embedding functions (like `openai`, `gemini`), ensure the relevant environment variables (e.g., `OPENAI_API_KEY`, `GOOGLE_API_KEY`) are set.
 
 Cursor uses `.cursor/mcp.json` to configure server launch commands:
 
@@ -87,8 +90,17 @@ Cursor uses `.cursor/mcp.json` to configure server launch commands:
   "mcpServers": {
     "chroma": { // Runs the version last installed via uvx (typically Prod)
       "command": "uvx",
-      "args": ["chroma-mcp-server"],
-      "env": { ... }
+      "args": [
+        "chroma-mcp-server",
+        "--client-type=persistent",
+        "--embedding-function=default" // Example: Choose your embedding function
+      ],
+      "env": {
+        "CHROMA_DATA_DIR": "/path/to/data/dir", // Replace with your actual path
+        "CHROMA_LOG_DIR": "./logs",
+        "LOG_LEVEL": "INFO",
+        "MCP_LOG_LEVEL": "INFO"
+      }
     },
     "chroma_test": { // Runs the latest version from TestPyPI
       "command": "uvx",

@@ -29,6 +29,40 @@ Each recorded thought is automatically embedded into a vector representation by 
 - **Retrieval:** When an AI assistant needs context from the past, it doesn't rely on simple keyword matching. Instead, it uses the `find_similar_thoughts` tool. This tool takes a query (e.g., "What was the plan for refactoring the database module?") and performs a **semantic search** against the stored thought embeddings.
 - **Semantic Search:** ChromaDB finds thoughts whose embeddings are *semantically closest* to the query's embedding, even if the exact wording differs. This allows retrieving relevant past thoughts, plans, or code snippets based on their meaning, not just keywords.
 
+## Embedding Models
+
+The Chroma MCP Server relies on embedding models to represent text data (documents, thoughts) as numerical vectors. These vectors capture the semantic meaning of the text, enabling similarity searches.
+
+### Selecting an Embedding Model
+
+You can choose the embedding model the server uses via:
+
+1. **Command-Line Argument:** Use the `--embedding-function` argument when starting the server. For example:
+
+    ```bash
+    uvx chroma-mcp-server --embedding-function=accurate
+    ```
+
+2. **Environment Variable:** Set the `CHROMA_EMBEDDING_FUNCTION` environment variable.
+
+    ```bash
+    export CHROMA_EMBEDDING_FUNCTION=openai
+    uvx chroma-mcp-server
+    ```
+
+If both are set, the command-line argument takes precedence.
+
+### Available Models
+
+- `default`: Uses a Sentence Transformers model (`all-MiniLM-L6-v2`) locally. Good balance of speed and accuracy, runs entirely on your machine.
+- `accurate`: Uses a larger Sentence Transformers model (`all-mpnet-base-v2`) locally. Potentially more accurate but slower and requires more resources.
+- `openai`: Uses OpenAI's `text-embedding-ada-002` model (requires an `OPENAI_API_KEY` environment variable).
+- `cohere`: Uses Cohere's embedding models (requires a `COHERE_API_KEY` environment variable).
+
+**Important:** Using non-local models like OpenAI or Cohere requires setting the corresponding API key environment variable.
+
+## Sequential Thinking
+
 ```mermaid
 graph LR
     A[User/AI Interaction] --> B(Record Thought via MCP);
