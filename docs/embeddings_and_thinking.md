@@ -36,7 +36,7 @@ graph LR
     C -- Embedding Vector --> D[ChromaDB Collection: sequential_thoughts_v1];
     B -- Metadata (session_id, thought#, etc.) --> D;
 
-    E[AI Needs Context] --> F(Query via MCP: "relevant past info?");
+    E[AI Needs Context] --> F[Query via MCP for relevant past info];
     F -- Query Text --> C;
     F -- Search Parameters (session_id?) --> G[Query ChromaDB];
     C -- Query Embedding --> G;
