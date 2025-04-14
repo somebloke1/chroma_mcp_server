@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.100"
+version = "0.1.101"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -44,6 +44,10 @@ dependencies = [
 full = [
     # Only needed with specific embeddings by provider api
     "google-generativeai>=0.8.4",
+    "openai>=1.73.0",
+    "cohere>=5.14.2",
+    "huggingface_hub>=0.30.0",
+    "voyageai>=0.3.0",
     # Only needed if using HTTP client
     "httpx>=0.28.0",
 ]
@@ -159,7 +163,12 @@ dependencies = [
   "pytest-xdist[psutil]>=3.5.0",
   "pytest-timeout>=2.3.0",
   "trio>=0.29.0",
+  # Include the project itself with all optional features for testing
+  # ".[full]" # This was incorrect syntax for hatch envs
 ]
+# Specify optional features from the project to include
+features = ["full"]
+
 # Add env-vars to specify CPU-only PyTorch index for installation
 # This affects transitive dependencies like torch pulled in by sentence-transformers
 [tool.hatch.envs.test.env-vars]

@@ -505,7 +505,7 @@ async def _get_documents_by_ids_impl(input_data: GetDocumentsByIdsInput) -> List
 
     try:
         client = get_chroma_client()
-        collection = client.get_collection(collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(collection_name)
         # Pass include=None to use ChromaDB defaults
         get_result: GetResult = collection.get(ids=ids, include=[])
         logger.debug(f"ChromaDB get result: {get_result}")
@@ -566,7 +566,7 @@ async def _get_documents_with_where_filter_impl(
 
     try:
         client = get_chroma_client()
-        collection = client.get_collection(collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(collection_name)
         # Pass limit/offset directly, Chroma client handles 0 or None appropriately if needed
         # If 0 means "not set", we need to convert it to None for the client call
         effective_limit = limit if limit > 0 else None
@@ -641,7 +641,7 @@ async def _get_documents_with_document_filter_impl(
 
     try:
         client = get_chroma_client()
-        collection = client.get_collection(collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(collection_name)
         # Pass limit/offset directly, converting 0 to None if needed by client
         effective_limit = limit if limit > 0 else None
         effective_offset = offset if offset > 0 else None
@@ -702,7 +702,7 @@ async def _get_all_documents_impl(input_data: GetAllDocumentsInput) -> List[type
 
     try:
         client = get_chroma_client()
-        collection = client.get_collection(collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(collection_name)
         # Pass limit/offset directly, converting 0 to None if needed by client
         effective_limit = limit if limit > 0 else None
         effective_offset = offset if offset > 0 else None
@@ -910,7 +910,7 @@ async def _query_documents_impl(input_data: QueryDocumentsInput) -> List[types.T
 
     try:
         client = get_chroma_client()
-        collection = client.get_collection(collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(collection_name)
         query_result: QueryResult = collection.query(
             query_texts=query_texts,
             n_results=n_results,
@@ -972,7 +972,7 @@ async def _query_documents_with_where_filter_impl(
 
     try:
         client = get_chroma_client()
-        collection = client.get_collection(collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(collection_name)
         query_result: QueryResult = collection.query(
             query_texts=query_texts,
             where=where_filter,
@@ -1043,7 +1043,7 @@ async def _query_documents_with_document_filter_impl(
 
     try:
         client = get_chroma_client()
-        collection = client.get_collection(collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(collection_name)
         query_result: QueryResult = collection.query(
             query_texts=query_texts,
             where_document=where_document_filter,
@@ -1102,8 +1102,8 @@ async def _get_documents_by_ids_include_impl(
 
     try:
         client = get_chroma_client()
-        collection = client.get_collection(collection_name, embedding_function=get_embedding_function())  # type: ignore
-        get_result: GetResult = collection.get(ids=ids, include=include_fields)  # Use provided include_fields
+        collection = client.get_collection(collection_name)
+        get_result: GetResult = collection.get(ids=ids, include=include_fields)
         logger.debug(f"ChromaDB get result: {get_result}")
 
         result_json = json.dumps(get_result, cls=NumpyEncoder)
