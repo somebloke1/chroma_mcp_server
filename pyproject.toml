@@ -160,6 +160,10 @@ dependencies = [
   "pytest-timeout>=2.3.0",
   "trio>=0.29.0",
 ]
+# Add env-vars to specify CPU-only PyTorch index for installation
+# This affects transitive dependencies like torch pulled in by sentence-transformers
+[tool.hatch.envs.test.env-vars]
+PIP_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cpu"
 
 [tool.hatch.envs.test.scripts]
 run = "pytest {args:tests}"
