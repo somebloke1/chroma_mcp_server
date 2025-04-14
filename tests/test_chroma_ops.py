@@ -30,6 +30,16 @@ from src.chroma_mcp.utils.config import ServerConfig, load_config, get_collectio
 from chroma_mcp.server import config_server  # Needed to set up the client
 
 
+@pytest.fixture(autouse=True)
+def mock_logger():
+    """Auto-mock the logger used within chroma_ops test module utilities."""
+    # Patch the logger in the module where it's used (e.g., chroma_client)
+    with patch("chroma_mcp.utils.chroma_client.get_logger") as mock_get_logger:
+        mock_log_instance = MagicMock()
+        mock_get_logger.return_value = mock_log_instance
+        yield mock_log_instance
+
+
 # Client Tests
 class TestChromaClient:
     """Test cases for ChromaDB client operations."""
@@ -175,6 +185,58 @@ class TestChromaClient:
         assert "Failed to initialize ChromaDB client" in str(exc_info.value)
         assert "HTTP connection refused" in str(exc_info.value)
         mock_get_client.assert_called_once_with(config_obj)
+
+    def test_reset_client_no_existing_client(self, mock_logger):
+        """Test reset_client when no client is cached."""
+        # Ensure the global client is None initially
+        client_module._chroma_client = None
+
+        reset_client()
+
+        # Assert logger indicates no client was reset
+        mock_logger.info.assert_any_call("No active Chroma client instance to reset.")
+
+    def test_reset_client_underlying_error(self, mock_logger):
+        """Test reset_client handling errors from the client's reset method."""
+        mock_client_instance = MagicMock()
+        error_message = "Underlying reset failed"
+        mock_client_instance.reset.side_effect = Exception(error_message)
+
+        # Set the global client to the mock
+        client_module._chroma_client = mock_client_instance
+
+        # Call reset_client - it should catch the error and log it
+        reset_client()
+
+        # Assert the client's reset was called
+        mock_client_instance.reset.assert_called_once()
+        # Assert the error was logged
+        mock_logger.error.assert_called_once_with(f"Error resetting client: {error_message}")
+        # Assert the global client was still set to None
+        assert client_module._chroma_client is None
+
+    def test_reset_client_allow_reset_false(self, mock_logger):
+        """Test reset_client handling the specific 'Resetting is not allowed' error."""
+        mock_client_instance = MagicMock()
+        error_message = "Resetting is not allowed for this client type."
+        mock_client_instance.reset.side_effect = Exception(error_message)
+
+        # Set the global client to the mock
+        client_module._chroma_client = mock_client_instance
+
+        # Call reset_client
+        reset_client()
+
+        # Assert the client's reset was called
+        mock_client_instance.reset.assert_called_once()
+        # Assert the specific warning was logged
+        mock_logger.warning.assert_called_once_with(
+            f"Client reset failed gracefully (allow_reset=False): {error_message}"
+        )
+        # Assert the error logger was NOT called
+        mock_logger.error.assert_not_called()
+        # Assert the global client was still set to None
+        assert client_module._chroma_client is None
 
 
 # Error Handling Tests

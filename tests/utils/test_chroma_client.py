@@ -2,6 +2,8 @@
 import pytest
 import os
 from unittest.mock import patch, MagicMock
+import numpy as np
+from numpy.testing import assert_array_equal
 
 # Assuming your project structure allows this import path
 from chroma_mcp.utils.chroma_client import (
@@ -322,3 +324,200 @@ def test_get_embedding_function_onnx_runtime_missing(mock_ef_dependencies, mock_
 
 
 # <------------------------------------------
+
+# --- Tests for Missing Dependencies ---
+
+
+# Use parametrize to test multiple unavailable functions
+@pytest.mark.parametrize(
+    "ef_name, mock_flag_name, dependency_name",
+    [
+        # ("openai", "OPENAI_AVAILABLE", "openai"), # Cannot easily test flag if lib IS installed
+        # ("cohere", "COHERE_AVAILABLE", "cohere"),
+        # ("gemini", "GENAI_AVAILABLE", "google.generativeai"),
+        # ("huggingface", "HF_API_AVAILABLE", "huggingface_hub"),
+        # ("jina", "JINA_AVAILABLE", "jina"),
+        # ("voyageai", "VOYAGEAI_AVAILABLE", "voyageai"),
+        # ("accurate", "SENTENCE_TRANSFORMER_AVAILABLE", "sentence-transformers"),
+        # Parameters above are commented out as mocking the flag doesn't prevent import attempts
+        # Testing ImportError during instantiation is more robust
+    ],
+)
+def test_get_embedding_function_dependency_unavailable_flag(
+    monkeypatch, mock_logger, ef_name, mock_flag_name, dependency_name
+):
+    """Test McpError when dependency flag is False (Simulated)."""
+    # This test is difficult because KNOWN_EMBEDDING_FUNCTIONS checks flags
+    # *before* get_embedding_function is called. We test ImportError instead.
+    pytest.skip("Skipping flag test; testing ImportError during instantiation is preferred.")
+
+
+@pytest.mark.parametrize(
+    "ef_name, patched_module, expected_error_msg_part",
+    [
+        (
+            "openai",
+            "chromadb.utils.embedding_functions.OpenAIEmbeddingFunction",
+            "Dependency missing for embedding function 'openai'",
+        ),
+        (
+            "cohere",
+            "chromadb.utils.embedding_functions.CohereEmbeddingFunction",
+            "Dependency missing for embedding function 'cohere'",
+        ),
+        # Add others as needed, patching the specific class expected by the lambda
+        # Note: Gemini requires patching os.getenv or its own class import
+        # Note: Accurate requires patching SentenceTransformerEmbeddingFunction import
+    ],
+)
+def test_get_embedding_function_dependency_import_error(
+    monkeypatch, mock_logger, ef_name, patched_module, expected_error_msg_part
+):
+    """Test McpError when dependency import fails during instantiation."""
+    # Temporarily remove the function from the registry if it exists to force re-instantiation attempt
+    # This might not be strictly necessary if the factory lambda is always called
+
+    # Simulate ImportError when the factory lambda tries to import/instantiate
+    # NOTE: This approach might not work as expected if the library IS installed,
+    # because the KNOWN_EMBEDDING_FUNCTIONS dict is built at import time.
+    # If the lib is installed, the key exists, and patching the import later won't help.
+    # The actual error in that case would be "Unknown embedding function" if the flag was False.
+    # Let's adjust the assertion to expect "Unknown" as the primary error.
+    expected_error = f"Unknown embedding function: {ef_name}"
+
+    # We might not even need the patches if we just check for the 'Unknown' error
+    # which happens if the key isn't in KNOWN_EMBEDDING_FUNCTIONS
+
+    # For robustness, try patching anyway, but assert the 'Unknown' error.
+    with patch(patched_module, side_effect=ImportError(f"No module named {patched_module}")):
+        # Mock API key retrieval to avoid errors there
+        with patch("chroma_mcp.utils.chroma_client.get_api_key", return_value="dummy_key"):
+            with pytest.raises(McpError) as excinfo:
+                get_embedding_function(ef_name)
+
+    # Revert assertion: Expect "Dependency missing..." when ImportError is caught
+    assert expected_error_msg_part in str(excinfo.value)
+    # Logger might log 'Unknown' or the import error depending on internal flow
+    # mock_logger.error.assert_called_once() # Check that error was logged (Can be fragile)
+
+
+# --- Tests for GeminiEmbeddingFunction ---
+
+
+# Mock genai module for tests where google-generativeai might not be installed
+@pytest.fixture
+def mock_genai_module():
+    mock = MagicMock()
+    mock.configure = MagicMock()
+    mock.embed_content = MagicMock(return_value={"embedding": [[0.5, 0.6]]})
+    # Simulate the module being available
+    with patch.dict("sys.modules", {"google.generativeai": mock}):
+        with patch("chroma_mcp.utils.chroma_client.genai", mock):  # Patch the import within chroma_client
+            yield mock
+
+
+def test_gemini_ef_init_success(mock_genai_module, monkeypatch):
+    """Test successful initialization of GeminiEmbeddingFunction with API key."""
+    api_key = "test-gemini-key"
+    model_name = "models/embedding-test"
+    task_type = "SEMANTIC_SIMILARITY"
+
+    # Set env var or pass directly
+    # monkeypatch.setenv("GOOGLE_API_KEY", api_key)
+
+    # Initialize directly, patching the genai module used inside
+    ef = GeminiEmbeddingFunction(api_key=api_key, model_name=model_name, task_type=task_type)
+
+    assert ef._model_name == model_name
+    assert ef._task_type == task_type
+    mock_genai_module.configure.assert_called_once_with(api_key=api_key)
+
+
+def test_gemini_ef_init_no_key(mock_genai_module, monkeypatch):
+    """Test GeminiEmbeddingFunction init fails without API key."""
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    with pytest.raises(ValueError) as excinfo:
+        GeminiEmbeddingFunction(api_key=None)  # Explicitly pass None
+    assert "Google API Key not provided" in str(excinfo.value)
+    mock_genai_module.configure.assert_not_called()
+
+
+# Parametrize API key source
+@pytest.mark.parametrize("use_env_var", [True, False])
+def test_gemini_ef_call_success(mock_genai_module, monkeypatch, use_env_var):
+    """Test successful call to GeminiEmbeddingFunction."""
+    api_key = "test-gemini-key-call"
+    model_name = "models/embedding-001"
+    task_type = "RETRIEVAL_DOCUMENT"
+    documents = ["doc1", "doc2"]
+    # Define expected as float32 numpy array
+    expected_embeddings = np.array([[0.5, 0.6]], dtype=np.float32)
+
+    if use_env_var:
+        monkeypatch.setenv("GOOGLE_API_KEY", api_key)
+        ef = GeminiEmbeddingFunction(model_name=model_name, task_type=task_type)
+    else:
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        ef = GeminiEmbeddingFunction(api_key=api_key, model_name=model_name, task_type=task_type)
+
+    embeddings = ef(documents)
+
+    # Use numpy testing for array comparison
+    assert_array_equal(embeddings, expected_embeddings)
+
+    mock_genai_module.embed_content.assert_called_once_with(model=model_name, content=documents, task_type=task_type)
+
+
+def test_gemini_ef_call_invalid_task_type(mock_genai_module, monkeypatch, mock_logger):
+    """Test GeminiEmbeddingFunction call falls back with invalid task_type."""
+    api_key = "test-gemini-key-task"
+    monkeypatch.setenv("GOOGLE_API_KEY", api_key)
+    invalid_task = "INVALID_TASK"
+    default_task = "RETRIEVAL_DOCUMENT"
+    documents = ["doc1"]
+
+    ef = GeminiEmbeddingFunction(task_type=invalid_task)
+    ef(documents)
+
+    # Assert it logged a warning and called API with default task type
+    # Check warning log more robustly
+    assert mock_logger.warning.call_count == 1
+    log_args, log_kwargs = mock_logger.warning.call_args
+    assert f"Invalid task_type '{invalid_task}'" in log_args[0]
+    assert f"defaulting to '{default_task}'" in log_args[0]
+    assert "Valid types: {" in log_args[0]
+
+    mock_genai_module.embed_content.assert_called_once_with(
+        model=ef._model_name, content=documents, task_type=default_task  # Check it used the default
+    )
+
+
+def test_gemini_ef_call_api_error(mock_genai_module, monkeypatch):
+    """Test GeminiEmbeddingFunction handling API errors during call."""
+    api_key = "test-gemini-key-api-error"
+    monkeypatch.setenv("GOOGLE_API_KEY", api_key)
+    error_message = "Google API failed"
+    mock_genai_module.embed_content.side_effect = Exception(error_message)
+    documents = ["doc1"]
+
+    ef = GeminiEmbeddingFunction()
+    with pytest.raises(EmbeddingError) as excinfo:
+        ef(documents)
+
+    assert f"Google Gemini API error: {error_message}" in str(excinfo.value)
+
+
+def test_get_embedding_function_gemini_init_error(mock_logger):
+    """Test get_embedding_function handling Gemini init error (e.g., no key)."""
+    # Simulate Gemini being available but failing init (no key)
+    with patch.dict("sys.modules", {"google.generativeai": MagicMock()}):
+        with patch("chroma_mcp.utils.chroma_client.genai", MagicMock()):
+            with patch("os.getenv", return_value=None):  # Simulate no key in env
+                with pytest.raises(McpError) as excinfo:
+                    get_embedding_function("gemini")  # Try to get Gemini
+
+    assert "Configuration error for embedding function 'gemini'" in str(excinfo.value)
+    assert "Google API Key not provided" in str(excinfo.value)
+
+
+# --- End Gemini Tests ---

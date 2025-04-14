@@ -191,9 +191,7 @@ async def _base_sequential_thinking_impl(
         client = get_chroma_client()
 
         try:
-            collection = client.get_or_create_collection(
-                name=THOUGHTS_COLLECTION, embedding_function=get_embedding_function()
-            )
+            collection = client.get_or_create_collection(THOUGHTS_COLLECTION)
             # Moved metadata creation and logic inside the main try block after client/collection setup
             # Handle default values for session_id and branch_from_thought
             effective_session_id = session_id if session_id else str(uuid.uuid4())
@@ -393,7 +391,7 @@ async def _find_similar_thoughts_impl(input_data: FindSimilarThoughtsInput) -> L
 
         # Get collection, handle not found specifically
         try:
-            collection = client.get_collection(name=THOUGHTS_COLLECTION, embedding_function=get_embedding_function())
+            collection = client.get_collection(THOUGHTS_COLLECTION)
         except ValueError as e:
             if f"Collection {THOUGHTS_COLLECTION} does not exist." in str(e):
                 logger.warning(f"Cannot find similar thoughts: Collection '{THOUGHTS_COLLECTION}' not found.")
@@ -526,7 +524,7 @@ async def _get_session_summary_impl(input_data: GetSessionSummaryInput) -> List[
 
         # Get collection, handle not found
         try:
-            collection = client.get_collection(name=THOUGHTS_COLLECTION, embedding_function=get_embedding_function())
+            collection = client.get_collection(THOUGHTS_COLLECTION)
         except ValueError as e:
             if f"Collection {THOUGHTS_COLLECTION} does not exist." in str(e):
                 logger.warning(f"Cannot get session summary: Collection '{THOUGHTS_COLLECTION}' not found.")
@@ -669,9 +667,7 @@ async def _find_similar_sessions_impl(input_data: FindSimilarSessionsInput) -> L
         thoughts_collection = None
         all_session_ids = set()
         try:
-            thoughts_collection = client.get_collection(
-                name=THOUGHTS_COLLECTION, embedding_function=get_embedding_function()
-            )
+            thoughts_collection = client.get_collection(THOUGHTS_COLLECTION)
             # Efficiently get all unique session_ids from metadata
             # This might be slow for very large collections, consider optimization if needed
             all_metadata = thoughts_collection.get(include=["metadatas"])
@@ -715,9 +711,7 @@ async def _find_similar_sessions_impl(input_data: FindSimilarSessionsInput) -> L
         sessions_collection = None
         try:
             # Try getting the sessions collection
-            sessions_collection = client.get_collection(
-                name=SESSIONS_COLLECTION, embedding_function=get_embedding_function()
-            )
+            sessions_collection = client.get_collection(SESSIONS_COLLECTION)
         except ValueError as e:
             # Handle case where SESSIONS_COLLECTION specifically does not exist
             if f"Collection {SESSIONS_COLLECTION} does not exist." in str(e):

@@ -136,7 +136,7 @@ class TestThinkingTools:
         result_data = assert_successful_json_list_result(result)
 
         # Assertions on mocks
-        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+        mock_client.get_or_create_collection.assert_called_once_with(THOUGHTS_COLLECTION)
         mock_collection.add.assert_called_once()
         call_args = mock_collection.add.call_args
         assert call_args.kwargs["documents"] == ["Initial thought"]
@@ -330,7 +330,7 @@ class TestThinkingTools:
         result_data = assert_successful_json_list_result(result)
 
         # Assertions on mocks
-        mock_client.get_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(THOUGHTS_COLLECTION)
         # Expect n_results=5 (Pydantic default)
         mock_collection.query.assert_called_once_with(
             query_texts=[query], n_results=5, where=None, include=["documents", "metadatas", "distances"]
@@ -401,7 +401,7 @@ class TestThinkingTools:
         result_data = assert_successful_json_list_result(result)
         assert result_data.get("similar_thoughts") == []
         assert result_data.get("total_found") == 0
-        mock_client.get_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(THOUGHTS_COLLECTION)
         # Ensure query was not called if collection not found
         # (Need the mock collection instance for this)
         # Assuming the side effect prevents query from being called implicitly
@@ -433,7 +433,7 @@ class TestThinkingTools:
         result_data = assert_successful_json_list_result(result)
 
         # Assertions on mocks
-        mock_client.get_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(THOUGHTS_COLLECTION)
         mock_collection.get.assert_called_once_with(
             where={"session_id": session_id}, include=["documents", "metadatas"]
         )
@@ -465,7 +465,7 @@ class TestThinkingTools:
         assert_successful_json_list_result(result, expected_data=expected_result_data)
 
         # Assertions on mocks
-        mock_client.get_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(THOUGHTS_COLLECTION)
         mock_collection.get.assert_called_once_with(
             where={"session_id": session_id}, include=["documents", "metadatas"]
         )
@@ -561,11 +561,11 @@ class TestThinkingTools:
             result_data = assert_successful_json_list_result(result)
 
             # Assertions on mocks - Expect THOUGHTS first, then SESSIONS
-            mock_client.get_collection.assert_any_call(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+            mock_client.get_collection.assert_any_call(THOUGHTS_COLLECTION)
             # Ensure the specific get call for metadata was made on thoughts collection
             mock_thoughts_collection.get.assert_called_once_with(include=["metadatas"])
             # Ensure get_collection was called for SESSIONS
-            mock_client.get_collection.assert_any_call(name=SESSIONS_COLLECTION, embedding_function=ANY)
+            mock_client.get_collection.assert_any_call(SESSIONS_COLLECTION)
             # Ensure get was called on sessions collection to check existing IDs
             mock_sessions_collection.get.assert_called_once_with()
             # Ensure session summary was called for the final result

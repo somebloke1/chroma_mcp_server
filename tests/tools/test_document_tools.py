@@ -505,7 +505,7 @@ class TestDocumentTools:
 
         # --- Assert ---
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
         mock_collection.query.assert_called_once_with(query_texts=query, n_results=n_results, include=[])
         assert_successful_json_result(result, expected_query_result)
 
@@ -523,7 +523,7 @@ class TestDocumentTools:
             await _query_documents_impl(input_model)
 
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
 
     @pytest.mark.asyncio
     async def test_query_documents_chroma_error(self, mock_chroma_client_document):
@@ -540,7 +540,7 @@ class TestDocumentTools:
             await _query_documents_impl(input_model)
 
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
         mock_collection.query.assert_called_once()  # Verify query was attempted
 
     # --- Get Documents Tests ---
@@ -560,7 +560,7 @@ class TestDocumentTools:
 
         # --- Assert ---
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
         mock_collection.get.assert_called_once_with(ids=ids_to_get, include=[])
         assert_successful_json_result(result, expected_get_result)
 
@@ -583,7 +583,7 @@ class TestDocumentTools:
 
         # --- Assert ---
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
         mock_collection.get.assert_called_once_with(where=where_filter, limit=limit, offset=None, include=[])
         assert_successful_json_result(result, expected_get_result)
 
@@ -604,7 +604,7 @@ class TestDocumentTools:
         result = await _get_documents_with_document_filter_impl(input_model)
 
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
         mock_collection.get.assert_called_once_with(
             where_document=where_doc_filter, limit=None, offset=None, include=[]
         )
@@ -627,7 +627,7 @@ class TestDocumentTools:
         result = await _get_all_documents_impl(input_model)
 
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
         mock_collection.get.assert_called_once_with(limit=limit, offset=None, include=[])
         assert_successful_json_result(result, expected_get_result)
 
@@ -684,7 +684,7 @@ class TestDocumentTools:
             await _get_documents_by_ids_impl(input_model)
 
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
 
     @pytest.mark.asyncio
     async def test_get_documents_chroma_error(self, mock_chroma_client_document):
@@ -701,7 +701,7 @@ class TestDocumentTools:
             await _get_documents_by_ids_impl(input_model)
 
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
         mock_collection.get.assert_called_once_with(ids=["id1"], include=[])
 
     # --- Update Documents Tests ---
@@ -943,7 +943,7 @@ class TestDocumentTools:
         with assert_raises_mcp_error(f"An unexpected error occurred during query: {generic_error_message}"):
             await _query_documents_impl(input_query)
         mock_validate.assert_called_with(collection_name)
-        mock_client.get_collection.assert_called_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_with(collection_name)
         mock_collection.query.assert_called_once()
         mock_client.reset_mock()
         mock_collection.reset_mock()
@@ -1002,7 +1002,7 @@ class TestDocumentTools:
 
         # --- Assert ---
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
         # Assert that get was called with include=["embeddings"]
         mock_collection.get.assert_called_once_with(ids=ids_to_get, include=["embeddings"])
         assert_successful_json_result(result, expected_get_result)
@@ -1033,7 +1033,7 @@ class TestDocumentTools:
 
         # --- Assert ---
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
         # Assert that get was called with the full include list
         mock_collection.get.assert_called_once_with(ids=ids_to_get, include=expected_all_fields)
         assert_successful_json_result(result, expected_get_result)
@@ -1059,7 +1059,7 @@ class TestDocumentTools:
             await _get_documents_by_ids_embeddings_impl(input_model)
 
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
 
     @pytest.mark.asyncio
     async def test_get_documents_by_ids_include_get_error(self, mock_chroma_client_document):
@@ -1087,7 +1087,7 @@ class TestDocumentTools:
             await _get_documents_by_ids_all_impl(input_model)
 
         mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name, embedding_function=ANY)
+        mock_client.get_collection.assert_called_once_with(collection_name)
         mock_collection.get.assert_called_once()  # Verify get was attempted
 
     # --- End: Tests for New Include Variants ---

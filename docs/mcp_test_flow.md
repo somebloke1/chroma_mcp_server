@@ -5,6 +5,7 @@ This document outlines a sequence of Model Context Protocol (MCP) tool calls to 
 **Assumptions:**
 
 - The `chroma-mcp-server` is running and accessible via the MCP client (e.g., through Cursor's `chroma_test` or `chroma` configuration).
+- **Embedding Function:** The server uses an embedding function (configured via `--embedding-function` CLI arg or `CHROMA_EMBEDDING_FUNCTION` env var, defaulting to `all-MiniLM-L6-v2`). The specific function used can slightly affect the results of semantic searches (query/find_similar operations).
 - We are using the `mcp_chroma_test_` prefix for the tools as exposed in this environment.
 - **Recent Refactoring:** Document `add`, `update`, and `delete` tools now operate on **single documents** to improve compatibility with certain clients/models. Query and Get operations still support multiple items/results.
 
@@ -177,6 +178,8 @@ print(default_api.mcp_chroma_test_chroma_get_all_documents(collection_name="mcp_
 ### 7. Query Documents
 
 Perform a semantic search. We'll use the basic query tool.
+
+**Note:** The quality and specific ranking of results depend on the chosen embedding function.
 
 ```tool_code
 print(default_api.mcp_chroma_test_chroma_query_documents(
@@ -526,10 +529,12 @@ print(default_api.mcp_chroma_test_chroma_create_collection(collection_name="thin
 
 Search for entire sessions similar to a query related to the new examples. We will test with different thresholds.
 
+**Note:** Session similarity scores depend on the chosen embedding function.
+
 ```tool_code
 # Query relevant to both Session 1 (login issue) and Session 2 (MFA involves auth)
 print(default_api.mcp_chroma_test_chroma_find_similar_sessions(
-    query="User authentication issues",
+    query="frequent login failures after deployment",
     # We will vary the threshold in the actual test runs (e.g., 0.5, 0.75)
     threshold=0.5 # Placeholder value, will be changed in execution
 ))
