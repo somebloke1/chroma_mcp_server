@@ -38,6 +38,7 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
         * `CHROMA_DATA_DIR`: Set a path for persistent storage.
         * `CHROMA_LOG_DIR`: Set a path for log files.
         * `LOG_LEVEL`: Adjust logging verbosity (e.g., `DEBUG`, `INFO`).
+        * `CHROMA_EMBEDDING_FUNCTION`: Ensure consistency if set.
     * The `.cursor/mcp.json` file allows defining multiple server configurations. By convention, this project often includes:
         * `"chroma"`: Runs the version of `chroma-mcp-server` last installed locally via `uvx` (typically the production version installed by `release.sh`).
         * `"chroma_test"`: Configured to automatically fetch and run the *latest* version available on **TestPyPI**. This is useful for testing release candidates or development versions before a full production release.
@@ -54,14 +55,17 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
             "--default-index", "https://test.pypi.org/simple/", // Prioritize TestPyPI
             "--index", "https://pypi.org/simple/", // Fallback to PyPI
             "--index-strategy", "unsafe-best-match", // Strategy for finding packages
-            "chroma-mcp-server@latest" // Request the latest version
+            "chroma-mcp-server@latest",
+            "--client-type=ephemeral",
+            "--embedding-function=default" // Example: Choose your embedding function
           ],
           "env": {
             "CHROMA_CLIENT_TYPE": "persistent",
             "CHROMA_DATA_DIR": "/path/to/your/test_data", // Use a separate test data dir
             "CHROMA_LOG_DIR": "/path/to/your/test_logs", // Use separate test logs
             "LOG_LEVEL": "DEBUG",
-            "MCP_LOG_LEVEL": "DEBUG"
+            "MCP_LOG_LEVEL": "DEBUG",
+            "CHROMA_EMBEDDING_FUNCTION": "default" // Ensure consistency if set
           }
         },
         // ... other server definitions like "chroma"

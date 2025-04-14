@@ -37,7 +37,9 @@ Create or update the `.cursor/mcp.json` file in your project directory:
   "mcpServers": {
     "chroma": {
       "command": "chroma-mcp-server",
-      "args": [],
+      "args": [
+        "--embedding-function=default"
+      ],
       "env": {
         "CHROMA_CLIENT_TYPE": "persistent",
         "CHROMA_DATA_DIR": "./chroma_data",
@@ -57,7 +59,10 @@ Create or update the `.cursor/mcp.json` file in your project directory:
   "mcpServers": {
     "chroma": {
       "command": "uvx",
-      "args": ["chroma-mcp-server"],
+      "args": [
+        "chroma-mcp-server",
+        "--embedding-function=default"
+      ],
       "env": {
         "CHROMA_CLIENT_TYPE": "persistent",
         "CHROMA_DATA_DIR": "./chroma_data",
@@ -84,6 +89,7 @@ Create or update the `.cursor/mcp.json` file in your project directory:
 | `CHROMA_DATABASE` | Database name for Cloud client | None | `db1` |
 | `CHROMA_API_KEY` | API key for Cloud client | None | `sk_...` |
 | `CPU_EXECUTION_PROVIDER` | Force CPU execution provider | `auto` | `true`, `false`, `auto` |
+| `CHROMA_EMBEDDING_FUNCTION` | Name of the embedding function to use. API keys may be needed for some. | `default` | `default`, `fast`, `accurate`, `openai`, `cohere`, `huggingface`, `jina`, `voyageai`, `gemini` |
 | `LOG_LEVEL` | Log level for server | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `MCP_LOG_LEVEL` | Log level for MCP interface | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
