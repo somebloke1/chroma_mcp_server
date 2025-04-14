@@ -100,7 +100,7 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 # --- Original Utils Exports --- #
-from .client import get_chroma_client, get_embedding_function
+from .chroma_client import get_chroma_client, get_embedding_function
 from .errors import ValidationError, EmbeddingError, ClientError, ConfigurationError
 
 __all__ = [

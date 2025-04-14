@@ -78,7 +78,7 @@ The server can be configured with command-line options or environment variables:
 #### Command-line Options
 
 ```bash
-chroma-mcp-server --client-type persistent --data-dir ./my_data --log-dir ./logs
+chroma-mcp-server --client-type persistent --data-dir ./my_data --log-dir ./logs --embedding-function accurate
 ```
 
 #### Environment Variables
@@ -87,6 +87,7 @@ chroma-mcp-server --client-type persistent --data-dir ./my_data --log-dir ./logs
 export CHROMA_CLIENT_TYPE=persistent
 export CHROMA_DATA_DIR=./my_data
 export CHROMA_LOG_DIR=./logs
+export CHROMA_EMBEDDING_FUNCTION=accurate
 chroma-mcp-server
 ```
 
@@ -101,7 +102,8 @@ chroma-mcp-server
 - `--tenant`: Tenant ID for Cloud client
 - `--database`: Database name for Cloud client
 - `--api-key`: API key for Cloud client
-- `--cpu-execution-provider`: Force CPU execution provider for embedding functions (`auto`, `true`, `false`)
+- `--cpu-execution-provider`: Force CPU execution provider for local embedding functions (`auto`, `true`, `false`)
+- `--embedding-function`: Name of the embedding function to use. Choices: 'default'/'fast' (Local CPU, balanced), 'accurate' (Local CPU/GPU via sentence-transformers, higher accuracy), 'openai' (API, general purpose), 'cohere' (API, retrieval/multilingual focus), 'huggingface' (API, flexible model choice), 'jina' (API, long context focus), 'voyageai' (API, retrieval focus), 'gemini' (API, general purpose). API-based functions require corresponding API keys set as environment variables (e.g., OPENAI_API_KEY).
 
 See [Getting Started](docs/getting_started.md) for more setup details.
 
@@ -115,14 +117,18 @@ To use with Cursor, add the following to your `.cursor/mcp.json`:
     "chroma": {
       "command": "uvx",
       "args": [
-        "chroma-mcp-server"
+        "chroma-mcp-server",
+        "--embedding-function=default" // Example: Choose your desired embedding function
       ],
       "env": {
         "CHROMA_CLIENT_TYPE": "persistent",
-        "CHROMA_DATA_DIR": "/path/to/data/dir",
-        "CHROMA_LOG_DIR": "/path/to/logs/dir",
+        "CHROMA_DATA_DIR": "/path/to/data/dir", // Replace with your actual path
+        "CHROMA_LOG_DIR": "/path/to/logs/dir",   // Replace with your actual path
         "LOG_LEVEL": "INFO",
-        "MCP_LOG_LEVEL": "INFO"
+        "MCP_LOG_LEVEL": "INFO",
+        // Add API keys here if using API-based embedding functions
+        // "OPENAI_API_KEY": "your_openai_key",
+        // "GOOGLE_API_KEY": "your_google_key"
       }
     }
   }
@@ -134,6 +140,10 @@ See [Cursor Integration](docs/cursor_integration.md) for more details.
 ## Development
 
 For instructions on how to set up the development environment, run tests, build the package, and contribute, please see the **[Developer Guide](docs/developer_guide.md)**.
+
+## Working Memory and Thinking Tools
+
+This server includes specialized tools for creating a persistent, searchable "working memory" to aid AI development workflows. Learn more about how these tools leverage embeddings to manage context across sessions in the **[Embeddings and Thinking Tools Guide](docs/embeddings_and_thinking.md)**.
 
 ## Testing the Tools
 

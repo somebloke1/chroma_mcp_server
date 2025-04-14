@@ -84,6 +84,25 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         help="Force CPU execution provider for embedding functions",
     )
 
+    # Add argument for the chosen embedding function
+    parser.add_argument(
+        "--embedding-function",
+        default=os.getenv("CHROMA_EMBEDDING_FUNCTION", "default"),
+        help=(
+            "Name of the embedding function to use. Choices: "
+            "'default'/'fast' (Local CPU, balanced), "
+            "'accurate' (Local CPU/GPU via sentence-transformers, higher accuracy), "
+            "'openai' (API, general purpose), "
+            "'cohere' (API, retrieval/multilingual focus), "
+            "'huggingface' (API, flexible model choice), "
+            "'jina' (API, long context focus), "
+            "'voyageai' (API, retrieval focus), "
+            "'gemini' (API, general purpose). "
+            "API-based functions require corresponding API keys set as environment variables (e.g., OPENAI_API_KEY)."
+        ),
+        dest="embedding_function_name",
+    )
+
     return parser.parse_args(args)
 
 

@@ -39,26 +39,13 @@ from dotenv import load_dotenv
 from src.chroma_mcp.server import config_server
 
 # Import functions/classes needed for tool tests
-from src.chroma_mcp.utils.client import get_chroma_client, get_embedding_function
+from src.chroma_mcp.utils.chroma_client import get_chroma_client, get_embedding_function
 from src.chroma_mcp.utils.errors import McpError, ValidationError
 from src.chroma_mcp.types import (
     ChromaClientConfig,
     ThoughtMetadata,
     DocumentMetadata,  # Ensure DocumentMetadata is imported
 )
-
-# from src.chroma_mcp.tools.collection_tools import (
-#     _create_collection_impl,
-#     _list_collections_impl,
-#     _get_collection_impl,
-#     _rename_collection_impl,
-#     _delete_collection_impl,
-#     _peek_collection_impl,
-# )
-# from src.chroma_mcp.tools.thinking_tools import (
-#     _sequential_thinking_impl,
-#     _find_similar_thoughts_impl,
-# )
 
 # --- Start: Logger Configuration for Tests ---
 TEST_LOG_DIR = "logs"
