@@ -120,7 +120,12 @@ def test_parse_args_env_vars():
 
 def test_parse_args_cmd_line_overrides_env():
     """Test command line args overriding environment variables."""
-    env_vars = {"CHROMA_CLIENT_TYPE": "http", "CHROMA_PORT": "8000", "CHROMA_SSL": "true", "CHROMA_EMBEDDING_FUNCTION": "default"}
+    env_vars = {
+        "CHROMA_CLIENT_TYPE": "http",
+        "CHROMA_PORT": "8000",
+        "CHROMA_SSL": "true",
+        "CHROMA_EMBEDDING_FUNCTION": "default",
+    }
     cmd_args = [
         "--client-type",
         "persistent",  # Override env

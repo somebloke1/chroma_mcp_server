@@ -100,7 +100,7 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
             "'gemini' (API, general purpose). "
             "API-based functions require corresponding API keys set as environment variables (e.g., OPENAI_API_KEY)."
         ),
-        dest="embedding_function_name"
+        dest="embedding_function_name",
     )
 
     return parser.parse_args(args)
