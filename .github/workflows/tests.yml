@@ -19,18 +19,20 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-    
-    - name: Free Disk Space (Ubuntu)
-      uses: jlumbroso/free-disk-space@main
-      with:
-        # Use documented inputs
-        android: true
-        dotnet: true
-        haskell: true
-        large-packages: true # Attempts to remove large apt packages
-        docker-images: true  # Keep this if docker is used or potentially pre-installed
-        tool-cache: false    # Usually set to false unless specific tool cache cleaning needed
-        swap-storage: true   # Correct name for swap file removal
+
+    # Removed the disk space cleanup step as /dev/root seems to have sufficient space (25GB+)
+    # If space errors persist, investigate /tmp space or pip build locations.
+    # - name: Free Disk Space (Ubuntu)
+    #   uses: jlumbroso/free-disk-space@main
+    #   with:
+    #     # Use documented inputs
+    #     android: true
+    #     dotnet: true
+    #     haskell: true
+    #     large-packages: true # Attempts to remove large apt packages
+    #     docker-images: true  # Keep this if docker is used or potentially pre-installed
+    #     tool-cache: false    # Usually set to false unless specific tool cache cleaning needed
+    #     swap-storage: true   # Correct name for swap file removal
         
     - name: Install hatch and coverage
       run: |
