@@ -774,3 +774,137 @@ Common error types:
 | `DocumentNotFoundError` | Requested document doesn't exist |
 | `ChromaDBError` | Errors from the underlying ChromaDB |
 | `McpError` | General MCP-related errors |
+
+## Configuration
+
+### Command-line Arguments
+
+- `--cpu-execution-provider`: Force CPU execution provider for embedding functions (`auto`, `true`, `false`)
+- `--default-ef`: Name of the default embedding function (e.g., `default`, `openai`)
+
+### Environment Variables
+
+Equivalent environment variables can be used (e.g., `CHROMA_CLIENT_TYPE`, `CHROMA_DATA_DIR`, `CHROMA_DEFAULT_EF`). Command-line arguments take precedence.
+
+## Document Management Tools (`document_tools.py`)
+
+Tools for adding, updating, retrieving, and deleting individual documents within a collection.
+
+## Thinking Tools (`thinking_tools.py`)
+
+These tools facilitate creating a persistent, searchable "working memory" for AI development workflows by managing sequences of thoughts within sessions.
+
+See the [Embeddings and Thinking Tools Guide](embeddings_and_thinking.md) for concepts and use cases.
+
+### `mcp_chroma_test_chroma_sequential_thinking`
+
+Records a single thought in a sequential chain within a session. If `session_id` is empty, a new session is created.
+
+**Parameters:**
+
+- `thought` (string, required): Content of the thought being recorded.
+- `thought_number` (int, required): Sequential number of this thought within the session/branch (must be > 0).
+- `total_thoughts` (int, required): Total anticipated number of thoughts in this sequence (used for context, may not be strictly enforced).
+- `session_id` (string, optional): Unique ID for the thinking session. If empty, a new UUID is generated.
+- `branch_id` (string, optional): Identifier for a specific branch within the session. Empty for the main trunk.
+- `branch_from_thought` (int, optional, default: 0): If creating a new branch (`branch_id` is provided), specifies the parent `thought_number` (> 0) this branch originates from. 0 indicates not branching or starting a branch from the beginning.
+- `next_thought_needed` (bool, optional, default: False): Flag indicating if a subsequent thought is expected in this sequence.
+
+**Returns:**
+
+JSON object with `session_id` and the generated `thought_id`.
+
+**Example:**
+
+```json
+{
+  "tool_name": "mcp_chroma_test_chroma_sequential_thinking",
+  "arguments": {
+    "session_id": "sess_123",
+    "thought_number": 1,
+    "total_thoughts": 3,
+    "thought": "User asked to implement the login function."
+  }
+}
+```
+
+### `mcp_chroma_test_chroma_find_similar_thoughts`
+
+Finds thoughts semantically similar to a given query text, potentially within a specific session.
+
+**Parameters:**
+
+- `query` (string, required): Text to search for similar thoughts.
+- `session_id` (string, optional): If provided, limits the search to thoughts within this specific session.
+- `n_results` (int, optional, default: 5): Maximum number of similar thoughts to return (must be >= 1).
+- `threshold` (float, optional, default: -1.0): Similarity score threshold (0.0 to 1.0, lower distance is more similar). A value of -1.0 uses the server-defined default (currently 0.75). Similarity is calculated as `1.0 - distance`.
+- `include_branches` (bool, optional, default: True): Whether to include thoughts from branches when searching within a session.
+
+**Returns:**
+
+JSON object containing a list of `similar_thoughts` (each with `id`, `content`, `metadata`, `similarity`), `total_found`, and `threshold_used`.
+
+**Example:**
+
+```json
+{
+  "tool_name": "mcp_chroma_test_chroma_find_similar_thoughts",
+  "arguments": {
+    "session_id": "sess_123",
+    "query": "What was the plan for the login function?",
+    "n_results": 3
+  }
+}
+```
+
+### `mcp_chroma_test_chroma_get_session_summary`
+
+Retrieves all thoughts recorded within a specific thinking session, ordered sequentially.
+
+**Parameters:**
+
+- `session_id` (string, required): The unique identifier for the thinking session to summarize.
+- `include_branches` (bool, optional, default: True): Whether to include thoughts from branches in the summary.
+
+**Returns:**
+
+JSON object containing `session_id`, a list of `session_thoughts` (each with `id`, `content`, `metadata`), and `total_thoughts_in_session`.
+
+**Example:**
+
+```json
+{
+  "tool_name": "mcp_chroma_test_chroma_get_session_summary",
+  "arguments": {
+    "session_id": "sess_123"
+  }
+}
+```
+
+### `mcp_chroma_test_chroma_find_similar_sessions`
+
+Finds thinking sessions whose overall content is semantically similar to a query text. (Note: Requires session summaries to be pre-computed or aggregated).
+
+**Parameters:**
+
+- `query` (string, required): Text to search for similar thinking sessions.
+- `n_results` (int, optional, default: 5): Maximum number of similar sessions to return (must be >= 1).
+- `threshold` (float, optional, default: -1.0): Similarity score threshold (0.0 to 1.0, lower distance is more similar). A value of -1.0 uses the server-defined default (currently 0.75).
+
+**Returns:**
+
+JSON object containing a list of `similar_sessions` (each potentially including `session_id`, summary snippet, `similarity_score`), `total_found`, and `threshold_used`.
+
+**Example:**
+
+```json
+{
+  "tool_name": "mcp_chroma_test_chroma_find_similar_sessions",
+  "arguments": {
+    "query": "Find sessions discussing database schema changes",
+    "n_results": 3
+  }
+}
+```
+
+## Other Tools

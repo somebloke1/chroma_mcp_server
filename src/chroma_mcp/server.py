@@ -217,6 +217,7 @@ def config_server(args: argparse.Namespace) -> None:
             database=args.database,
             api_key=args.api_key,
             use_cpu_provider=use_cpu_provider,
+            embedding_function_name=args.embedding_function_name,
         )
 
         # Store the config globally via setter

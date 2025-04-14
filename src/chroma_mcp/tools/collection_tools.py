@@ -24,6 +24,7 @@ from ..utils import (
     get_logger,
     get_chroma_client,
     get_embedding_function,
+    get_server_config,
     ValidationError,
     ClientError,
     ConfigurationError,
@@ -167,7 +168,14 @@ async def _create_collection_impl(input_data: CreateCollectionInput) -> List[typ
         validate_collection_name(collection_name)
 
         client = get_chroma_client()
-        embedding_function = get_embedding_function()
+        # Get the configured default embedding function name from the global config
+        server_config = get_server_config()
+        # Use the correctly named field
+        ef_name = server_config.embedding_function_name
+
+        # Instantiate the configured embedding function
+        embedding_function = get_embedding_function(ef_name)
+        logger.info(f"Using configured embedding function: '{ef_name}'")
 
         # Handle metadata and default settings
         # REMOVE: Logic branch checking for provided metadata
@@ -183,7 +191,7 @@ async def _create_collection_impl(input_data: CreateCollectionInput) -> List[typ
         collection = client.create_collection(
             name=collection_name,
             metadata=final_metadata,  # Pass the processed metadata
-            embedding_function=embedding_function,  # Ensure EF is passed if needed by client
+            embedding_function=embedding_function,  # Pass the instantiated default EF
             get_or_create=False,  # Explicitly False to ensure creation error
         )
 
@@ -322,7 +330,7 @@ async def _get_collection_impl(input_data: GetCollectionInput) -> List[types.Tex
         # -------------------------
         client = get_chroma_client()
         # Use get_collection which raises an error if not found
-        collection = client.get_collection(name=collection_name, embedding_function=get_embedding_function())
+        collection = client.get_collection(name=collection_name)
 
         count = collection.count()
         # Process peek results carefully, handle potential large embeddings
@@ -485,7 +493,7 @@ async def _delete_collection_impl(input_data: DeleteCollectionInput) -> List[typ
         # -------------------------
         client = get_chroma_client()
 
-        # Attempt to delete the collection
+        # Attempt to delete the collection directly
         logger.info(f"Attempting to delete collection '{collection_name}'.")
         client.delete_collection(name=collection_name)
         logger.info(f"Collection '{collection_name}' deleted successfully.")
@@ -493,14 +501,21 @@ async def _delete_collection_impl(input_data: DeleteCollectionInput) -> List[typ
         # Return confirmation message
         return [types.TextContent(type="text", text=f"Collection '{collection_name}' deleted successfully.")]
 
-    except ValueError as e:
+    except ValidationError as e:  # Catch validation first
+        logger.warning(f"Validation error deleting collection '{collection_name}': {e}")
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
+    except ValueError as e:  # Catch ValueError second (should include 'not found')
         # Handle collection not found during delete
         error_str = str(e).lower()
         not_found = False
+        # Check standard ChromaDB message
         if f"collection {collection_name} does not exist." in error_str:
             not_found = True
         # Check alternate message format sometimes seen
         if f"collection named {collection_name} does not exist" in error_str:
+            not_found = True
+        # Check for InvalidCollectionException message if it gets wrapped
+        if f"collection {collection_name} does not exist." in error_str:
             not_found = True
 
         if not_found:
@@ -508,17 +523,15 @@ async def _delete_collection_impl(input_data: DeleteCollectionInput) -> List[typ
             raise McpError(
                 ErrorData(code=INVALID_PARAMS, message=f"Tool Error: Collection '{collection_name}' not found.")
             )
-        else:
-            logger.error(f"Value error deleting collection '{collection_name}': {e}", exc_info=True)
+        else:  # Other ValueErrors from delete_collection
+            logger.error(f"Value error during delete_collection call for '{collection_name}': {e}", exc_info=True)
             raise McpError(
                 ErrorData(
-                    code=INVALID_PARAMS, message=f"Tool Error: Invalid parameter deleting collection. Details: {e}"
+                    code=INVALID_PARAMS,
+                    message=f"Tool Error: Invalid parameter during delete operation for '{collection_name}'. Details: {e}",
                 )
             )
-    except ValidationError as e:
-        logger.warning(f"Validation error deleting collection '{collection_name}': {e}")
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Validation Error: {str(e)}"))
-    except Exception as e:
+    except Exception as e:  # Catch generic Exception last
         logger.error(f"Unexpected error deleting collection '{collection_name}': {e}", exc_info=True)
         # Raise McpError
         raise McpError(
@@ -679,8 +692,12 @@ async def _create_collection_with_metadata_impl(
         validate_collection_name(collection_name)
         logger.debug(f"Validated collection name: {collection_name}")
 
-        # Get embedding function (optional, based on config - might be None)
-        embedding_function = get_embedding_function()
+        # Get the configured embedding function name from server config
+        server_config = get_server_config()
+        configured_ef_name = server_config.embedding_function_name
+        # Instantiate the configured embedding function
+        embedding_function = get_embedding_function(configured_ef_name)
+        logger.info(f"Using configured embedding function '{configured_ef_name}' for collection '{collection_name}'")
 
         # Get the client
         chroma_client = get_chroma_client()
@@ -693,7 +710,8 @@ async def _create_collection_with_metadata_impl(
         collection = chroma_client.create_collection(
             name=collection_name,
             metadata=metadata_dict,  # Pass the PARSED dictionary
-            embedding_function=embedding_function,  # Pass embedding function if configured
+            # Pass the embedding function resolved from server config
+            embedding_function=embedding_function,
             get_or_create=False,  # Explicitly create only
         )
 

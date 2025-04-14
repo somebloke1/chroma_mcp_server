@@ -5,9 +5,11 @@ import argparse
 import os
 from unittest.mock import patch, MagicMock
 import logging
+import sys
+from typing import List, Optional
 
 # Import the function to test
-from src.chroma_mcp.cli import parse_args
+from chroma_mcp.cli import parse_args, main as cli_main
 
 # Assume cli.py is in the parent directory structure or PYTHONPATH is set
 from src.chroma_mcp import cli
@@ -16,6 +18,7 @@ from src.chroma_mcp import cli
 # Note: data_dir, log_dir, host, port, tenant, database, api_key default to None if env var not set
 DEFAULT_EXPECTED = {
     "client_type": "ephemeral",
+    "embedding_function_name": "default",
     "data_dir": None,
     "log_dir": None,
     "host": None,
@@ -63,6 +66,8 @@ def test_parse_args_cmd_line_overrides():
         "/etc/chroma/.env",
         "--cpu-execution-provider",
         "true",
+        "--embedding-function",
+        "openai",
     ]
     # Ensure environment variables are clear
     with patch.dict(os.environ, {}, clear=True):
@@ -78,6 +83,7 @@ def test_parse_args_cmd_line_overrides():
         assert args.api_key == "ABCDEF"
         assert args.dotenv_path == "/etc/chroma/.env"
         assert args.cpu_execution_provider == "true"
+        assert args.embedding_function_name == "openai"
 
 
 def test_parse_args_env_vars():
@@ -94,6 +100,7 @@ def test_parse_args_env_vars():
         "CHROMA_API_KEY": "XYZ123",
         "CHROMA_DOTENV_PATH": ".env.prod",
         "CHROMA_CPU_EXECUTION_PROVIDER": "false",
+        "CHROMA_EMBEDDING_FUNCTION": "accurate",
     }
     with patch.dict(os.environ, env_vars, clear=True):
         args = parse_args([])  # No command line args
@@ -108,11 +115,12 @@ def test_parse_args_env_vars():
         assert args.api_key == "XYZ123"
         assert args.dotenv_path == ".env.prod"
         assert args.cpu_execution_provider == "false"
+        assert args.embedding_function_name == "accurate"
 
 
 def test_parse_args_cmd_line_overrides_env():
     """Test command line args overriding environment variables."""
-    env_vars = {"CHROMA_CLIENT_TYPE": "http", "CHROMA_PORT": "8000", "CHROMA_SSL": "true"}
+    env_vars = {"CHROMA_CLIENT_TYPE": "http", "CHROMA_PORT": "8000", "CHROMA_SSL": "true", "CHROMA_EMBEDDING_FUNCTION": "default"}
     cmd_args = [
         "--client-type",
         "persistent",  # Override env
@@ -120,6 +128,8 @@ def test_parse_args_cmd_line_overrides_env():
         "9999",  # Override env
         "--ssl",
         "false",  # Override env
+        "--embedding-function",
+        "gemini",
     ]
     with patch.dict(os.environ, env_vars, clear=True):
         args = parse_args(cmd_args)
@@ -129,6 +139,7 @@ def test_parse_args_cmd_line_overrides_env():
         # Check that unset values still use defaults (or None if no default env)
         assert args.host is None
         assert args.data_dir is None
+        assert args.embedding_function_name == "gemini"
 
 
 def test_parse_args_ssl_variations():
@@ -204,3 +215,6 @@ def test_cli_main_config_exception(mock_get_logger, mock_parse):
     result = cli.main()
     assert result == 1
     mock_get_logger.assert_called()  # Check config_server was entered and called getLogger
+
+
+# --- main Tests ---

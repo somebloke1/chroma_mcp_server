@@ -22,10 +22,11 @@ class ErrorData(BaseModel):
 class ChromaClientConfig:
     """Configuration for the ChromaDB client."""
 
-    client_type: str
+    client_type: str = "ephemeral"
+    embedding_function_name: str = "default"
     data_dir: Optional[str] = None
     host: Optional[str] = None
-    port: Optional[int] = None  # Corrected type hint to int
+    port: Optional[str] = None
     ssl: bool = False
     tenant: Optional[str] = None
     database: Optional[str] = None

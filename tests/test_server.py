@@ -32,22 +32,22 @@ from src.chroma_mcp.server import (
 )
 
 # Keep ValidationError import
-from chroma_mcp.utils.errors import ValidationError
+from src.chroma_mcp.utils.errors import ValidationError
 
 # Import the client module itself to reset its globals
-from chroma_mcp.utils import client as client_utils
-
-# Import get_logger
-from chroma_mcp.utils import get_logger
+from src.chroma_mcp.utils import (
+    chroma_client as client_utils,
+    get_logger,
+    set_main_logger,
+    set_server_config,
+    BASE_LOGGER_NAME,
+)
 
 # Import server instance
-from chroma_mcp.app import server
+from src.chroma_mcp.app import server
 
 # Import types needed for tests
 from src.chroma_mcp.types import ChromaClientConfig
-
-# Import utils used by server
-from src.chroma_mcp.utils import set_main_logger, set_server_config, BASE_LOGGER_NAME
 
 
 # Mock dependencies globally
@@ -178,6 +178,7 @@ def create_dummy_args(**kwargs):
         "database": None,
         "api_key": None,
         "cpu_execution_provider": "auto",
+        "embedding_function_name": "default",
     }
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
@@ -420,3 +421,48 @@ def test_server_main_unexpected_exception(mock_async_run, mock_mcp_run, mock_get
     # Check the string representation of the exception
     assert "Critical error running MCP server: Unexpected crash" in str(excinfo.value)
     mock_logger.error.assert_called_once_with("Critical error running MCP server: Unexpected crash")
+
+
+# --- Tests for config_server --- #
+
+
+@patch("os.path.exists", return_value=False)
+@patch("src.chroma_mcp.server.set_main_logger")
+@patch("src.chroma_mcp.server.set_server_config")
+@patch("logging.getLogger")  # Mock getLogger to control logger behavior
+@patch("os.getenv")  # Mock os.getenv
+def test_config_server_success(mock_getenv, mock_get_logger, mock_set_config, mock_set_logger, mock_exists):
+    """Test successful server configuration."""
+    mock_logger = MagicMock(spec=logging.Logger)
+    mock_get_logger.return_value = mock_logger
+    # Configure getenv mock to return the desired level for LOG_LEVEL
+    mock_getenv.side_effect = lambda key, default=None: "DEBUG" if key == "LOG_LEVEL" else default
+    mock_args = create_dummy_args(
+        log_level="DEBUG",
+        client_type="persistent",
+        data_dir="/test/data",
+        cpu_execution_provider="false",
+        embedding_function_name="test-ef",
+    )
+
+    # Explicitly reset level on the mock before test
+    mock_logger.level = logging.NOTSET  # Or another value != DEBUG/INFO
+
+    # Call config_server with mocked args
+    config_server(mock_args)
+
+    # Assert set_main_logger was called
+    mock_set_logger.assert_called_once()
+    # Assert set_server_config was called with a ChromaClientConfig instance
+    mock_set_config.assert_called_once()
+    call_args, call_kwargs = mock_set_config.call_args
+    assert isinstance(call_args[0], ChromaClientConfig)
+    # Assert specific values passed to ChromaClientConfig
+    config_instance = call_args[0]
+    assert config_instance.client_type == "persistent"
+    assert config_instance.data_dir == "/test/data"
+    assert config_instance.use_cpu_provider is False  # Based on mock_args
+    assert config_instance.embedding_function_name == "test-ef"  # Check new arg
+
+    # Assert logger configuration messages
+    mock_logger.info.assert_any_call("Server configured (CPU provider: disabled)")

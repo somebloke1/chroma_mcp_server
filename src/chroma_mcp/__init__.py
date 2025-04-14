@@ -8,8 +8,8 @@ from .types import (
     ThoughtMetadata,
 )
 from .utils import (
+    chroma_client,
     config,
-    client,
     errors,
 )
 
@@ -29,7 +29,7 @@ __all__ = [
     "ThoughtMetadata",
     # Utils
     "config",
-    "client",
+    "chroma_client",
     "errors",
     # Tools
     "collection_tools",
