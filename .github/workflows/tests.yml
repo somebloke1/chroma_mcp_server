@@ -20,20 +20,18 @@ jobs:
       with:
         python-version: '3.10'
 
-    # Removed the disk space cleanup step as /dev/root seems to have sufficient space (25GB+)
-    # If space errors persist, investigate /tmp space or pip build locations.
-    # - name: Free Disk Space (Ubuntu)
-    #   uses: jlumbroso/free-disk-space@main
-    #   with:
-    #     # Use documented inputs
-    #     android: true
-    #     dotnet: true
-    #     haskell: true
-    #     large-packages: true # Attempts to remove large apt packages
-    #     docker-images: true  # Keep this if docker is used or potentially pre-installed
-    #     tool-cache: false    # Usually set to false unless specific tool cache cleaning needed
-    #     swap-storage: true   # Correct name for swap file removal
-        
+    - name: Clean up runner disk space manually
+      run: |
+        echo "Initial disk space:"
+        df -h
+        sudo rm -rf /usr/share/dotnet || echo ".NET removal failed, continuing..."
+        sudo rm -rf /usr/local/lib/android || echo "Android removal failed, continuing..."
+        sudo rm -rf /opt/ghc || echo "Haskell removal failed, continuing..."
+        # Add || true or echo to commands to prevent workflow failure if dir doesn't exist
+        sudo apt-get clean
+        echo "Disk space after cleanup:"
+        df -h
+
     - name: Install hatch and coverage
       run: |
         python -m pip install --upgrade pip --no-cache-dir
