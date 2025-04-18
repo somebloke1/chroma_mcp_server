@@ -96,11 +96,11 @@ This is the core phase, modifying how each `_impl` function returns results and 
 
 - [ ] **Code Review:** Perform a thorough review of all changes.
 - [x] **Run Tests:** Execute the test suite using `hatch run test` (All tests passed!).
-- [ ] **Manual Testing (MCP Inspector):** Test successful calls and expected errors.
-- [ ] **Manual Testing (Integrated Clients):** Test with Copilot, Cursor, etc.
-  - [ ] Verify successful calls.
-  - [ ] Verify expected errors (how does client display `isError=True` result?).
-  - [ ] Verify unexpected server errors (protocol-level errors).
+- [x] **Manual Testing (MCP Inspector):** Test successful calls and expected errors.
+- [x] **Manual Testing (Integrated Clients):** Test with Copilot, Cursor, etc.
+  - [x] Verify successful calls.
+  - [x] Verify expected errors (how does client display `isError=True` result?).
+  - [x] Verify unexpected server errors (protocol-level errors).
 - [x] **Server Log Verification:** Check log output for clarity and detail.
 - [x] **Linting/Formatting:** Run tools (`hatch run lint`). (Passed!).
 

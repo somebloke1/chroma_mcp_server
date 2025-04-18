@@ -53,9 +53,9 @@ from src.chroma_mcp.types import ChromaClientConfig
 # Mock dependencies globally
 @pytest.fixture(autouse=True)
 def mock_dependencies():
-    """Mock external dependencies like ChromaDB and FastMCP availability."""
+    """Mock external dependencies like ChromaDB availability."""
     # Patch within server where they are checked
-    with patch("src.chroma_mcp.server.CHROMA_AVAILABLE", True), patch("src.chroma_mcp.server.FASTMCP_AVAILABLE", True):
+    with patch("src.chroma_mcp.server.CHROMA_AVAILABLE", True):
         yield
 
 

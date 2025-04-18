@@ -17,7 +17,6 @@ import json
 
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
-# REMOVE: from mcp.server.fastmcp import FastMCP
 from mcp.shared.exceptions import McpError
 from mcp.server import stdio
 
@@ -126,11 +125,11 @@ except ImportError:
     # We will log this warning properly within config_server
     pass
 
-FASTMCP_AVAILABLE = False
+MCP_AVAILABLE = False
 try:
-    import fastmcp
+    import mcp
 
-    FASTMCP_AVAILABLE = True
+    MCP_AVAILABLE = True
 except ImportError:
     # Use logger if available later, print is too early here
     # We will log this warning properly within config_server
@@ -241,8 +240,8 @@ def config_server(args: argparse.Namespace) -> None:
             logger.warning("To enable full functionality, install the optional dependencies:")
             logger.warning("pip install chroma-mcp-server[full]")
 
-        if not FASTMCP_AVAILABLE:
-            logger.warning("FastMCP is not installed. MCP tools will not be available.")
+        if not MCP_AVAILABLE:
+            logger.warning("MCP is not installed. MCP tools will not be available.")
             logger.warning("To enable full functionality, install the optional dependencies:")
             logger.warning("pip install chroma-mcp-server[full]")
 

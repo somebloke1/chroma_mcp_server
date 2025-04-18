@@ -109,37 +109,71 @@ See [Getting Started](docs/getting_started.md) for more setup details.
 
 ### Cursor Integration
 
-To use with Cursor, add the following to your `.cursor/mcp.json`:
+To use with Cursor, add or modify the `.cursor/mcp.json` file in your project root. Here's an example configuration defining development (`chroma_dev`), testing (`chroma_test`), and production (`chroma_prod`) server setups:
 
 ```json
 {
   "mcpServers": {
-    "chroma": {
+    "chroma_dev": {
+      "command": "/path/to/project/scripts/run_chroma_mcp_server_dev.sh",
+      "args": [],
+      "env": {
+        "CHROMA_CLIENT_TYPE": "persistent",
+        "CHROMA_DATA_DIR": "/path/to/your/dev_data",
+        "CHROMA_LOG_DIR": "/path/to/your/dev_logs",
+        "LOG_LEVEL": "DEBUG",
+        "MCP_LOG_LEVEL": "DEBUG"
+      }
+    },
+    "chroma_test": {
       "command": "uvx",
       "args": [
-        "chroma-mcp-server",
-        "--embedding-function=default" // Example: Choose your desired embedding function
+        "--refresh",
+        "--default-index", "https://test.pypi.org/simple/",
+        "--index", "https://pypi.org/simple/",
+        "--index-strategy", "unsafe-best-match",
+        "chroma-mcp-server@latest"
       ],
       "env": {
         "CHROMA_CLIENT_TYPE": "persistent",
-        "CHROMA_DATA_DIR": "/path/to/data/dir", // Replace with your actual path
-        "CHROMA_LOG_DIR": "/path/to/logs/dir",   // Replace with your actual path
+        "CHROMA_DATA_DIR": "/path/to/your/test_data",
+        "CHROMA_LOG_DIR": "/path/to/your/test_logs",
         "LOG_LEVEL": "INFO",
-        "MCP_LOG_LEVEL": "INFO",
-        // Add API keys here if using API-based embedding functions
-        // "OPENAI_API_KEY": "your_openai_key",
-        // "GOOGLE_API_KEY": "your_google_key"
+        "MCP_LOG_LEVEL": "INFO"
+      }
+    },
+    "chroma_prod": {
+      "command": "uvx",
+      "args": [
+        "chroma-mcp-server"
+      ],
+      "env": {
+        "CHROMA_CLIENT_TYPE": "persistent",
+        "CHROMA_DATA_DIR": "/path/to/your/prod_data",
+        "CHROMA_LOG_DIR": "/path/to/your/prod_logs",
+        "LOG_LEVEL": "INFO",
+        "MCP_LOG_LEVEL": "INFO"
       }
     }
   }
 }
 ```
 
+**Notes:**
+
+- Replace `/path/to/project/scripts/run_chroma_mcp_server_dev.sh` with the actual absolute path to the script in your development environment.
+- Replace `/path/to/your/...` placeholders with actual paths for your data and log directories. It's recommended to use separate directories for dev, test, and prod to avoid data conflicts.
+- The `chroma_dev` configuration uses the `run_chroma_mcp_server_dev.sh` script, which runs the server directly from your local source code using Hatch. This is ideal for rapid development and testing changes without reinstalling.
+- The `chroma_test` configuration uses `uvx` to fetch and run the *latest* version available on TestPyPI. This is useful for testing release candidates.
+- The `chroma_prod` configuration uses `uvx` to run the version of `chroma-mcp-server` that is currently installed globally via `uvx` (typically the latest stable release from PyPI).
+
 See [Cursor Integration](docs/cursor_integration.md) for more details.
 
 ## Development
 
 For instructions on how to set up the development environment, run tests, build the package, and contribute, please see the **[Developer Guide](docs/developer_guide.md)**.
+
+Running the server during development is typically done using the `scripts/run_chroma_mcp_server_dev.sh` wrapper script, which leverages Hatch. See the Developer Guide for specifics.
 
 ## Working Memory and Thinking Tools
 

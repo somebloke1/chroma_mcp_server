@@ -14,7 +14,6 @@ import warnings
 from src.chroma_mcp import server
 
 from typing import Dict, List, Optional, Any
-from fastmcp import FastMCP
 from datetime import datetime
 
 from unittest.mock import AsyncMock, MagicMock, patch

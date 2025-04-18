@@ -1,4 +1,4 @@
-# Chroma MCP Server - Developer Guide
+# Chroma MCP Server * Developer Guide
 
 This guide provides instructions for developers working on the `chroma-mcp-server` codebase, including setup, testing, building, and releasing.
 
@@ -105,7 +105,30 @@ The project includes several utility scripts in the `scripts/` directory to stre
 
 ## Running the Server Locally
 
-While developing, you can run the server directly within the Hatch environment:
+While developing, the recommended way to run the server is using the provided wrapper script, which ensures it runs within the correct Hatch environment:
+
+```bash
+# Ensure you are in the project root directory
+./scripts/run_chroma_mcp_server_dev.sh [OPTIONS]
+
+# Example using ephemeral (in-memory) storage:
+./scripts/run_chroma_mcp_server_dev.sh --client-type ephemeral
+
+# Example using persistent (disk) storage:
+./scripts/run_chroma_mcp_server_dev.sh --client-type persistent --data-dir ./dev_data --log-dir ./dev_logs
+
+# Example connecting to an external ChromaDB instance running on localhost:8000:
+# (Ensure the external ChromaDB server is already running!)
+./scripts/run_chroma_mcp_server_dev.sh --client-type http --host localhost --port 8000
+
+# Example connecting to ChromaDB Cloud:
+# (Ensure required CHROMA_TENANT, CHROMA_DATABASE, CHROMA_API_KEY are set in .env)
+./scripts/run_chroma_mcp_server_dev.sh --client-type cloud
+```
+
+This script internally uses `hatch run chroma-mcp-server-dev [OPTIONS]`. See the script content for details.
+
+Alternatively, you can manually run the server directly within the activated Hatch environment:
 
 ```bash
 # Ensure the Hatch environment is active (./scripts/develop.sh or hatch shell)
@@ -114,9 +137,15 @@ python -m chroma_mcp.server [OPTIONS]
 
 # Example with persistent storage:
 python -m chroma_mcp.server --client-type persistent --data-dir ./dev_data --log-dir ./dev_logs
+
+# Example connecting to an external HTTP server:
+python -m chroma_mcp.server --client-type http --host localhost --port 8000
 ```
 
-Alternatively, for testing integration with tools like Cursor that use `uvx`, you might use the `release.sh` script to build, publish (e.g., to TestPyPI), and install that specific version for the `uvx chroma-mcp-server` command (see Releasing below).
+**Important:** When using `--client-type http` or `--client-type cloud`, the MCP server acts *only as a client*. You must have a separate ChromaDB server instance (e.g., running in Docker or via Chroma Cloud) accessible at the specified address or configured via cloud credentials.
+The `ephemeral` and `persistent` modes manage a local ChromaDB instance directly.
+
+For testing integration with tools like Cursor that use `uvx`, you might use the `release.sh` script to build, publish (e.g., to TestPyPI), and install that specific version for the `uvx chroma-mcp-server` command (see Releasing below).
 
 ## Testing
 
@@ -220,3 +249,35 @@ See `pyproject.toml` for specific version constraints.
 * **UVX Cache Issues:** If `uvx` seems stuck on an old version after a release or install, try refreshing its cache: `uvx --refresh chroma-mcp-server --version`
 * **Dependency Conflicts:** Ensure your Hatch environment is clean (`hatch env remove default && hatch env create`) or run tests with `./scripts/test.sh --clean`.
 * **Release Script Errors:** Ensure `curl` and `jq` are installed. Check PyPI/TestPyPI credentials if publishing fails.
+
+## CLI Arguments
+
+* `--embedding-function TEXT`: Specifies the embedding function to use. Choices include `default`, `fast`, `accurate`, `openai`, `cohere`, `huggingface`, `voyageai`, `google`, `bedrock`, `ollama`. [Default: `default`]
+* `--cpu-execution-provider [auto|true|false]`: Configures ONNX execution provider usage (for `default`/`fast` embedding functions). [Default: `auto`]
+* `--version`: Show version and exit.
+
+## Environment Variables
+
+* `ONNX_CPU_PROVIDER`: Sets `--cpu-execution-provider` (true/false).
+* `OPENAI_API_KEY`: Required for `--embedding-function openai`.
+* `COHERE_API_KEY`: Required for `--embedding-function cohere`.
+* `HUGGINGFACE_API_KEY`: Optional API key for `--embedding-function huggingface` (needed for private/gated models).
+* `VOYAGEAI_API_KEY`: Required for `--embedding-function voyageai`.
+* `GOOGLE_API_KEY`: Required for `--embedding-function google`.
+* `OLLAMA_HOST`: Specifies the base URL for the Ollama server (e.g., `http://localhost:11434`) when using `--embedding-function ollama`. Defaults to `http://localhost:11434`.
+* AWS Credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_PROFILE`): Used by `boto3` when `--embedding-function bedrock` is selected. Configure these as you normally would for AWS access.
+
+### Optional Dependencies
+
+To use certain embedding functions or features, you need to install extra dependencies. These are defined in the `[project.optional-dependencies]` section of `pyproject.toml`.
+
+* `[full]`: Installs all optional dependencies, including those for `sentence-transformers` (used by `accurate`, `huggingface`), `openai`, `cohere`, `voyageai`, `google-generativeai` (`google`), `boto3` (`bedrock`), and `ollama`.
+* `[dev]`: Includes development tools like `pytest`, `black`, `ruff`, etc.
+
+Install with extras like this:
+
+```bash
+pip install "chroma-mcp-server[full]"
+# Or for development:
+pip install "chroma-mcp-server[full,dev]"
+```

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.102"
+version = "0.1.105"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,48 +26,49 @@ classifiers = [
 dependencies = [
     # Core dependencies
     "python-dotenv>=1.1.0",
-    "pydantic>=2.10.6",
-    # Use a URL reference to avoid TestPyPI conflicts
-    "fastapi==0.115.12",
-    "uvicorn>=0.34.0",
-    "chromadb>=0.6.3",
-    "fastmcp>=0.4.1",
-    # These are needed by our code directly
-    "numpy>=2.2.0",  # For numpy arrays in handlers
+    "pydantic>=2.11.3",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.34.1",
+    "chromadb>=1.0.4",
+    "mcp>=1.6.0",
+    "numpy>=2.2.4",
     # For default cpu-based embeddings generation
     "onnxruntime>=1.21.0",
-    "sentence-transformers>=4.0.2",
 ]
 
 [project.optional-dependencies]
 # Optional dependencies for extended functionality
 full = [
+    # Only needed with accurate embeddings
+    "sentence-transformers>=4.1.0",
     # Only needed with specific embeddings by provider api
     "google-generativeai>=0.8.4",
-    "openai>=1.73.0",
-    "cohere>=5.14.2",
-    "huggingface_hub>=0.30.0",
-    "voyageai>=0.3.0",
+    "openai>=1.74.0",
+    "cohere>=5.15.0",
+    "huggingface-hub>=0.30.2",
+    "voyageai>=0.3.2",
+    "boto3>=1.37.34",
+    "ollama>=0.4.7",
     # Only needed if using HTTP client
-    "httpx>=0.28.0",
+    "httpx>=0.28.1",
 ]
 
 # Development dependencies
 dev = [
     # Testing
-    "pytest>=8.3.0",
+    "pytest>=8.3.5",
     "pytest-asyncio>=0.26.0",
-    "pytest-cov>=6.0.0",
+    "pytest-cov>=6.1.1",
     "pytest-mock>=3.14.0",
-    "pytest-xdist[psutil]>=3.5.0",
+    "pytest-xdist[psutil]>=3.6.1",
     "trio>=0.29.0",
     # Code quality
     "black>=25.1.0",
-    "isort>=6.0.0",
+    "isort>=6.0.1",
     "mypy>=1.15.0",
-    "pylint>=3.3.0",
+    "pylint>=3.3.6",
     # Only needed type stubs
-    "types-PyYAML>=6.0.0",
+    "types-PyYAML>=6.0.12.20250402",
 ]
 
 [project.scripts]
@@ -77,6 +78,10 @@ chroma-mcp-server = "chroma_mcp.cli:main"
 Homepage = "https://github.com/djm81/chroma_mcp_server"
 Repository = "https://github.com/djm81/chroma_mcp_server.git"
 Documentation = "https://github.com/djm81/chroma_mcp_server#readme"
+
+[tool.hatch.envs.default.scripts]
+chroma-mcp-server-dev = "python -m chroma_mcp.cli"
+print-cwd = "python -c 'import os; print(os.getcwd())'"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/chroma_mcp"]
@@ -155,16 +160,14 @@ max-line-length = 120
 
 [tool.hatch.envs.test]
 dependencies = [
-  "coverage[toml]>=7.4",
-  "pytest>=8.3.0",
+  "coverage[toml]>=7.8.0",
+  "pytest>=8.3.5",
   "pytest-asyncio>=0.26.0",
-  "pytest-cov>=6.0.0",
+  "pytest-cov>=6.1.1",
   "pytest-mock>=3.14.0",
-  "pytest-xdist[psutil]>=3.5.0",
-  "pytest-timeout>=2.3.0",
+  "pytest-xdist[psutil]>=3.6.1",
+  "pytest-timeout>=2.3.1",
   "trio>=0.29.0",
-  # Include the project itself with all optional features for testing
-  # ".[full]" # This was incorrect syntax for hatch envs
 ]
 # Specify optional features from the project to include
 features = ["full"]
@@ -236,3 +239,10 @@ mode = "strict"
 
 [tool.hatch.build]
 dev-mode-dirs = ["src"]  # This enables editable install for development 
+
+[tool.hatch.envs.default.env-vars]
+CHROMA_CLIENT_TYPE = "persistent"
+CHROMA_DATA_DIR = "/Users/dominikus/git/nold-ai/chroma_mcp_server/data"
+CHROMA_LOG_DIR = "/Users/dominikus/git/nold-ai/chroma_mcp_server/logs"
+LOG_LEVEL = "DEBUG"
+MCP_LOG_LEVEL = "DEBUG"
