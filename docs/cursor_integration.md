@@ -30,50 +30,69 @@ This guide explains how to integrate Chroma MCP Server with Cursor AI to enable 
 
 Create or update the `.cursor/mcp.json` file in your project directory:
 
-### Basic Configuration
+### Example Configuration
+
+Here is an example `.cursor/mcp.json` configuration demonstrating how to set up development, test, and production servers:
 
 ```json
 {
   "mcpServers": {
-    "chroma": {
-      "command": "chroma-mcp-server",
-      "args": [
-        "--embedding-function=default"
-      ],
+    "chroma_dev": {
+      "command": "/path/to/project/scripts/run_chroma_mcp_server_dev.sh",
+      "args": [],
       "env": {
         "CHROMA_CLIENT_TYPE": "persistent",
-        "CHROMA_DATA_DIR": "./chroma_data",
-        "CHROMA_LOG_DIR": "./chroma_logs",
-        "LOG_LEVEL": "INFO",
-        "MCP_LOG_LEVEL": "INFO"
+        "CHROMA_DATA_DIR": "/path/to/your/dev_data", // Separate data for dev
+        "CHROMA_LOG_DIR": "/path/to/your/dev_logs",  // Separate logs for dev
+        "LOG_LEVEL": "DEBUG",
+        "MCP_LOG_LEVEL": "DEBUG"
+        // Other env vars as needed (e.g., API keys, embedding function)
       }
-    }
-  }
-}
-```
-
-### Optimized Configuration (with UVX)
-
-```json
-{
-  "mcpServers": {
-    "chroma": {
+    },
+    "chroma_test": {
       "command": "uvx",
       "args": [
-        "chroma-mcp-server",
-        "--embedding-function=default"
+        "--refresh", // Ensure uvx checks for the latest version
+        "--default-index", "https://test.pypi.org/simple/", // Prioritize TestPyPI
+        "--index", "https://pypi.org/simple/", // Fallback to PyPI
+        "--index-strategy", "unsafe-best-match", // Allows resolving dependencies across indexes
+        "chroma-mcp-server@latest" // Fetch the latest version from TestPyPI
+        // Add server arguments here if needed, e.g., "--embedding-function=accurate"
       ],
       "env": {
         "CHROMA_CLIENT_TYPE": "persistent",
-        "CHROMA_DATA_DIR": "./chroma_data",
-        "CHROMA_LOG_DIR": "./chroma_logs",
+        "CHROMA_DATA_DIR": "/path/to/your/test_data", // Separate data for testing
+        "CHROMA_LOG_DIR": "/path/to/your/test_logs",  // Separate logs for testing
         "LOG_LEVEL": "INFO",
         "MCP_LOG_LEVEL": "INFO"
+        // Other env vars as needed
+      }
+    },
+    "chroma_prod": {
+      "command": "uvx", // Use uvx to run the globally installed version
+      "args": [
+        "chroma-mcp-server"
+        // Add server arguments here, e.g., "--embedding-function=accurate", "--client-type=cloud"
+      ],
+      "env": {
+        "CHROMA_CLIENT_TYPE": "persistent", // Or 'cloud', 'http' as needed
+        "CHROMA_DATA_DIR": "/path/to/your/prod_data", // Production data directory
+        "CHROMA_LOG_DIR": "/path/to/your/prod_logs",  // Production log directory
+        "LOG_LEVEL": "INFO",
+        "MCP_LOG_LEVEL": "INFO"
+        // Required env vars for your chosen client type (e.g., API keys for cloud)
       }
     }
   }
 }
 ```
+
+**Key Points:**
+
+- **`chroma_dev`**: Uses the `run_chroma_mcp_server_dev.sh` script (replace the path with your absolute path) to run the server directly from your local source code via Hatch. Ideal for development.
+- **`chroma_test`**: Uses `uvx` to automatically fetch and run the latest version from TestPyPI.
+- **`chroma_prod`**: Uses `uvx` to run the version installed globally (usually the latest stable from PyPI).
+- **Paths**: Use absolute paths for `command` and ensure data/log directories are unique for each environment.
 
 ## Available Environment Variables
 

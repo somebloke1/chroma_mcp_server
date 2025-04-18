@@ -9,7 +9,7 @@ import sys
 from typing import List, Optional
 
 # Import the function to test
-from chroma_mcp.cli import parse_args, main as cli_main
+from src.chroma_mcp.cli import parse_args, main as cli_main
 
 # Assume cli.py is in the parent directory structure or PYTHONPATH is set
 from src.chroma_mcp import cli

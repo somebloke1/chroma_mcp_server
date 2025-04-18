@@ -6,15 +6,24 @@ import numpy as np
 from numpy.testing import assert_array_equal
 
 # Assuming your project structure allows this import path
-from chroma_mcp.utils.chroma_client import (
+from src.chroma_mcp.utils.chroma_client import (
     get_embedding_function,
     KNOWN_EMBEDDING_FUNCTIONS,
-    GeminiEmbeddingFunction,
     get_api_key,
+    ONNXRUNTIME_AVAILABLE,
+    SENTENCE_TRANSFORMER_AVAILABLE,
+    OPENAI_AVAILABLE,
+    COHERE_AVAILABLE,
+    HF_API_AVAILABLE,
+    VOYAGEAI_AVAILABLE,
+    GENAI_AVAILABLE,
+    BEDROCK_AVAILABLE,
+    OLLAMA_AVAILABLE,
 )
-from chroma_mcp.utils.errors import EmbeddingError, INVALID_PARAMS, ErrorData
+from src.chroma_mcp.utils.errors import EmbeddingError, INVALID_PARAMS, ErrorData, INTERNAL_ERROR
 from mcp.shared.exceptions import McpError
 from chromadb.utils import embedding_functions as ef
+from src.chroma_mcp.utils import chroma_client  # Import the module itself
 
 # Mock dependencies if they are not available in the test environment
 try:
@@ -40,7 +49,7 @@ except ImportError:
 @pytest.fixture(autouse=True)
 def mock_logger():
     """Auto-mock the logger used within the utility functions."""
-    with patch("chroma_mcp.utils.chroma_client.get_logger") as mock_get_logger:
+    with patch("src.chroma_mcp.utils.chroma_client.get_logger") as mock_get_logger:
         mock_log_instance = MagicMock()
         mock_get_logger.return_value = mock_log_instance
         yield mock_log_instance
@@ -48,20 +57,24 @@ def mock_logger():
 
 @pytest.fixture
 def mock_ef_dependencies():
-    """Mock external embedding function dependencies and onnxruntime."""
+    """Mock external embedding function dependencies."""
     # Mock base classes/functions from chromadb.utils.embedding_functions
     mocks = {
-        "ef.DefaultEmbeddingFunction": MagicMock(spec=ef.DefaultEmbeddingFunction),
-        "ef.ONNXMiniLM_L6_V2": MagicMock(spec=ef.ONNXMiniLM_L6_V2),
-        "ef.OpenAIEmbeddingFunction": MagicMock(spec=ef.OpenAIEmbeddingFunction),
-        "ef.CohereEmbeddingFunction": MagicMock(spec=ef.CohereEmbeddingFunction),
-        "ef.HuggingFaceEmbeddingFunction": MagicMock(spec=ef.HuggingFaceEmbeddingFunction),
-        "ef.JinaEmbeddingFunction": MagicMock(spec=ef.JinaEmbeddingFunction),
-        "ef.VoyageAIEmbeddingFunction": MagicMock(spec=ef.VoyageAIEmbeddingFunction),
+        "ef.DefaultEmbeddingFunction": MagicMock(spec=ef.DefaultEmbeddingFunction, autospec=True),
+        "ef.ONNXMiniLM_L6_V2": MagicMock(spec=ef.ONNXMiniLM_L6_V2, autospec=True),
+        "ef.OpenAIEmbeddingFunction": MagicMock(spec=ef.OpenAIEmbeddingFunction, autospec=True),
+        "ef.CohereEmbeddingFunction": MagicMock(spec=ef.CohereEmbeddingFunction, autospec=True),
+        "ef.HuggingFaceEmbeddingFunction": MagicMock(spec=ef.HuggingFaceEmbeddingFunction, autospec=True),
+        "ef.VoyageAIEmbeddingFunction": MagicMock(spec=ef.VoyageAIEmbeddingFunction, autospec=True),
+        "ef.GoogleGenerativeAiEmbeddingFunction": MagicMock(spec=ef.GoogleGenerativeAiEmbeddingFunction, autospec=True),
+        "ef.AmazonBedrockEmbeddingFunction": MagicMock(spec=ef.AmazonBedrockEmbeddingFunction, autospec=True),
+        "ef.OllamaEmbeddingFunction": MagicMock(spec=ef.OllamaEmbeddingFunction, autospec=True),
     }
     # Conditionally mock SentenceTransformerEmbeddingFunction
     if SentenceTransformerEmbeddingFunction:
-        mocks["SentenceTransformerEmbeddingFunction"] = MagicMock(spec=SentenceTransformerEmbeddingFunction)
+        mocks["SentenceTransformerEmbeddingFunction"] = MagicMock(
+            spec=SentenceTransformerEmbeddingFunction, autospec=True
+        )
     else:
         # If not installed, ensure the test using it is skipped or handles the None case
         mocks["SentenceTransformerEmbeddingFunction"] = None
@@ -69,49 +82,62 @@ def mock_ef_dependencies():
     # Mock google.generativeai if needed for Gemini tests
     if genai:
         mocks["genai"] = MagicMock(spec=genai)
-        # Mock configure and embed_content specifically if used directly
         mocks["genai"].configure = MagicMock()
         mocks["genai"].embed_content = MagicMock(return_value={"embedding": [[0.1, 0.2]]})  # Example return
     else:
         mocks["genai"] = None
 
-    # --- ADD Mock for onnxruntime ---
-    mock_onnxruntime = MagicMock(spec=onnxruntime) if onnxruntime else None
-    if mock_onnxruntime:
-        # Default mock providers
-        mock_onnxruntime.get_available_providers.return_value = ["CPUExecutionProvider"]
-        mocks["onnxruntime"] = mock_onnxruntime
-    else:
-        mocks["onnxruntime"] = None
-    # <------------------------------
+    # Create mock lambdas referencing the mocked classes
+    mock_lambdas = {
+        "default": lambda: mocks["ef.ONNXMiniLM_L6_V2"](),
+        "fast": lambda: mocks["ef.ONNXMiniLM_L6_V2"](),
+        "openai": lambda: mocks["ef.OpenAIEmbeddingFunction"](),
+        "cohere": lambda: mocks["ef.CohereEmbeddingFunction"](),
+        "huggingface": lambda: mocks["ef.HuggingFaceEmbeddingFunction"](),
+        "voyageai": lambda: mocks["ef.VoyageAIEmbeddingFunction"](),
+        "google": lambda: mocks["ef.GoogleGenerativeAiEmbeddingFunction"](),
+        "bedrock": lambda: mocks["ef.AmazonBedrockEmbeddingFunction"](),
+        "ollama": lambda: mocks["ef.OllamaEmbeddingFunction"](),
+    }
+    if mocks["SentenceTransformerEmbeddingFunction"]:
+        mock_lambdas["accurate"] = lambda: mocks["SentenceTransformerEmbeddingFunction"]()
 
-    # Apply patches using context managers
-    with patch.multiple("chroma_mcp.utils.chroma_client", **mocks, create=True):
-        # Patch the actual classes/modules where they are used if necessary
-        # e.g., if KNOWN_EMBEDDING_FUNCTIONS references them directly
-        # Put the patch.dict block back
-        with patch.dict(
-            "chroma_mcp.utils.chroma_client.KNOWN_EMBEDDING_FUNCTIONS",
-            {
-                "default": lambda: mocks["ef.ONNXMiniLM_L6_V2"](),
-                "fast": lambda: mocks["ef.ONNXMiniLM_L6_V2"](),
-                "accurate": (
-                    lambda: mocks["SentenceTransformerEmbeddingFunction"]()
-                    if mocks["SentenceTransformerEmbeddingFunction"]
-                    else None
-                ),
-                "openai": lambda: mocks["ef.OpenAIEmbeddingFunction"](),
-                "cohere": lambda: mocks["ef.CohereEmbeddingFunction"](),
-                "huggingface": lambda: mocks["ef.HuggingFaceEmbeddingFunction"](),
-                "jina": lambda: mocks["ef.JinaEmbeddingFunction"](),
-                "voyageai": lambda: mocks["ef.VoyageAIEmbeddingFunction"](),
-                "gemini": (
-                    lambda: GeminiEmbeddingFunction() if mocks["genai"] else None
-                ),  # Use real Gemini if genai mock exists
-            },
-            clear=True,  # Replace the dict entirely for the test
-        ):
-            yield mocks  # Yield from the nested patch.dict context
+    # Apply patches
+    # Patch the imported availability flags to True by default for fixture users
+    # Tests checking False flags will patch them manually
+    availability_patches = {
+        "ONNXRUNTIME_AVAILABLE": True,
+        "SENTENCE_TRANSFORMER_AVAILABLE": bool(SentenceTransformerEmbeddingFunction),
+        "OPENAI_AVAILABLE": True,
+        "COHERE_AVAILABLE": True,
+        "HF_API_AVAILABLE": True,
+        "VOYAGEAI_AVAILABLE": True,
+        "GENAI_AVAILABLE": bool(genai),
+        "BEDROCK_AVAILABLE": True,  # Assume available for tests using fixture
+        "OLLAMA_AVAILABLE": True,  # Assume available for tests using fixture
+    }
+
+    # Patch the actual classes where they are imported/used
+    # This is crucial if the availability flags somehow fail
+    class_patches = {
+        "ef": ef,  # Patch the module alias
+        "SentenceTransformerEmbeddingFunction": mocks["SentenceTransformerEmbeddingFunction"],
+        "genai": mocks["genai"],
+        # Patch the classes directly within the chroma_client module context
+        "ef.ONNXMiniLM_L6_V2": mocks["ef.ONNXMiniLM_L6_V2"],
+        "ef.OpenAIEmbeddingFunction": mocks["ef.OpenAIEmbeddingFunction"],
+        "ef.CohereEmbeddingFunction": mocks["ef.CohereEmbeddingFunction"],
+        "ef.HuggingFaceEmbeddingFunction": mocks["ef.HuggingFaceEmbeddingFunction"],
+        "ef.VoyageAIEmbeddingFunction": mocks["ef.VoyageAIEmbeddingFunction"],
+        "ef.GoogleGenerativeAiEmbeddingFunction": mocks["ef.GoogleGenerativeAiEmbeddingFunction"],
+        "ef.AmazonBedrockEmbeddingFunction": mocks["ef.AmazonBedrockEmbeddingFunction"],
+        "ef.OllamaEmbeddingFunction": mocks["ef.OllamaEmbeddingFunction"],
+    }
+
+    with patch.multiple(
+        "src.chroma_mcp.utils.chroma_client", **availability_patches, **class_patches, create=True
+    ), patch.dict("src.chroma_mcp.utils.chroma_client.KNOWN_EMBEDDING_FUNCTIONS", mock_lambdas, clear=True):
+        yield mocks  # Yield the original class mocks for assertion checks
 
 
 # --- Test Cases for get_api_key ---
@@ -155,48 +181,39 @@ def test_get_api_key(monkeypatch, service_name, env_var, env_value, expected_key
         ("openai", "ef.OpenAIEmbeddingFunction"),
         ("cohere", "ef.CohereEmbeddingFunction"),
         ("huggingface", "ef.HuggingFaceEmbeddingFunction"),
-        ("jina", "ef.JinaEmbeddingFunction"),
         ("voyageai", "ef.VoyageAIEmbeddingFunction"),
         pytest.param(
-            "gemini", "genai", marks=pytest.mark.skipif(not genai, reason="google-generativeai not installed")
-        ),  # Check against genai mock existing
+            "google",
+            "ef.GoogleGenerativeAiEmbeddingFunction",
+            marks=pytest.mark.skipif(not genai, reason="google-generativeai not installed"),
+        ),
+        pytest.param("bedrock", "ef.AmazonBedrockEmbeddingFunction"),
+        pytest.param("ollama", "ef.OllamaEmbeddingFunction"),
     ],
 )
 def test_get_embedding_function_success(name, expected_type_mock_key, mock_ef_dependencies, mock_logger):
-    """Test successful instantiation of known embedding functions."""
-    # Clear mocks associated with the specific type before calling
-    if expected_type_mock_key != "genai":  # Gemini uses the real class with mocked genai module
-        instance_mock = mock_ef_dependencies[expected_type_mock_key]
-        instance_mock.reset_mock()  # Reset call count etc.
+    """Test successful instantiation of known embedding functions when dependencies and keys are available."""
+    mock_logger.reset_mock()
+    instance_mock = mock_ef_dependencies[expected_type_mock_key]
+    instance_mock.reset_mock()  # Reset call count etc. for the lambda's underlying mock
 
-    # Mock API key retrieval for API-based functions
-    with patch("chroma_mcp.utils.chroma_client.get_api_key", return_value="dummy_key"):
-        # --- ADD specific mock for os.getenv for Gemini --- >
-        if name == "gemini":
-            with patch("os.getenv", return_value="dummy_google_key") as mock_getenv:
-                embedding_function = get_embedding_function(name)
-                mock_getenv.assert_called_with("GOOGLE_API_KEY")  # Verify it checks the env var
-        else:
-            # <--------------------------------------------------
-            embedding_function = get_embedding_function(name)
+    # Mock API key retrieval to pass the pre-emptive check in get_embedding_function
+    # Also mock Ollama URL getter for the 'ollama' case
+    with patch("src.chroma_mcp.utils.chroma_client.get_api_key", return_value="dummy_key") as mock_get_key, patch(
+        "src.chroma_mcp.utils.chroma_client.get_ollama_base_url", return_value="http://mock-ollama:11434"
+    ) as mock_get_ollama:
+        embedding_function = get_embedding_function(name)
 
-        # Assert the correct mock was called (or the Gemini class was instantiated)
-        if name == "gemini":
-            assert isinstance(embedding_function, GeminiEmbeddingFunction)
-            # Check if genai.configure was called by GeminiEmbeddingFunction's init
-            mock_ef_dependencies["genai"].configure.assert_called_once()
-        elif name == "accurate":
-            if SentenceTransformerEmbeddingFunction:  # Only assert if it should exist
-                instance_mock.assert_called_once()
-                assert embedding_function is not None  # Should not be None if ST installed
-            else:
-                # If ST not installed, 'accurate' shouldn't be in KNOWN_EMBEDDING_FUNCTIONS for the test
-                with pytest.raises(McpError) as excinfo:
-                    get_embedding_function(name)
-                assert "Unknown embedding function: accurate" in str(excinfo.value)
+        # Assert the pre-emptive key check was called (or ollama url getter)
+        if name in ["openai", "cohere", "huggingface", "voyageai", "google"]:
+            mock_get_key.assert_called_with(name)
+        elif name == "ollama":
+            mock_get_ollama.assert_called_once()
+        # Bedrock doesn't have an explicit check in get_embedding_function
 
-        else:
-            instance_mock.assert_called_once()  # Check the factory lambda was called
+        # Assert the correct mock lambda was called, returning the mocked instance
+        assert embedding_function is instance_mock.return_value
+        instance_mock.assert_called_once()  # Check the underlying class mock was instantiated via the lambda
 
         # Check logs
         mock_logger.info.assert_any_call(f"Instantiating embedding function: '{name.lower()}'")
@@ -206,67 +223,132 @@ def test_get_embedding_function_success(name, expected_type_mock_key, mock_ef_de
 def test_get_embedding_function_unknown_name(mock_logger):
     """Test requesting an unknown embedding function name."""
     unknown_name = "non_existent_ef"
+    mock_logger.reset_mock()
+    # Update expected message: Availability check fails first for unknown names
+    expected_error_msg_part = (
+        f"Dependency potentially missing for embedding function '{unknown_name}"  # Expect INTERNAL_ERROR message
+    )
+
     with pytest.raises(McpError) as excinfo:
+        # Assume availability flags don't include the unknown name
         get_embedding_function(unknown_name)
 
-    # Check the string representation of the exception for the message
-    assert f"Unknown embedding function: {unknown_name}" in str(excinfo.value)
-    mock_logger.error.assert_called_once_with(f"Unknown embedding function name requested: '{unknown_name}'")
+    # Check the specific error for unknown name (should be INTERNAL_ERROR from availability check)
+    # Revert to checking the string representation
+    assert expected_error_msg_part in str(excinfo.value)
+
+    # Check logger was called before raising (should be the error from availability check)
+    mock_logger.error.assert_any_call(
+        f"Dependency potentially missing for embedding function '{unknown_name}'. Please ensure the required library is installed."
+    )
+    # This log won't happen now:
+    # mock_logger.error.assert_any_call(f"Unknown embedding function name requested: '{unknown_name}' (Not found in registry even if available)")
 
 
-@pytest.mark.usefixtures("mock_ef_dependencies")
-def test_get_embedding_function_instantiation_error(mock_logger):
-    """Test handling of errors during embedding function instantiation (e.g., missing API key)."""
-    # Simulate ValueError during instantiation (like missing API key)
-    with patch.dict(
-        "chroma_mcp.utils.chroma_client.KNOWN_EMBEDDING_FUNCTIONS",
-        {"error_ef": lambda: ef.OpenAIEmbeddingFunction(api_key=None)},  # Simulate missing key error
-        clear=True,
-    ):
-        # We need to patch the actual OpenAIEmbeddingFunction to raise the error
-        with patch(
-            "chromadb.utils.embedding_functions.OpenAIEmbeddingFunction.__init__",
-            side_effect=ValueError("API key missing"),
-        ):
+# REMOVED @pytest.mark.usefixtures("mock_ef_dependencies") - Test API key failure directly
+def test_get_embedding_function_instantiation_error_api_key(mock_logger):
+    """Test McpError(INVALID_PARAMS) when API key is missing (pre-emptive check)."""
+    ef_name = "openai"
+    mock_logger.reset_mock()
+    expected_error_msg_part = (
+        f"Configuration error for embedding function '{ef_name}': API key for '{ef_name}' not found"
+    )
+
+    # Ensure the availability flag is True, so the check proceeds
+    with patch("src.chroma_mcp.utils.chroma_client.OPENAI_AVAILABLE", True):
+        # Patch get_api_key to return None specifically for this function
+        with patch("src.chroma_mcp.utils.chroma_client.get_api_key", return_value=None) as mock_get_key:
             with pytest.raises(McpError) as excinfo:
-                get_embedding_function("error_ef")
+                get_embedding_function(ef_name)
 
-    # Revert to checking string representation
-    assert "Configuration error for embedding function 'error_ef'" in str(excinfo.value)
-    assert "API key missing" in str(excinfo.value)
+            # Assert get_api_key was called
+            mock_get_key.assert_called_with(ef_name)
 
-    mock_logger.error.assert_called_with("Configuration error instantiating 'error_ef': API key missing", exc_info=True)
+            # Assert the correct McpError is raised due to missing key
+            # Revert to checking the string representation
+            assert expected_error_msg_part in str(excinfo.value)
+
+            # Check logger (get_embedding_function logs error before raising)
+            # REMOVE check for the warning log inside the mocked get_api_key:
+            # mock_logger.warning.assert_any_call(f"API key for {ef_name} not found in env var {ef_name.upper()}_API_KEY")
+            mock_logger.error.assert_any_call(
+                f"Configuration error instantiating '{ef_name}': API key for '{ef_name}' not found in environment variable.",
+                exc_info=True,  # Check if exc_info is logged
+            )
 
 
-@pytest.mark.skipif(not SentenceTransformerEmbeddingFunction, reason="sentence-transformers not installed")
+# This test needs the fixture to mock the lambda returning a faulty instance
+@pytest.mark.usefixtures("mock_ef_dependencies")
+def test_get_embedding_function_instantiation_error_value_error(mock_logger, mock_ef_dependencies):
+    """Test McpError(INVALID_PARAMS) when the embedding function __init__ raises ValueError."""
+    ef_name = "cohere"
+    mock_logger.reset_mock()
+    instance_mock = mock_ef_dependencies["ef.CohereEmbeddingFunction"]
+    config_error_detail = "Invalid configuration in Cohere init"
+    expected_error_msg_part = f"Configuration error for embedding function '{ef_name}': {config_error_detail}"
+
+    # Mock the call to the mocked class instance to raise ValueError AFTER the API key check passes
+    instance_mock.side_effect = ValueError(config_error_detail)
+
+    # Patch get_api_key to return a dummy key so the pre-emptive check passes
+    with patch("src.chroma_mcp.utils.chroma_client.get_api_key", return_value="dummy_key") as mock_get_key:
+        with pytest.raises(McpError) as excinfo:
+            # The fixture ensures COHERE_AVAILABLE=True and patches KNOWN_EMBEDDING_FUNCTIONS
+            get_embedding_function(ef_name)
+
+        # Check API key was checked
+        mock_get_key.assert_called_with(ef_name)
+
+        # Check the mocked class instantiation was attempted
+        instance_mock.assert_called_once()
+
+        # Assert the correct McpError is raised due to ValueError during instantiation
+        # Revert to checking the string representation
+        assert expected_error_msg_part in str(excinfo.value)
+
+        # Check logger
+        mock_logger.info.assert_any_call(f"Instantiating embedding function: '{ef_name}'")
+        mock_logger.error.assert_any_call(
+            f"Configuration error instantiating '{ef_name}': {config_error_detail}", exc_info=True
+        )
+
+
+# @pytest.mark.skipif(not SentenceTransformerEmbeddingFunction, reason="sentence-transformers not installed")
+# Use fixture which handles skipif logic via parametrize/availability flags
+@pytest.mark.usefixtures("mock_ef_dependencies")
 def test_get_embedding_function_accurate_specifics(mock_ef_dependencies):
-    """Test that 'accurate' specifically calls SentenceTransformerEmbeddingFunction"""
-    mock_st_ef = mock_ef_dependencies["SentenceTransformerEmbeddingFunction"]
-    mock_st_ef.reset_mock()
+    """Test that 'accurate' uses SentenceTransformerEmbeddingFunction via the fixture."""
+    if not SentenceTransformerEmbeddingFunction:
+        pytest.skip("sentence-transformers not installed")
 
-    ef_instance = get_embedding_function("accurate")
+    # Reset mocks if needed (though fixture should handle setup)
+    st_mock_instance = mock_ef_dependencies["SentenceTransformerEmbeddingFunction"]
+    st_mock_instance.reset_mock()
 
-    mock_st_ef.assert_called_once()
-    # Check the model name passed during instantiation in the registry
-    mock_st_ef.assert_called_with()  # The lambda calls it with default args
-    # Check the actual instance returned is the mocked one
-    assert ef_instance == mock_st_ef.return_value
+    # Patch get_api_key just in case (though 'accurate' doesn't need one)
+    with patch("src.chroma_mcp.utils.chroma_client.get_api_key", return_value="dummy_key"):
+        ef_instance = get_embedding_function("accurate")
+
+    # Assert the mock provided by the fixture was returned
+    assert ef_instance is st_mock_instance.return_value
+    # Assert the underlying mock class was called by the lambda
+    st_mock_instance.assert_called_once()
 
 
 # --- Specific Tests for ONNX Provider Logic ---
 
 
-# REMOVE @pytest.mark.usefixtures("mock_ef_dependencies")
+# REMOVED @pytest.mark.usefixtures("mock_ef_dependencies")
 # Manually patch dependencies within the test
 def test_get_embedding_function_onnx_gpu_available(mock_logger):
     """Test ONNX EF uses providers list when onnxruntime reports GPU."""
-
+    mock_logger.reset_mock()
     # Patch the necessary components manually
-    with patch("chroma_mcp.utils.chroma_client.ef.ONNXMiniLM_L6_V2") as mock_onnx_class, patch(
-        "chroma_mcp.utils.chroma_client.onnxruntime"
-    ) as mock_rt:
-        # Skip test if real onnxruntime is not installed (mock_rt will be None)
-        # This check might not be strictly necessary if the patch target exists, but good practice
+    with patch("src.chroma_mcp.utils.chroma_client.ef.ONNXMiniLM_L6_V2") as mock_onnx_class, patch(
+        "src.chroma_mcp.utils.chroma_client.onnxruntime"
+    ) as mock_rt, patch("src.chroma_mcp.utils.chroma_client.ONNXRUNTIME_AVAILABLE", True):
+        # Skip test if real onnxruntime is not installed (mock_rt will be None in patch)
+        # This check might be redundant if ONNXRUNTIME_AVAILABLE is correctly False when not installed
         if mock_rt is None:
             pytest.skip("onnxruntime could not be patched, likely not installed")
 
@@ -274,23 +356,24 @@ def test_get_embedding_function_onnx_gpu_available(mock_logger):
         gpu_providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
         mock_rt.get_available_providers.return_value = gpu_providers
 
-        # Call the function - this will use the original lambda from KNOWN_EMBEDDING_FUNCTIONS
-        get_embedding_function("fast")
+        # Call the function - the lambda inside KNOWN_EMBEDDING_FUNCTIONS will execute
+        get_embedding_function("fast")  # or "default"
 
-        # Assert the mocked CLASS was called with the correct args by the original lambda
+        # Assert the mocked CLASS was called with the correct providers by the lambda
         mock_onnx_class.assert_called_once_with(preferred_providers=gpu_providers)
+        mock_logger.info.assert_any_call(f"Instantiating embedding function: 'fast'")
+        mock_logger.info.assert_any_call(f"Successfully instantiated embedding function: 'fast'")
 
 
-# REMOVE @pytest.mark.usefixtures("mock_ef_dependencies")
+# REMOVED @pytest.mark.usefixtures("mock_ef_dependencies")
 # Manually patch dependencies within the test
 def test_get_embedding_function_onnx_cpu_only(mock_logger):
     """Test ONNX EF uses CPU provider when onnxruntime reports only CPU."""
-
+    mock_logger.reset_mock()
     # Patch the necessary components manually
-    with patch("chroma_mcp.utils.chroma_client.ef.ONNXMiniLM_L6_V2") as mock_onnx_class, patch(
-        "chroma_mcp.utils.chroma_client.onnxruntime"
-    ) as mock_rt:
-        # Skip test if real onnxruntime is not installed
+    with patch("src.chroma_mcp.utils.chroma_client.ef.ONNXMiniLM_L6_V2") as mock_onnx_class, patch(
+        "src.chroma_mcp.utils.chroma_client.onnxruntime"
+    ) as mock_rt, patch("src.chroma_mcp.utils.chroma_client.ONNXRUNTIME_AVAILABLE", True):
         if mock_rt is None:
             pytest.skip("onnxruntime could not be patched, likely not installed")
 
@@ -298,226 +381,75 @@ def test_get_embedding_function_onnx_cpu_only(mock_logger):
         cpu_providers = ["CPUExecutionProvider"]
         mock_rt.get_available_providers.return_value = cpu_providers
 
-        # Call the function - uses original lambda
-        get_embedding_function("default")
+        # Call the function
+        get_embedding_function("default")  # or "fast"
 
-        # Assert the mocked CLASS was called with the correct args by the original lambda
+        # Assert the mocked CLASS was called with the correct providers by the lambda
         mock_onnx_class.assert_called_once_with(preferred_providers=cpu_providers)
+        mock_logger.info.assert_any_call(f"Instantiating embedding function: 'default'")
+        mock_logger.info.assert_any_call(f"Successfully instantiated embedding function: 'default'")
 
 
-@pytest.mark.usefixtures("mock_ef_dependencies")
-# This test checks the fallback when onnxruntime itself is missing, so it needs mock_ef_dependencies
-def test_get_embedding_function_onnx_runtime_missing(mock_ef_dependencies, mock_logger):
-    """Test ONNX EF falls back to CPU if onnxruntime is missing."""
-    # mock_onnx = mock_ef_dependencies['ef.ONNXMiniLM_L6_V2']
-    mock_rt = mock_ef_dependencies["onnxruntime"]
-    if mock_rt:  # Skip if onnxruntime *is* available
-        pytest.skip("onnxruntime is available, skipping missing test")
+# REMOVED @pytest.mark.usefixtures("mock_ef_dependencies")
+def test_get_embedding_function_onnx_runtime_missing(mock_logger):
+    """Test McpError(INTERNAL_ERROR) when ONNXRUNTIME_AVAILABLE is False."""
+    mock_logger.reset_mock()
+    ef_name = "fast"  # or default
+    expected_error_msg = f"Dependency potentially missing for embedding function '{ef_name}'. Please ensure the required library is installed."
 
-    # Test relies on ONNXRUNTIME_AVAILABLE being False in the source module
-    # Patch __init__ directly for this test
-    with patch("chroma_mcp.utils.chroma_client.ef.ONNXMiniLM_L6_V2.__init__", return_value=None) as mock_onnx_init:
-        get_embedding_function("fast")
+    # Patch the flag directly
+    # No need to patch the class as it shouldn't be called
+    with patch("src.chroma_mcp.utils.chroma_client.ONNXRUNTIME_AVAILABLE", False):
+        # Call the function and expect McpError due to availability check
+        with pytest.raises(McpError) as excinfo:
+            get_embedding_function(ef_name)
 
-        # Assert the __init__ mock was called with the fallback CPU provider
-        mock_onnx_init.assert_called_once_with(preferred_providers=["CPUExecutionProvider"])
+        # Assert the correct McpError is raised due to the flag being False
+        # Revert to checking the string representation
+        assert expected_error_msg in str(excinfo.value)
 
+        # Check logger was called before raising
+        mock_logger.error.assert_any_call(expected_error_msg)
 
-# <------------------------------------------
 
 # --- Tests for Missing Dependencies ---
 
 
 # Use parametrize to test multiple unavailable functions
 @pytest.mark.parametrize(
-    "ef_name, mock_flag_name, dependency_name",
+    "ef_name, availability_flag_path",
     [
-        # ("openai", "OPENAI_AVAILABLE", "openai"), # Cannot easily test flag if lib IS installed
-        # ("cohere", "COHERE_AVAILABLE", "cohere"),
-        # ("gemini", "GENAI_AVAILABLE", "google.generativeai"),
-        # ("huggingface", "HF_API_AVAILABLE", "huggingface_hub"),
-        # ("jina", "JINA_AVAILABLE", "jina"),
-        # ("voyageai", "VOYAGEAI_AVAILABLE", "voyageai"),
-        # ("accurate", "SENTENCE_TRANSFORMER_AVAILABLE", "sentence-transformers"),
-        # Parameters above are commented out as mocking the flag doesn't prevent import attempts
-        # Testing ImportError during instantiation is more robust
+        ("openai", "src.chroma_mcp.utils.chroma_client.OPENAI_AVAILABLE"),
+        ("cohere", "src.chroma_mcp.utils.chroma_client.COHERE_AVAILABLE"),
+        ("huggingface", "src.chroma_mcp.utils.chroma_client.HF_API_AVAILABLE"),
+        ("voyageai", "src.chroma_mcp.utils.chroma_client.VOYAGEAI_AVAILABLE"),
+        ("google", "src.chroma_mcp.utils.chroma_client.GENAI_AVAILABLE"),
+        ("accurate", "src.chroma_mcp.utils.chroma_client.SENTENCE_TRANSFORMER_AVAILABLE"),
+        ("bedrock", "src.chroma_mcp.utils.chroma_client.BEDROCK_AVAILABLE"),
+        ("ollama", "src.chroma_mcp.utils.chroma_client.OLLAMA_AVAILABLE"),
+        # ONNX/Default/Fast handled by ONNXRUNTIME_AVAILABLE flag
+        ("default", "src.chroma_mcp.utils.chroma_client.ONNXRUNTIME_AVAILABLE"),
+        ("fast", "src.chroma_mcp.utils.chroma_client.ONNXRUNTIME_AVAILABLE"),
     ],
 )
-def test_get_embedding_function_dependency_unavailable_flag(
-    monkeypatch, mock_logger, ef_name, mock_flag_name, dependency_name
-):
-    """Test McpError when dependency flag is False (Simulated)."""
-    # This test is difficult because KNOWN_EMBEDDING_FUNCTIONS checks flags
-    # *before* get_embedding_function is called. We test ImportError instead.
-    pytest.skip("Skipping flag test; testing ImportError during instantiation is preferred.")
+def test_get_embedding_function_dependency_unavailable(mock_logger, ef_name, availability_flag_path):
+    """Test McpError(INTERNAL_ERROR) when dependency availability flag is False."""
+    # This test runs for each parameter set, so reset logger inside
+    mock_logger.reset_mock()
+    expected_error_msg = f"Dependency potentially missing for embedding function '{ef_name}'. Please ensure the required library is installed."
+
+    # Patch the specific availability flag to False for this run
+    with patch(availability_flag_path, False):
+        # Call get_embedding_function and expect the pre-emptive check to fail
+        with pytest.raises(McpError) as excinfo:
+            get_embedding_function(ef_name)
+
+    # Assert the correct McpError is raised due to the flag being False
+    # Revert to checking the string representation
+    assert expected_error_msg in str(excinfo.value)
+
+    # Check logger was called before raising
+    mock_logger.error.assert_any_call(expected_error_msg)
 
 
-@pytest.mark.parametrize(
-    "ef_name, patched_module, expected_error_msg_part",
-    [
-        (
-            "openai",
-            "chromadb.utils.embedding_functions.OpenAIEmbeddingFunction",
-            "Dependency missing for embedding function 'openai'",
-        ),
-        (
-            "cohere",
-            "chromadb.utils.embedding_functions.CohereEmbeddingFunction",
-            "Dependency missing for embedding function 'cohere'",
-        ),
-        # Add others as needed, patching the specific class expected by the lambda
-        # Note: Gemini requires patching os.getenv or its own class import
-        # Note: Accurate requires patching SentenceTransformerEmbeddingFunction import
-    ],
-)
-def test_get_embedding_function_dependency_import_error(
-    monkeypatch, mock_logger, ef_name, patched_module, expected_error_msg_part
-):
-    """Test McpError when dependency import fails during instantiation."""
-    # Temporarily remove the function from the registry if it exists to force re-instantiation attempt
-    # This might not be strictly necessary if the factory lambda is always called
-
-    # Simulate ImportError when the factory lambda tries to import/instantiate
-    # NOTE: This approach might not work as expected if the library IS installed,
-    # because the KNOWN_EMBEDDING_FUNCTIONS dict is built at import time.
-    # If the lib is installed, the key exists, and patching the import later won't help.
-    # The actual error in that case would be "Unknown embedding function" if the flag was False.
-    # Let's adjust the assertion to expect "Unknown" as the primary error.
-    expected_error = f"Unknown embedding function: {ef_name}"
-
-    # We might not even need the patches if we just check for the 'Unknown' error
-    # which happens if the key isn't in KNOWN_EMBEDDING_FUNCTIONS
-
-    # For robustness, try patching anyway, but assert the 'Unknown' error.
-    with patch(patched_module, side_effect=ImportError(f"No module named {patched_module}")):
-        # Mock API key retrieval to avoid errors there
-        with patch("chroma_mcp.utils.chroma_client.get_api_key", return_value="dummy_key"):
-            with pytest.raises(McpError) as excinfo:
-                get_embedding_function(ef_name)
-
-    # Revert assertion: Expect "Dependency missing..." when ImportError is caught
-    assert expected_error_msg_part in str(excinfo.value)
-    # Logger might log 'Unknown' or the import error depending on internal flow
-    # mock_logger.error.assert_called_once() # Check that error was logged (Can be fragile)
-
-
-# --- Tests for GeminiEmbeddingFunction ---
-
-
-# Mock genai module for tests where google-generativeai might not be installed
-@pytest.fixture
-def mock_genai_module():
-    mock = MagicMock()
-    mock.configure = MagicMock()
-    mock.embed_content = MagicMock(return_value={"embedding": [[0.5, 0.6]]})
-    # Simulate the module being available
-    with patch.dict("sys.modules", {"google.generativeai": mock}):
-        with patch("chroma_mcp.utils.chroma_client.genai", mock):  # Patch the import within chroma_client
-            yield mock
-
-
-def test_gemini_ef_init_success(mock_genai_module, monkeypatch):
-    """Test successful initialization of GeminiEmbeddingFunction with API key."""
-    api_key = "test-gemini-key"
-    model_name = "models/embedding-test"
-    task_type = "SEMANTIC_SIMILARITY"
-
-    # Set env var or pass directly
-    # monkeypatch.setenv("GOOGLE_API_KEY", api_key)
-
-    # Initialize directly, patching the genai module used inside
-    ef = GeminiEmbeddingFunction(api_key=api_key, model_name=model_name, task_type=task_type)
-
-    assert ef._model_name == model_name
-    assert ef._task_type == task_type
-    mock_genai_module.configure.assert_called_once_with(api_key=api_key)
-
-
-def test_gemini_ef_init_no_key(mock_genai_module, monkeypatch):
-    """Test GeminiEmbeddingFunction init fails without API key."""
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    with pytest.raises(ValueError) as excinfo:
-        GeminiEmbeddingFunction(api_key=None)  # Explicitly pass None
-    assert "Google API Key not provided" in str(excinfo.value)
-    mock_genai_module.configure.assert_not_called()
-
-
-# Parametrize API key source
-@pytest.mark.parametrize("use_env_var", [True, False])
-def test_gemini_ef_call_success(mock_genai_module, monkeypatch, use_env_var):
-    """Test successful call to GeminiEmbeddingFunction."""
-    api_key = "test-gemini-key-call"
-    model_name = "models/embedding-001"
-    task_type = "RETRIEVAL_DOCUMENT"
-    documents = ["doc1", "doc2"]
-    # Define expected as float32 numpy array
-    expected_embeddings = np.array([[0.5, 0.6]], dtype=np.float32)
-
-    if use_env_var:
-        monkeypatch.setenv("GOOGLE_API_KEY", api_key)
-        ef = GeminiEmbeddingFunction(model_name=model_name, task_type=task_type)
-    else:
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        ef = GeminiEmbeddingFunction(api_key=api_key, model_name=model_name, task_type=task_type)
-
-    embeddings = ef(documents)
-
-    # Use numpy testing for array comparison
-    assert_array_equal(embeddings, expected_embeddings)
-
-    mock_genai_module.embed_content.assert_called_once_with(model=model_name, content=documents, task_type=task_type)
-
-
-def test_gemini_ef_call_invalid_task_type(mock_genai_module, monkeypatch, mock_logger):
-    """Test GeminiEmbeddingFunction call falls back with invalid task_type."""
-    api_key = "test-gemini-key-task"
-    monkeypatch.setenv("GOOGLE_API_KEY", api_key)
-    invalid_task = "INVALID_TASK"
-    default_task = "RETRIEVAL_DOCUMENT"
-    documents = ["doc1"]
-
-    ef = GeminiEmbeddingFunction(task_type=invalid_task)
-    ef(documents)
-
-    # Assert it logged a warning and called API with default task type
-    # Check warning log more robustly
-    assert mock_logger.warning.call_count == 1
-    log_args, log_kwargs = mock_logger.warning.call_args
-    assert f"Invalid task_type '{invalid_task}'" in log_args[0]
-    assert f"defaulting to '{default_task}'" in log_args[0]
-    assert "Valid types: {" in log_args[0]
-
-    mock_genai_module.embed_content.assert_called_once_with(
-        model=ef._model_name, content=documents, task_type=default_task  # Check it used the default
-    )
-
-
-def test_gemini_ef_call_api_error(mock_genai_module, monkeypatch):
-    """Test GeminiEmbeddingFunction handling API errors during call."""
-    api_key = "test-gemini-key-api-error"
-    monkeypatch.setenv("GOOGLE_API_KEY", api_key)
-    error_message = "Google API failed"
-    mock_genai_module.embed_content.side_effect = Exception(error_message)
-    documents = ["doc1"]
-
-    ef = GeminiEmbeddingFunction()
-    with pytest.raises(EmbeddingError) as excinfo:
-        ef(documents)
-
-    assert f"Google Gemini API error: {error_message}" in str(excinfo.value)
-
-
-def test_get_embedding_function_gemini_init_error(mock_logger):
-    """Test get_embedding_function handling Gemini init error (e.g., no key)."""
-    # Simulate Gemini being available but failing init (no key)
-    with patch.dict("sys.modules", {"google.generativeai": MagicMock()}):
-        with patch("chroma_mcp.utils.chroma_client.genai", MagicMock()):
-            with patch("os.getenv", return_value=None):  # Simulate no key in env
-                with pytest.raises(McpError) as excinfo:
-                    get_embedding_function("gemini")  # Try to get Gemini
-
-    assert "Configuration error for embedding function 'gemini'" in str(excinfo.value)
-    assert "Google API Key not provided" in str(excinfo.value)
-
-
-# --- End Gemini Tests ---
+# --- End Tests ---

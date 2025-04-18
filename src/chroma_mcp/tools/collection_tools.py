@@ -32,18 +32,6 @@ from ..utils import (
 from ..utils.config import get_collection_settings, validate_collection_name
 from ..types import ChromaClientConfig
 
-# Ensure mcp instance is imported/available for decorators
-# Might need to adjust imports if mcp is not globally accessible here.
-# Assuming FastMCP instance is created elsewhere and decorators register to it.
-# We need to import the mcp instance or pass it.
-# Let's assume FastMCP handles registration implicitly upon import.
-# Need to ensure FastMCP is imported here:
-# REMOVE: from mcp.server.fastmcp import FastMCP
-
-# It's more likely the mcp instance is needed. Let's assume it's globally accessible
-# or passed to a setup function that imports this module. For now, leave as is.
-# If errors persist, we might need to import the global _mcp_instance from server.py.
-
 # --- Pydantic Input Models for Collection Tools ---
 
 
@@ -268,28 +256,27 @@ async def _list_collections_impl(input_data: ListCollectionsInput) -> List[types
         # Pydantic handles validation for limit/offset >= 0
 
         client = get_chroma_client()
-        # Chroma >= 0.6.0 returns List[str] directly
-        all_collection_names: List[str] = client.list_collections()
+        collections = client.list_collections()
+        # Determine list of collection names from raw collection values
+        if all(isinstance(c, str) for c in collections):
+            names_list = collections
+        else:
+            names_list = [ci["name"] for c in collections for ci in (_get_collection_info(c),) if "name" in ci]
 
         # Apply filtering if name_contains is provided
-        filtered_names = (
-            [name for name in all_collection_names if name_contains and name_contains.lower() in name.lower()]
-            if name_contains
-            else all_collection_names
-        )
+        if name_contains:
+            filtered_names = [n for n in names_list if name_contains.lower() in n.lower()]
+        else:
+            filtered_names = names_list
 
         total_matching_count = len(filtered_names)
 
         # Apply pagination
-        effective_limit = limit if limit > 0 else None
-        effective_offset = offset
         start_index = offset if offset > 0 else 0
-        end_index = (start_index + effective_limit) if effective_limit is not None else None
-
-        if start_index < 0:
-            start_index = 0  # Ensure start index is not negative
-
-        paginated_names = filtered_names[start_index:end_index]
+        if limit > 0:
+            paginated_names = filtered_names[start_index : start_index + limit]
+        else:
+            paginated_names = filtered_names[start_index:]
 
         # Prepare result
         result_data = {
@@ -299,7 +286,6 @@ async def _list_collections_impl(input_data: ListCollectionsInput) -> List[types
             "offset": offset,
         }
         result_json = json.dumps(result_data, indent=2)
-        # Return content list directly
         return [types.TextContent(type="text", text=result_json)]
 
     except Exception as e:

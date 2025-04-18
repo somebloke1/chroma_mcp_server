@@ -75,13 +75,21 @@ The project includes several utility scripts in the `scripts/` directory:
 
 The server primarily uses environment variables for configuration. A `.env` file in the project root is loaded automatically. Key variables include:
 
-- `CHROMA_CLIENT_TYPE`: `persistent` or `ephemeral` (default)
-- `CHROMA_DATA_DIR`: Path for persistent storage (required if `persistent`)
+- `CHROMA_CLIENT_TYPE`: Specifies how the MCP server connects to or manages ChromaDB. Available options:
+  - `ephemeral` (Default): Runs an in-memory ChromaDB instance. Data is lost when the server stops. Good for quick tests or stateless operations.
+  - `persistent`: Creates or uses a local, disk-based ChromaDB instance. Requires `CHROMA_DATA_DIR` to be set to a valid path. Data persists between server restarts.
+  - `http`: Connects to an **external, already running** ChromaDB server via HTTP/HTTPS. Requires `CHROMA_HOST` and `CHROMA_PORT` (and optionally `CHROMA_SSL`, `CHROMA_HEADERS`) to be set. The MCP server acts only as a client.
+  - `cloud`: Connects to a ChromaDB Cloud instance. Requires `CHROMA_TENANT`, `CHROMA_DATABASE`, and `CHROMA_API_KEY` to be set. The MCP server acts only as a client.
+- `CHROMA_DATA_DIR`: Path for persistent storage (required and only used if `CHROMA_CLIENT_TYPE=persistent`).
 - `CHROMA_LOG_DIR`: Path for log files (defaults to a temporary directory).
 - `LOG_LEVEL`: Logging verbosity (e.g., `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). Defaults to `INFO`.
 - `MCP_LOG_LEVEL`: Specific logging verbosity for the MCP server components.
 - `CHROMA_EMBEDDING_FUNCTION`: Specifies the embedding function to use (e.g., `default`, `accurate`, `openai`). See README or API reference for all options. Requires API keys for non-local models.
 - API Keys: If using API-based embedding functions (like `openai`, `gemini`), ensure the relevant environment variables (e.g., `OPENAI_API_KEY`, `GOOGLE_API_KEY`) are set.
+- Connection Details (`http`/`cloud` modes):
+  - `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_SSL`: Required for `http` mode.
+  - `CHROMA_HEADERS`: Optional HTTP headers (JSON string) for `http` mode.
+  - `CHROMA_TENANT`, `CHROMA_DATABASE`, `CHROMA_API_KEY`: Required for `cloud` mode.
 
 Cursor uses `.cursor/mcp.json` to configure server launch commands:
 
@@ -184,7 +192,77 @@ Use the `release.sh` script:
 # If installed globally or via standard pip/uvx
 # Ensure CHROMA_... env vars are set or use command-line args
 chroma-mcp-server --client-type persistent --data-dir ./data --log-dir ./logs
-
-# If running from within the development environment (Poetry shell)
-poetry run python src/chroma_mcp/server.py --client-type persistent --data-dir ./data --log-dir ./logs
 ```
+
+### Development Mode (Using Hatch)
+
+If you are running from a cloned repository within the development environment, use the provided wrapper script:
+
+```bash
+# From the project root directory
+./scripts/run_chroma_mcp_server_dev.sh --client-type persistent --data-dir ./dev_data --log-dir ./dev_logs
+```
+
+See the [Developer Guide](developer_guide.md#running-the-server-locally) for more details on development setup and running locally.
+
+### Choosing an Embedding Function
+
+The server uses an embedding function to generate vector representations of text for semantic search and other tasks. You can specify which function to use via the `--embedding-function` command-line argument or the `CHROMA_EMBEDDING_FUNCTION` environment variable.
+
+**Available Embedding Functions:**
+
+- `default` / `fast`: Uses `ONNX MiniLM-L6-v2`. Fast and runs locally, good for general use without needing extra setup or API keys. Requires `onnxruntime` (installed by default).
+- `accurate`: Uses `all-mpnet-base-v2` via `sentence-transformers`. More accurate but potentially slower than `default`. Requires `sentence-transformers` and `torch`.
+- `openai`: Uses OpenAI's embedding models (e.g., `text-embedding-ada-002`). Requires the `openai` package and the `OPENAI_API_KEY` environment variable.
+- `cohere`: Uses Cohere's embedding models. Requires the `cohere` package and the `COHERE_API_KEY` environment variable.
+- `huggingface`: Uses models from the Hugging Face Hub via the `sentence-transformers` library. Requires `sentence-transformers`, `torch`, and potentially `transformers`. Requires `HUGGINGFACE_API_KEY` if using gated models.
+- `voyageai`: Uses Voyage AI's embedding models. Requires the `voyageai` package and the `VOYAGEAI_API_KEY` environment variable.
+- `google`: Uses Google's Generative AI embedding models (e.g., Gemini). Requires the `google-generativeai` package and the `GOOGLE_API_KEY` environment variable.
+- `bedrock`: Uses embedding models available through AWS Bedrock (e.g., Cohere, Titan). Requires the `boto3` package and configured AWS credentials (via environment variables, shared credential file, or IAM role).
+- `ollama`: Uses embedding models served by a local Ollama instance. Requires the `ollama` package and a running Ollama server. The server address can be configured via the `OLLAMA_HOST` environment variable (defaults to `http://localhost:11434`).
+
+**Installation:**
+
+To ensure all dependencies for optional embedding functions like `accurate`, `google`, `bedrock`, `ollama`, `openai`, `cohere`, `voyageai`, and `huggingface` are installed, use the `full` extra:
+
+```bash
+pip install "chroma-mcp-server[full]"
+```
+
+If you only need the default functions, a simple `pip install chroma-mcp-server` is sufficient.
+
+## Running the Server from terminal
+
+Once installed, you can run the server from your terminal:
+
+```bash
+chroma-mcp-server --client-type ephemeral --embedding-function default
+```
+
+- `--embedding-function TEXT`: Specifies the embedding function to use. Defaults to `default`. See [Choosing an Embedding Function](#choosing-an-embedding-function) for options.
+- `--cpu-execution-provider [auto|true|false]`: Configures ONNX execution provider usage (primarily for `default`/`fast` embedding functions). Defaults to `auto`.
+- `--version`: Show the server version and exit.
+- `--help`: Show help message and exit.
+
+**Environment Variables:**
+
+Certain arguments can also be set via environment variables:
+
+- `CHROMA_CLIENT_TYPE`: Overrides `--client-type`.
+- `CHROMA_DATA_DIR`: Overrides `--data-dir`.
+- `CHROMA_HOST`: Overrides `--host`.
+- `CHROMA_PORT`: Overrides `--port`.
+- `CHROMA_TENANT`: Overrides `--tenant`.
+- `CHROMA_DATABASE`: Overrides `--database`.
+- `CHROMA_API_KEY`: Overrides `--api-key` (for persistent HTTP/HTTPS clients).
+- `CHROMA_EMBEDDING_FUNCTION`: Overrides `--embedding-function`.
+- `CHROMA_LOG_DIR`: Overrides `--log-dir`.
+- `CHROMA_LOG_LEVEL`: Overrides `--log-level`.
+- `ONNX_CPU_PROVIDER`: Overrides `--cpu-execution-provider` (true/false).
+- `OPENAI_API_KEY`: Required if using `--embedding-function openai`.
+- `COHERE_API_KEY`: Required if using `--embedding-function cohere`.
+- `HUGGINGFACE_API_KEY`: Required if using `--embedding-function huggingface` with private/gated models.
+- `VOYAGEAI_API_KEY`: Required if using `--embedding-function voyageai`.
+- `GOOGLE_API_KEY`: Required if using `--embedding-function google`.
+- `OLLAMA_HOST`: Specifies the Ollama server address (e.g., `http://host.docker.internal:11434`) if using `--embedding-function ollama`. Defaults to `http://localhost:11434`.
+- AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, etc.): Required if using `--embedding-function bedrock` and not configured via other means (e.g., IAM role, shared credential file).

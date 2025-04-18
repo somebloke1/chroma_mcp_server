@@ -90,15 +90,16 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         default=os.getenv("CHROMA_EMBEDDING_FUNCTION", "default"),
         help=(
             "Name of the embedding function to use. Choices: "
-            "'default'/'fast' (Local CPU, balanced), "
+            "'default'/'fast' (Local CPU/ONNX, balanced), "
             "'accurate' (Local CPU/GPU via sentence-transformers, higher accuracy), "
-            "'openai' (API, general purpose), "
-            "'cohere' (API, retrieval/multilingual focus), "
-            "'huggingface' (API, flexible model choice), "
-            "'jina' (API, long context focus), "
-            "'voyageai' (API, retrieval focus), "
-            "'gemini' (API, general purpose). "
-            "API-based functions require corresponding API keys set as environment variables (e.g., OPENAI_API_KEY)."
+            "'openai' (API, requires OPENAI_API_KEY), "
+            "'cohere' (API, requires COHERE_API_KEY), "
+            "'google' (API, requires GOOGLE_API_KEY, covers Gemini models), "
+            "'huggingface' (API, requires HUGGINGFACE_API_KEY), "
+            "'voyageai' (API, requires VOYAGEAI_API_KEY), "
+            "'bedrock' (AWS API, uses AWS credentials, e.g., env vars), "
+            "'ollama' (Local/Remote API, uses OLLAMA_BASE_URL, defaults to http://localhost:11434). "
+            "Ensure required API keys/credentials/URLs are set in environment variables."
         ),
         dest="embedding_function_name",
     )

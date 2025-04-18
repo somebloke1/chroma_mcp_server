@@ -12,35 +12,36 @@ from chromadb.config import Settings
 from chromadb import EmbeddingFunction, Documents, Embeddings
 from chromadb.utils import embedding_functions as ef
 
-# Import sentence-transformers if available
+# --- Dependency Availability Checks ---
+
+# SentenceTransformers
 try:
     from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
-    # No assert needed, import success is sufficient
     SENTENCE_TRANSFORMER_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMER_AVAILABLE = False
 
-# Import google generativeai if available
+# Google Generative AI (Still needed for Chroma's Google EF)
 try:
     import google.generativeai as genai
 
-    # No assert needed, only check library import for custom class
+    # Chroma uses GoogleGenerativeAiEmbeddingFunction, check its existence
+    assert hasattr(ef, "GoogleGenerativeAiEmbeddingFunction")
     GENAI_AVAILABLE = True
-except ImportError:
+except (ImportError, AssertionError):
     GENAI_AVAILABLE = False
 
-# Import OpenAI if available
+# OpenAI
 try:
     import openai  # type: ignore
 
-    # Verify if the specific class exists within chromadb utils
     assert hasattr(ef, "OpenAIEmbeddingFunction")
     OPENAI_AVAILABLE = True
 except (ImportError, AssertionError):
     OPENAI_AVAILABLE = False
 
-# Import Cohere if available
+# Cohere
 try:
     import cohere  # type: ignore
 
@@ -49,16 +50,16 @@ try:
 except (ImportError, AssertionError):
     COHERE_AVAILABLE = False
 
-# Import Jina if available (check for client library)
+# HuggingFace Hub API
 try:
-    import jina  # type: ignore
+    import huggingface_hub  # type: ignore
 
-    assert hasattr(ef, "JinaEmbeddingFunction")
-    JINA_AVAILABLE = True
-except (ImportError, AssertionError):
-    JINA_AVAILABLE = False
+    assert hasattr(ef, "HuggingFaceEmbeddingFunction")
+    HF_API_AVAILABLE = True
+except (ImportError, AssertionError):  # Corrected: check both import and assert
+    HF_API_AVAILABLE = False
 
-# Import VoyageAI if available
+# VoyageAI
 try:
     import voyageai  # type: ignore
 
@@ -67,103 +68,45 @@ try:
 except (ImportError, AssertionError):
     VOYAGEAI_AVAILABLE = False
 
-# Import HuggingFace API Embedding Function (check existence)
-try:
-    import huggingface_hub  # type: ignore
-
-    assert hasattr(ef, "HuggingFaceEmbeddingFunction")
-    HF_API_AVAILABLE = True
-except AssertionError:
-    HF_API_AVAILABLE = False
-
-from mcp.shared.exceptions import McpError
-from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
-
-# Local application imports
-# Import ChromaClientConfig from types
-from ..types import ChromaClientConfig
-
-# Import errors from siblings
-from .errors import EmbeddingError, ConfigurationError
-
-# Import loggers/config getters directly from parent utils package (__init__.py)
-from . import get_logger, get_server_config
-
-# --- Constants ---
-
-# --- ADD ONNX Runtime Import --- >
+# ONNX Runtime
 try:
     import onnxruntime  # type: ignore
 
     ONNXRUNTIME_AVAILABLE = True
 except ImportError:
     ONNXRUNTIME_AVAILABLE = False
-# <--------------------------------
 
-# --- Embedding Function Helper ---
+# Amazon Bedrock (boto3)
+try:
+    import boto3  # type: ignore
+
+    assert hasattr(ef, "AmazonBedrockEmbeddingFunction")
+    BEDROCK_AVAILABLE = True
+except (ImportError, AssertionError):
+    BEDROCK_AVAILABLE = False
+
+# Ollama (ollama client library)
+try:
+    import ollama  # type: ignore
+
+    assert hasattr(ef, "OllamaEmbeddingFunction")
+    OLLAMA_AVAILABLE = True
+except (ImportError, AssertionError):
+    OLLAMA_AVAILABLE = False
+
+
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
+
+# Local application imports
+from ..types import ChromaClientConfig
+from .errors import EmbeddingError, ConfigurationError
+from . import get_logger, get_server_config
+
+# --- Constants ---
 
 # Module-level cache for the client ONLY
 _chroma_client: Optional[Union[chromadb.PersistentClient, chromadb.HttpClient, chromadb.EphemeralClient]] = None
-
-# --- Custom Embedding Functions ---
-
-
-# Google Gemini Embedding Function
-class GeminiEmbeddingFunction(EmbeddingFunction):
-    """Custom Embedding Function for Google Gemini."""
-
-    # Example: models/embedding-001
-    # Models: textembedding-gecko@001, textembedding-gecko-multilingual@001, embedding-001
-    # Task Types: RETRIEVAL_QUERY, RETRIEVAL_DOCUMENT, SEMANTIC_SIMILARITY, CLASSIFICATION, CLUSTERING
-    def __init__(
-        self, api_key: Optional[str] = None, model_name: str = "models/embedding-001", task_type="RETRIEVAL_DOCUMENT"
-    ):
-        if genai is None:
-            raise ImportError("google.generativeai is not installed. Please install `pip install google-generativeai`")
-
-        self._model_name = model_name
-        self._task_type = task_type
-        resolved_api_key = api_key or os.getenv("GOOGLE_API_KEY")
-        if not resolved_api_key:
-            raise ValueError(
-                "Google API Key not provided via api_key parameter or GOOGLE_API_KEY environment variable."
-            )
-        genai.configure(api_key=resolved_api_key)
-
-    def __call__(self, input: Documents) -> Embeddings:
-        logger = get_logger("GeminiEmbeddingFunction")
-        try:
-            # Ensure the task type is valid before making the call
-            valid_task_types = {
-                "RETRIEVAL_QUERY",
-                "RETRIEVAL_DOCUMENT",
-                "SEMANTIC_SIMILARITY",
-                "CLASSIFICATION",
-                "CLUSTERING",
-            }
-            if self._task_type not in valid_task_types:
-                logger.warning(
-                    f"Invalid task_type '{self._task_type}', defaulting to 'RETRIEVAL_DOCUMENT'. Valid types: {valid_task_types}"
-                )
-                self._task_type = "RETRIEVAL_DOCUMENT"
-
-            # Google AI API for embeddings
-            # Handle potential batching limits if necessary, though the API might handle it.
-            # For simplicity, embedding documents one by one if needed, but batch is preferred.
-            # The current genai.embed_content seems to handle lists directly.
-            logger.debug(
-                f"Embedding {len(input)} documents using model {self._model_name} with task type {self._task_type}"
-            )
-            result = genai.embed_content(
-                model=self._model_name, content=input, task_type=self._task_type
-            )  # type: ignore
-            embeddings = result["embedding"]
-            logger.debug(f"Successfully received {len(embeddings)} embeddings.")
-            return embeddings  # type: ignore
-        except Exception as e:
-            logger.error(f"Error calling Google Gemini embed_content API: {e}", exc_info=True)
-            # Re-raise as a standard exception or a specific embedding error
-            raise EmbeddingError(f"Google Gemini API error: {e}") from e
 
 
 # --- Embedding Function Registry & Helpers ---
@@ -177,36 +120,43 @@ def get_api_key(service_name: str) -> Optional[str]:
     if key:
         logger.debug(f"Found API key for {service_name} in env var {env_var_name}")
     else:
-        logger.debug(f"API key for {service_name} not found in env var {env_var_name}")
+        logger.warning(f"API key for {service_name} not found in env var {env_var_name}")  # Changed to warning
     return key
 
 
-# Registry mapping names to factory functions/classes
+# Helper for Ollama URL (can be extended for other non-key configs)
+def get_ollama_base_url() -> str:
+    """Retrieve Ollama base URL from environment or use default."""
+    url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")  # Default to local
+    logger = get_logger("utils.chroma_client")
+    logger.debug(f"Using Ollama base URL: {url}")
+    return url
+
+
+# Updated Registry
 KNOWN_EMBEDDING_FUNCTIONS: Dict[str, Callable[[], EmbeddingFunction]] = {
-    # --- Local CPU Options ---
-    # Use ONNX Runtime providers for default/fast
+    # --- Local CPU/ONNX Options ---
     "default": lambda: ef.ONNXMiniLM_L6_V2(
         preferred_providers=(
             onnxruntime.get_available_providers()
             if ONNXRUNTIME_AVAILABLE and onnxruntime.get_available_providers()
-            else ["CPUExecutionProvider"]  # Fallback if no providers or onnxruntime missing
+            else ["CPUExecutionProvider"]
         )
     ),
-    "fast": lambda: ef.ONNXMiniLM_L6_V2(
+    "fast": lambda: ef.ONNXMiniLM_L6_V2(  # Alias for default
         preferred_providers=(
             onnxruntime.get_available_providers()
             if ONNXRUNTIME_AVAILABLE and onnxruntime.get_available_providers()
-            else ["CPUExecutionProvider"]  # Fallback if no providers or onnxruntime missing
+            else ["CPUExecutionProvider"]
         )
     ),
-    # Accurate uses SentenceTransformer, relies on its internal device auto-detection (CUDA/MPS/CPU)
+    # --- Local SentenceTransformer Option ---
     **(
         {"accurate": lambda: SentenceTransformerEmbeddingFunction(model_name="all-mpnet-base-v2")}
         if SENTENCE_TRANSFORMER_AVAILABLE
         else {}
     ),
     # --- API-based Options ---
-    # Conditionally add API-based providers
     **({"openai": lambda: ef.OpenAIEmbeddingFunction(api_key=get_api_key("openai"))} if OPENAI_AVAILABLE else {}),
     **({"cohere": lambda: ef.CohereEmbeddingFunction(api_key=get_api_key("cohere"))} if COHERE_AVAILABLE else {}),
     **(
@@ -218,13 +168,38 @@ KNOWN_EMBEDDING_FUNCTIONS: Dict[str, Callable[[], EmbeddingFunction]] = {
         if HF_API_AVAILABLE
         else {}
     ),
-    **({"jina": lambda: ef.JinaEmbeddingFunction(api_key=get_api_key("jina"))} if JINA_AVAILABLE else {}),
     **(
         {"voyageai": lambda: ef.VoyageAIEmbeddingFunction(api_key=get_api_key("voyageai"))}
         if VOYAGEAI_AVAILABLE
         else {}
     ),
-    **({"gemini": lambda: GeminiEmbeddingFunction(api_key=get_api_key("google"))} if GENAI_AVAILABLE else {}),
+    # --- Use Chroma's Google EF ---
+    **(
+        {"google": lambda: ef.GoogleGenerativeAiEmbeddingFunction(api_key=get_api_key("google"))}
+        if GENAI_AVAILABLE
+        else {}
+    ),
+    # --- Add Bedrock (uses AWS credentials implicitly via boto3) ---
+    **(
+        {
+            "bedrock": lambda: ef.AmazonBedrockEmbeddingFunction(
+                # Assumes region/credentials configured via env vars/AWS config
+                model_name="amazon.titan-embed-text-v1"  # Example model
+            )
+        }
+        if BEDROCK_AVAILABLE
+        else {}
+    ),
+    # --- Add Ollama (uses base URL) ---
+    **(
+        {
+            "ollama": lambda: ef.OllamaEmbeddingFunction(
+                url=get_ollama_base_url(), model_name="nomic-embed-text"  # Example model
+            )
+        }
+        if OLLAMA_AVAILABLE
+        else {}
+    ),
 }
 
 
@@ -244,13 +219,50 @@ def get_embedding_function(name: str) -> EmbeddingFunction:
     logger = get_logger("utils.chroma_client")
     normalized_name = name.lower()
 
+    # Check availability flags first (more robust than just relying on dict presence)
+    is_available = False
+    if normalized_name == "default" or normalized_name == "fast":
+        is_available = ONNXRUNTIME_AVAILABLE
+    elif normalized_name == "accurate":
+        is_available = SENTENCE_TRANSFORMER_AVAILABLE
+    elif normalized_name == "openai":
+        is_available = OPENAI_AVAILABLE
+    elif normalized_name == "cohere":
+        is_available = COHERE_AVAILABLE
+    elif normalized_name == "huggingface":
+        is_available = HF_API_AVAILABLE
+    elif normalized_name == "voyageai":
+        is_available = VOYAGEAI_AVAILABLE
+    elif normalized_name == "google":
+        is_available = GENAI_AVAILABLE
+    elif normalized_name == "bedrock":
+        is_available = BEDROCK_AVAILABLE
+    elif normalized_name == "ollama":
+        is_available = OLLAMA_AVAILABLE
+
+    if not is_available:
+        error_msg = f"Dependency potentially missing for embedding function '{normalized_name}'. Please ensure the required library is installed."
+        logger.error(error_msg)
+        # Raise McpError indicating dependency issue, even if key is in dict due to import trickery
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=error_msg))
+
     instantiator = KNOWN_EMBEDDING_FUNCTIONS.get(normalized_name)
     if not instantiator:
-        logger.error(f"Unknown embedding function name requested: '{name}'")
+        logger.error(f"Unknown embedding function name requested: '{name}' (Not found in registry even if available)")
         raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Unknown embedding function: {name}"))
 
     try:
         logger.info(f"Instantiating embedding function: '{normalized_name}'")
+        # Ensure necessary keys/configs are present BEFORE calling instantiator
+        # This prevents late errors within ChromaDB's code if possible
+        if normalized_name in ["openai", "cohere", "google", "huggingface", "voyageai"]:
+            if not get_api_key(normalized_name):  # get_api_key already logs warning
+                raise ValueError(f"API key for '{normalized_name}' not found in environment variable.")
+        elif normalized_name == "ollama":
+            # Just ensure the helper runs, it has a default
+            get_ollama_base_url()
+        # Bedrock relies on implicit AWS credential chain (no specific check here)
+
         instance = instantiator()
         logger.info(f"Successfully instantiated embedding function: '{normalized_name}'")
         return instance
@@ -262,7 +274,7 @@ def get_embedding_function(name: str) -> EmbeddingFunction:
             )
         ) from e
     except ValueError as e:
-        # Catch ValueErrors often raised for missing API keys
+        # Catch ValueErrors often raised for missing API keys or bad config
         logger.error(f"Configuration error instantiating '{normalized_name}': {e}", exc_info=True)
         raise McpError(
             ErrorData(
