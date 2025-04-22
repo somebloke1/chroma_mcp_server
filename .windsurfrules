@@ -1,0 +1,15 @@
+# .windsurfrules
+
+rules:
+  "*.md": "docs/rules/markdown-rules.md"
+  "*.py": "docs/rules/python-github-rules.md"
+  "*.tf": "docs/rules/terraform-coding-rules.md"
+
+session_memory: "docs/rules/chroma-memory-rules.md"
+
+context_validation:
+
+- "Always check the context before starting a new task (use Session Memory Rules)"
+- "In case of multiple steps required, consider using thinking tools to break down the task, if applicable."
+- "At the end of each session, summarize the context (use Session Memory Rules)"
+- "Finish each output listing which rulesets have been applied."
