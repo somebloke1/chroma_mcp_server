@@ -73,6 +73,12 @@ The project includes several utility scripts in the `scripts/` directory:
 
 ## Configuration
 
+Copy the example `.env.template` to `.env` and adjust values as needed:
+
+```bash
+cp .env.template .env
+```
+
 The server primarily uses environment variables for configuration. A `.env` file in the project root is loaded automatically. Key variables include:
 
 - `CHROMA_CLIENT_TYPE`: Specifies how the MCP server connects to or manages ChromaDB. Available options:
@@ -191,7 +197,7 @@ Use the `release.sh` script:
 ```bash
 # If installed globally or via standard pip/uvx
 # Ensure CHROMA_... env vars are set or use command-line args
-chroma-mcp-server --client-type persistent --data-dir ./data --log-dir ./logs
+chroma-mcp-server --client-type ephemeral --embedding-function default
 ```
 
 ### Development Mode (Using Hatch)
@@ -266,3 +272,23 @@ Certain arguments can also be set via environment variables:
 - `GOOGLE_API_KEY`: Required if using `--embedding-function google`.
 - `OLLAMA_HOST`: Specifies the Ollama server address (e.g., `http://host.docker.internal:11434`) if using `--embedding-function ollama`. Defaults to `http://localhost:11434`.
 - AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, etc.): Required if using `--embedding-function bedrock` and not configured via other means (e.g., IAM role, shared credential file).
+
+## Docker
+
+Build and run via Docker:
+
+```bash
+docker build -t chroma-mcp-server .
+docker run -p 8000:8000 \
+  -e CHROMA_CLIENT_TYPE=persistent \
+  -e CHROMA_DATA_DIR=/data \
+  -e CHROMA_LOG_DIR=/logs \
+  -e CHROMA_EMBEDDING_FUNCTION=default \
+  chroma-mcp-server
+```
+
+Or with Compose:
+
+```bash
+docker-compose up --build
+```

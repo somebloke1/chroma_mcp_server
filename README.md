@@ -73,6 +73,12 @@ chroma-mcp-server --version
 
 ### Configuration
 
+Copy the example `.env.template` to `.env` and adjust values as needed:
+
+```bash
+cp .env.template .env
+```
+
 The server can be configured with command-line options or environment variables:
 
 #### Command-line Options
