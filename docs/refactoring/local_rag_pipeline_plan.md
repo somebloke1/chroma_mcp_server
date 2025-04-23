@@ -37,7 +37,7 @@
     # GOOGLE_API_KEY=...
     ```
 
-  - [x] For HTTP mode, update your `.env` with:
+  - [x] For chromadb backend HTTP mode, update your `.env` with:
 
     ```dotenv
     CHROMA_CLIENT_TYPE=http
@@ -47,7 +47,7 @@
     # (Optional) CHROMA_HEADERS='{"Authorization":"Bearer <token>"}'
     ```
 
-  - [x] For Cloud mode, update your `.env` with:
+  - [x] For chromadb backend cloud mode, update your `.env` with:
 
     ```dotenv
     CHROMA_CLIENT_TYPE=cloud
