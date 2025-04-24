@@ -10,17 +10,43 @@ This guide will help you set up and start using the Chroma MCP Server.
 
 ## Installation
 
-### Option 1: Simple Installation (Recommended)
+Choose your preferred installation method:
+
+### Option 1: Simple Installation (pip/uvx)
 
 ```bash
-# Install the package from PyPI
+# Install the base package from PyPI using pip
 pip install chroma-mcp-server
 
-# For full functionality with embedding models
-pip install chroma-mcp-server[full]
+# Or using uv
+uv pip install chroma-mcp-server
+
+# For full functionality including optional embedding models
+pip install "chroma-mcp-server[full]"
+# Or using uv
+uv pip install "chroma-mcp-server[full]"
 ```
 
-### Option 2: Development Setup
+### Option 2: Via Smithery (for Local Execution)
+
+[Smithery](https://smithery.ai/) provides a registry and CLI tool for managing MCP servers, often used by AI clients like Claude Desktop. This method still runs the server locally.
+
+**Prerequisites:**
+
+- Node.js and `npx` must be installed.
+- The `chroma-mcp-server` package must be published on PyPI and registered on the Smithery website ([https://smithery.ai/](https://smithery.ai/)).
+
+**Installation:**
+
+```bash
+# Install the package into a Smithery-managed environment
+npx -y @smithery/cli install chroma-mcp-server
+
+# If prompted or required by Smithery configuration, provide a key:
+# npx -y @smithery/cli install chroma-mcp-server --key YOUR_API_KEY
+```
+
+### Option 3: Development Setup
 
 1. **Clone the Repository:**
 
@@ -192,12 +218,40 @@ Use the `release.sh` script:
 
 ## Running the Server
 
-### Standalone Mode
+### Standalone Mode (pip/uvx install)
+
+If you installed via `pip` or `uvx`, you can run the server directly. Ensure required environment variables (like `CHROMA_DATA_DIR` for persistent mode, or API keys for specific embedding functions) are set.
 
 ```bash
-# If installed globally or via standard pip/uvx
-# Ensure CHROMA_... env vars are set or use command-line args
+# Run using the installed script
 chroma-mcp-server --client-type ephemeral --embedding-function default
+
+# Example with persistent mode (env var set)
+# export CHROMA_DATA_DIR=/path/to/data
+# chroma-mcp-server --client-type persistent
+```
+
+### Via Smithery CLI (Smithery install)
+
+If you installed via Smithery, use the Smithery CLI to run the server. It reads the package's `smithery.yaml` to configure and launch the server locally.
+
+```bash
+# Run with default config from smithery.yaml
+npx -y @smithery/cli run chroma-mcp-server
+
+# Run with custom configuration override
+npx -y @smithery/cli run chroma-mcp-server --config '{ "clientType": "persistent", "dataDir": "./my_smithery_data" }'
+
+# If prompted or required by Smithery configuration, provide a key:
+# npx -y @smithery/cli run chroma-mcp-server --key YOUR_API_KEY --config '{...}'
+```
+
+### Inspecting via Smithery (Optional)
+
+You can use the Smithery CLI to inspect the server's registered configuration (requires installation via Smithery first):
+
+```bash
+npx -y @smithery/cli inspect chroma-mcp-server
 ```
 
 ### Development Mode (Using Hatch)

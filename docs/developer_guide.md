@@ -262,33 +262,22 @@ The `publish.sh` script handles publishing the built package (`dist/` directory)
 
 **Note:** Publishing to PyPI is usually handled automatically as part of the `release.sh` script.
 
-### Registering with Smithery
+## Registering with Smithery
 
-After successfully publishing a version to PyPI, you need to register it with Smithery to make it discoverable by clients using the Smithery CLI.
-
-**Prerequisites:**
-
-* Package version published to PyPI.
-* `smithery.yaml` file present in the project root.
-* Node.js and `npx` installed.
+After successfully publishing a version to PyPI, you need to make it discoverable by clients using the Smithery ecosystem. This is done via the Smithery website, **not** the `@smithery/cli` tool (which is primarily for installing/running servers).
 
 **Steps:**
 
-1. **Login (one-time):** If you haven't authenticated with Smithery before:
+1. **Publish to PyPI:** Ensure the desired package version is available on PyPI.
+2. **Go to Smithery Website:** Visit [https://smithery.ai/](https://smithery.ai/).
+3. **Login/Sign Up:** Authenticate with your account (likely linked to GitHub).
+4. **Add/Claim Server:** Find the option to add a new server or claim an existing one if it was automatically discovered.
+5. **Configure Repository:** Link the Smithery entry to your GitHub repository (`djm81/chroma_mcp_server`).
+6. **Configure Settings:** Within the server settings on the Smithery website:
+    * Ensure the `smithery.yaml` file in your repository is detected.
+    * **Crucially, configure the server for local execution.** Look for settings related to deployment or execution type and ensure it's set to only allow local runs initiated by the client via `npx @smithery/cli run ...`, rather than enabling online hosting (Smithery Deployments).
 
-    ```bash
-    npx -y @smithery/cli login
-    ```
-
-2. **Publish/Register:** From the project root directory:
-
-    ```bash
-    npx -y @smithery/cli publish
-    ```
-
-    This command reads your `pyproject.toml` (for package name/version) and `smithery.yaml`, then updates the Smithery registry.
-
-*(Note: The `release.sh` script currently does not include this Smithery registration step. It needs to be run manually after a successful release or the script needs to be updated.)*
+Once configured on the website, clients should be able to find `chroma-mcp-server` and use `npx @smithery/cli install/run` as described in the "Via Smithery (for Local Execution)" section under "Running the Server Locally".
 
 ## Releasing a New Version
 

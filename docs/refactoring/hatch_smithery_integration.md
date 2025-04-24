@@ -125,36 +125,37 @@ def main():
 # Ensure this file is the target of the 'chroma-mcp-server' script
 ```
 
-## Publishing to Smithery
+## Registering with Smithery
 
-Publishing makes your server *discoverable* via the Smithery registry. The actual execution remains local when users install and run it.
+Registering makes your server *discoverable* via the Smithery registry and configures how clients should interact with it (e.g., local execution vs. online hosting). This process is done via the Smithery website after your package is available on PyPI.
 
-### Step 1: Register with Smithery (if needed)
+**Steps:**
 
-```bash
-npx -y @smithery/cli login
-```
+1. **Publish to PyPI:** Ensure the desired version of `chroma-mcp-server` is published on PyPI.
 
-### Step 2: Publish Your Package to PyPI & Register with Smithery
+2. **Visit Smithery Website:** Go to [https://smithery.ai/](https://smithery.ai/) and log in (typically with GitHub).
 
-Ensure your package is published to PyPI first, as Smithery likely relies on this for installation via `pip`.
+3. **Add/Claim Server:**
+    - Look for an option to "Add Server" or similar.
+    - If Smithery might have already discovered your package from PyPI or GitHub, you might need to "Claim" it.
 
-```bash
-# Build your package
-hatch build
+4. **Connect GitHub Repository:**
+    - Configure the server entry to point to your GitHub repository (`djm81/chroma_mcp_server`).
+    - Grant necessary permissions if requested.
 
-# Publish to PyPI (requires setup)
-hatch publish
+5. **Configure Server Settings:**
+    - Smithery should detect the `smithery.yaml` file in your repository root.
+    - Review the detected configuration.
+    - **Set Execution Mode:** Find the settings related to deployment or execution. Ensure you configure it for **local execution only**. Disable any options related to "Smithery Deployments" or online hosting.
+    - Specify the base directory if your `smithery.yaml` is not in the repo root (though it should be in this project).
 
-# Register the published PyPI package with Smithery
-npx -y @smithery/cli publish
-```
+Once saved, your server should be listed on Smithery and configured such that the `@smithery/cli` tool will facilitate local installation (`install` command using `pip`) and local execution (`run` command interpreting your `smithery.yaml`).
 
 ## Testing Smithery Integration
 
 ### Test Local Execution via Smithery CLI
 
-After publishing, try installing and running it locally using the Smithery CLI:
+After registering on the Smithery website and publishing to PyPI, test the end-to-end local flow:
 
 ```bash
 # Install (fetches from PyPI via pip)

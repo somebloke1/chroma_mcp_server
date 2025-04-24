@@ -61,9 +61,12 @@ uv pip install "chroma-mcp-server[full]"
 # Requires Node.js/npx
 # Installs the package (usually via pip) into a Smithery-managed environment
 npx -y @smithery/cli install chroma-mcp-server
+
+# If the server requires an API key for installation via Smithery:
+# npx -y @smithery/cli install chroma-mcp-server --key YOUR_API_KEY
 ```
 
-*(Note: This method requires the package to be published on PyPI and registered with Smithery).*
+*(Note: This method requires the package to be published on PyPI and registered with Smithery. The `--key` option usage depends on the specific server's registration settings on Smithery).*
 
 ## Usage
 
@@ -77,7 +80,11 @@ chroma-mcp-server [OPTIONS]
 python -m chroma_mcp.server [OPTIONS]
 
 # Or via Smithery CLI (after npx ... install)
+# Example with config:
 npx -y @smithery/cli run chroma-mcp-server --config '{ "clientType": "persistent", "dataDir": "./my_chroma_data" }'
+
+# Example if the server requires an API key for running via Smithery:
+# npx -y @smithery/cli run chroma-mcp-server --key YOUR_API_KEY --config '{...}'
 ```
 
 ### Checking the Version
