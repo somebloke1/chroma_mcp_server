@@ -62,14 +62,10 @@ build/
 dist/
 test_index/
 
-# Ignore .local files and folders
-.local
+# Ensure .env files are ignored
 .env
+# But keep our template
 !.env.template
-
-# Ignore logs
-logs/
-!logs/.gitkeep
 
 .coverage
 .coverage.*
@@ -174,8 +170,6 @@ celerybeat-schedule
 *.sage.py
 
 # Environments
-.env
-.venv
 env/
 venv/
 ENV/
@@ -202,6 +196,7 @@ dmypy.json
 
 # Project-specific
 data/
+chroma_data/
 logs/
 .vscode/
 .idea/

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.105"
+version = "0.1.106"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -73,6 +73,9 @@ dev = [
 
 [project.scripts]
 chroma-mcp-server = "chroma_mcp.cli:main"
+
+[project.entry-points."smithery.mcps"]
+chroma = "chroma_mcp.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/djm81/chroma_mcp_server"

@@ -6,73 +6,86 @@ startCommand:
     # JSON Schema defining the configuration options for the MCP.
     type: object
     properties:
-      client_type:
+      clientType: # Maps to --client-type / CHROMA_CLIENT_TYPE
         type: string
         enum: ["ephemeral", "persistent", "http", "cloud"]
-        description: "Type of Chroma client to use"
+        description: "Type of Chroma client to use (ephemeral, persistent, http, cloud)"
         default: "ephemeral"
-      data_dir:
+      dataDir: # Maps to --data-dir / CHROMA_DATA_DIR
         type: string
         description: "Path to data directory for persistent client"
-      host:
+      logDir: # Maps to --log-dir / CHROMA_LOG_DIR
+        type: string
+        description: "Path to log directory"
+      logLevel: # Maps to --log-level / LOG_LEVEL
+        type: string
+        enum: ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        description: "Logging level"
+        default: "INFO"
+      host: # Maps to --host / CHROMA_HOST
         type: string
         description: "Host address for HTTP client"
-      port:
-        type: string
+      port: # Maps to --port / CHROMA_PORT
+        type: string # Keep as string, cli.py handles it
         description: "Port for HTTP client"
-      ssl:
+      ssl: # Maps to --ssl / CHROMA_SSL
         type: boolean
         description: "Whether to use SSL for HTTP client"
-        default: false
-      tenant:
+        default: true # Default in cli.py seems to be true
+      tenant: # Maps to --tenant / CHROMA_TENANT
         type: string
         description: "Tenant ID for Cloud client"
-      database:
+      database: # Maps to --database / CHROMA_DATABASE
         type: string
         description: "Database name for Cloud client"
-      api_key:
+      apiKey: # Maps to --api-key / CHROMA_API_KEY
         type: string
         description: "API key for Cloud client"
-    required: []
+      dotenvPath: # Maps to --dotenv-path / CHROMA_DOTENV_PATH
+        type: string
+        description: "Path to the .env file"
+        default: ".env"
+      cpuExecutionProvider: # Maps to --cpu-execution-provider / CHROMA_CPU_EXECUTION_PROVIDER
+        type: string
+        enum: ["auto", "true", "false"]
+        description: "Force CPU execution provider for embedding functions ('auto', 'true', 'false')"
+        default: "auto"
+      embeddingFunctionName: # Maps to --embedding-function / CHROMA_EMBEDDING_FUNCTION
+        type: string
+        description: "Name of the embedding function to use (e.g., 'default', 'accurate', 'openai', 'cohere', etc.)"
+        default: "default"
+    required: [] # No fields are strictly required as defaults exist or depend on clientType
   commandFunction:
     # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    # It sets environment variables which are read by cli.py.
     |-
     (config) => {
-      const args = ['chroma-mcp-server'];
+      const env = {};
+      if (config.clientType !== undefined) env.CHROMA_CLIENT_TYPE = config.clientType;
+      if (config.dataDir !== undefined) env.CHROMA_DATA_DIR = config.dataDir;
+      if (config.logDir !== undefined) env.CHROMA_LOG_DIR = config.logDir;
+      if (config.logLevel !== undefined) env.LOG_LEVEL = config.logLevel;
+      if (config.host !== undefined) env.CHROMA_HOST = config.host;
+      if (config.port !== undefined) env.CHROMA_PORT = String(config.port); // Ensure string
+      if (config.ssl !== undefined) env.CHROMA_SSL = String(config.ssl); // Ensure string ('true'/'false')
+      if (config.tenant !== undefined) env.CHROMA_TENANT = config.tenant;
+      if (config.database !== undefined) env.CHROMA_DATABASE = config.database;
+      if (config.apiKey !== undefined) env.CHROMA_API_KEY = config.apiKey;
+      if (config.dotenvPath !== undefined) env.CHROMA_DOTENV_PATH = config.dotenvPath;
+      if (config.cpuExecutionProvider !== undefined) env.CHROMA_CPU_EXECUTION_PROVIDER = config.cpuExecutionProvider;
+      if (config.embeddingFunctionName !== undefined) env.CHROMA_EMBEDDING_FUNCTION = config.embeddingFunctionName;
       
-      if (config.client_type) {
-        args.push('--client-type', config.client_type);
-      }
-      
-      if (config.data_dir) {
-        args.push('--data-dir', config.data_dir);
-      }
-      
-      if (config.host) {
-        args.push('--host', config.host);
-      }
-      
-      if (config.port) {
-        args.push('--port', config.port);
-      }
-      
-      if (config.ssl) {
-        args.push('--ssl', 'true');
-      }
-      
-      if (config.tenant) {
-        args.push('--tenant', config.tenant);
-      }
-      
-      if (config.database) {
-        args.push('--database', config.database);
-      }
-      
-      if (config.api_key) {
-        args.push('--api-key', config.api_key);
-      }
-      
-      return { command: 'python', args: ['-m', 'chroma_mcp.server'] };
+      // The command corresponds to the entry point defined in pyproject.toml
+      return { 
+        command: 'chroma-mcp-server', 
+        args: [], // Arguments are handled via environment variables in cli.py
+        env: env 
+      };
     }
   exampleConfig:
-    client_type: "ephemeral" 
+    # Example using a persistent client
+    clientType: "persistent"
+    dataDir: "./chroma_data_smithery" # Example path
+    logDir: "./logs_smithery"
+    logLevel: "INFO"
+    embeddingFunctionName: "default" 
