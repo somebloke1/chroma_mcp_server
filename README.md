@@ -53,16 +53,31 @@ pip install chroma-mcp-server[full]
 uv pip install "chroma-mcp-server[full]"
 ```
 
+### Via Smithery (for Local Execution)
+
+[Smithery](https://smithery.ai/) acts as a registry and local launcher for MCP servers. AI clients like Claude Desktop can use Smithery to find, install, and run your server locally.
+
+```bash
+# Requires Node.js/npx
+# Installs the package (usually via pip) into a Smithery-managed environment
+npx -y @smithery/cli install chroma-mcp-server
+```
+
+*(Note: This method requires the package to be published on PyPI and registered with Smithery).*
+
 ## Usage
 
 ### Starting the server
 
 ```bash
-# Using the command-line executable
-chroma-mcp-server
+# Using the command-line executable (after pip/uvx install)
+chroma-mcp-server [OPTIONS]
 
-# Or using the Python module
-python -m chroma_mcp.server
+# Or using the Python module (in an environment where it's installed)
+python -m chroma_mcp.server [OPTIONS]
+
+# Or via Smithery CLI (after npx ... install)
+npx -y @smithery/cli run chroma-mcp-server --config '{ "clientType": "persistent", "dataDir": "./my_chroma_data" }'
 ```
 
 ### Checking the Version

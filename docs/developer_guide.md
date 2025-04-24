@@ -105,6 +105,10 @@ The project includes several utility scripts in the `scripts/` directory to stre
 
 ## Running the Server Locally
 
+There are several ways to run the server locally, depending on your goal (development, testing, or standard usage).
+
+### Development Mode (Using Hatch)
+
 While developing, the recommended way to run the server is using the provided wrapper script, which ensures it runs within the correct Hatch environment:
 
 ```bash
@@ -146,6 +150,52 @@ python -m chroma_mcp.server --client-type http --host localhost --port 8000
 The `ephemeral` and `persistent` modes manage a local ChromaDB instance directly.
 
 For testing integration with tools like Cursor that use `uvx`, you might use the `release.sh` script to build, publish (e.g., to TestPyPI), and install that specific version for the `uvx chroma-mcp-server` command (see Releasing below).
+
+### Standard Mode (Using Installed Package)
+
+If you have installed the package via `pip` or `uvx` (e.g., `pip install chroma-mcp-server`), you can run it directly using the `chroma-mcp-server` command. Ensure any required environment variables (like `CHROMA_DATA_DIR` for persistent mode, or API keys for specific embedding functions) are set in your shell or via a `.env` file.
+
+```bash
+# Example using ephemeral mode
+chroma-mcp-server --client-type ephemeral --embedding-function default
+
+# Example using persistent mode (assuming CHROMA_DATA_DIR is set)
+export CHROMA_DATA_DIR=/path/to/your/data
+chroma-mcp-server --client-type persistent
+```
+
+### Via Smithery (for Local Execution)
+
+[Smithery](https://smithery.ai/) acts as a registry and local launcher for MCP servers. AI clients like Claude Desktop can use Smithery to find, install, and run your server locally.
+
+**Prerequisites:**
+
+* Node.js and `npx` installed.
+* The `chroma-mcp-server` package must be published to PyPI and registered with Smithery (see `docs/refactoring/hatch_smithery_integration.md`).
+
+**Installation:**
+
+Users (or clients) can install the server via the Smithery CLI. This typically uses `pip` under the hood to install the package from PyPI into a managed environment.
+
+```bash
+npx -y @smithery/cli install chroma-mcp-server
+```
+
+**Running:**
+
+Clients launch the server using the `run` command, optionally providing configuration:
+
+```bash
+# Run with default configuration (defined in smithery.yaml)
+npx -y @smithery/cli run chroma-mcp-server
+
+# Run with custom configuration (persistent mode)
+npx -y @smithery/cli run chroma-mcp-server --config '{ "clientType": "persistent", "dataDir": "./my_chroma_data" }'
+```
+
+The Smithery CLI reads the `smithery.yaml` file within the installed package, executes the `commandFunction` (which sets environment variables and calls `chroma-mcp-server`), and manages the `stdio` communication with the client.
+
+**Note:** As detailed in the [Smithery Integration Guide](docs/refactoring/hatch_smithery_integration.md), this server only supports local execution via Smithery. Online hosting (Smithery Deployments) is **not** supported due to potential interaction with local sensitive data.
 
 ## Testing
 
@@ -200,7 +250,7 @@ This will generate the distributable files (wheel and sdist) in the `dist/` dire
 
 ## Publishing to PyPI/TestPyPI
 
-The `publish.sh` script handles publishing. It requires the target (`-t` for TestPyPI, `-p` for PyPI) and the version (`-v`). Credentials can be supplied via environment variables (`PYPI_USERNAME`, `PYPI_PASSWORD`) or interactively.
+The `publish.sh` script handles publishing the built package (`dist/` directory) to PyPI or TestPyPI. It requires the target (`-t` for TestPyPI, `-p` for PyPI) and the version (`-v`). Credentials can be supplied via environment variables (`PYPI_USERNAME`, `PYPI_PASSWORD`) or interactively.
 
 ```bash
 # Publish version 0.2.0 to TestPyPI
@@ -210,7 +260,35 @@ The `publish.sh` script handles publishing. It requires the target (`-t` for Tes
 ./scripts/publish.sh -p -v 0.2.0
 ```
 
-**Note:** Publishing is usually handled automatically as part of the `release.sh` script.
+**Note:** Publishing to PyPI is usually handled automatically as part of the `release.sh` script.
+
+### Registering with Smithery
+
+After successfully publishing a version to PyPI, you need to register it with Smithery to make it discoverable by clients using the Smithery CLI.
+
+**Prerequisites:**
+
+* Package version published to PyPI.
+* `smithery.yaml` file present in the project root.
+* Node.js and `npx` installed.
+
+**Steps:**
+
+1. **Login (one-time):** If you haven't authenticated with Smithery before:
+
+    ```bash
+    npx -y @smithery/cli login
+    ```
+
+2. **Publish/Register:** From the project root directory:
+
+    ```bash
+    npx -y @smithery/cli publish
+    ```
+
+    This command reads your `pyproject.toml` (for package name/version) and `smithery.yaml`, then updates the Smithery registry.
+
+*(Note: The `release.sh` script currently does not include this Smithery registration step. It needs to be run manually after a successful release or the script needs to be updated.)*
 
 ## Releasing a New Version
 
@@ -272,12 +350,13 @@ See `pyproject.toml` for specific version constraints.
 To use certain embedding functions or features, you need to install extra dependencies. These are defined in the `[project.optional-dependencies]` section of `pyproject.toml`.
 
 * `[full]`: Installs all optional dependencies, including those for `sentence-transformers` (used by `accurate`, `huggingface`), `openai`, `cohere`, `voyageai`, `google-generativeai` (`google`), `boto3` (`bedrock`), and `ollama`.
-* `[dev]`: Includes development tools like `pytest`, `black`, `ruff`, etc.
+* `[dev]`: Includes development tools like `pytest`, `black`, `isort`, `mypy`, `pylint`, etc.
 
 Install with extras like this:
 
 ```bash
 pip install "chroma-mcp-server[full]"
-# Or for development:
+
+# Or for development (includes full + dev dependencies):
 pip install "chroma-mcp-server[full,dev]"
 ```
