@@ -52,8 +52,10 @@
   - [ ] **Cost Optimization:** Start with a local embedding function (`default`, `accurate`).
   - [ ] **Security:** Add `.env` to `.gitignore`. Use secrets management for API keys/tokens in CI/shared environments.
 
-- [ ] **1.3 Setup Direct Client Modules (`src/chroma_mcp_client/`, etc.):**
-  - [ ] Create `src/chroma_mcp_client/`, `src/chroma_mcp_feedback/`, `src/chroma_mcp_thinking/` directories.
+- [~] **1.3 Setup Direct Client Modules (`src/chroma_mcp_client/`, etc.):**
+  - [X] Create `src/chroma_mcp_client/` directory.
+  - [X] Added basic `connection.py` and `cli.py` for client structure.
+  - [ ] Create `src/chroma_mcp_feedback/`, `src/chroma_mcp_thinking/` directories. (Decide if needed later)
   - [ ] Move/Develop the core Python logic for indexing, querying, feedback, and thinking into these modules.
   - [ ] Ensure each logical component has a clear CLI entry point function (e.g., `main()` in `cli.py` modules within each directory).
 
@@ -291,7 +293,18 @@
         ```
   - [ ] Ensure build process (`hatch build`) picks up this configuration.
 
-- [ ] **1.5 Create Wrapper Scripts (`scripts/*.sh` - for Internal Use):**
+- [~] **1.5 Implement Unit Tests:**
+  - [X] Added `pytest`, `pytest-mock`, `pytest-trio`, `pytest-asyncio`, `coverage` to `pyproject.toml` `[test]` environment.
+  - [X] Configured `pytest` settings (`pyproject.toml`) for async tests and coverage source.
+  - [X] Fixed existing test failures (e.g., API key instantiation test).
+  - [X] Added basic unit tests for `chroma_mcp_client` (`test_cli.py`, `test_connection.py`).
+  - [X] Add comprehensive tests covering indexing, querying, and edge cases for client modules.
+  - [X] - **Status:** Done (Refactored `tests/chroma_mcp_client/test_cli.py` to use consistent mocking via `argparse` and `get_client_and_ef` mocks, resolving previous errors.)
+  - [ ] - **Next Steps:**
+    - [ ] Add tests for error handling paths within `src/chroma_mcp_client/cli.py`.
+    - [ ] Create `tests/chroma_mcp_client/test_indexing.py` to test the logic within `src/chroma_mcp_client/indexing.py` (currently low coverage).
+
+- [ ] **1.6 Create Wrapper Scripts (`scripts/*.sh` - for Internal Use):**
   - [ ] Create/maintain shell scripts (`scripts/chroma_client.sh`, `scripts/record_feedback.sh`, `scripts/record_thought.sh`) that invoke the Python client CLI modules (e.g., `python -m chroma_mcp_client.cli ...`).
   - [ ] **Note:** These wrappers are primarily for convenience *within this repository* (e.g., git hooks) and are *not* the primary public interface for external users (who should use the console scripts like `chroma-client`).
         ```bash
@@ -303,18 +316,6 @@
         ```
   - [ ] Make scripts executable.
   - [ ] Test the wrapper scripts for internal tasks.
-
-- [ ] **1.6 Test Console Scripts (Public Interface):**
-  - [ ] After installing the package locally (`pip install .[client]` or `hatch shell`), test the console scripts directly:
-        ```bash
-        # Test console scripts (assuming venv is active)
-        chroma-client --help
-        chroma-client index README.md --repo-root .
-        chroma-client query "installation guide"
-        chroma-client count codebase_v1
-        record-feedback --help # etc.
-        record-thought --help # etc.
-        ```
 
 - [ ] **1.7 Launch & Test MCP Server (for Interaction):**
   - [ ] Run `chroma-mcp-server` normally (via IDE integration / `.cursor/mcp.json`).
@@ -410,15 +411,21 @@
         - Git hook uses the internal wrapper script for convenience within the repo.
         - Relies on the Python environment being correctly set up for the wrapper.
 
-- [ ] **2.3 Initial Codebase Indexing (via Console Script):**
-  - [ ] Trigger indexing for all relevant *tracked* files using the public console script:
+- [X] **2.3 Initial Codebase Indexing (via Console Script):**
+  - [X] Trigger indexing for all relevant *tracked* files using the public console script:
         ```bash
         chroma-client index --all --repo-root .
         ```
   - [ ] Monitor script stderr output.
-  - [ ] Verify collection count using the console script:
+  - [X] Verify collection count using the console script:
         ```bash
         chroma-client count codebase_v1
+        ```
+
+- [X] **2.4 Basic Query Interface (via Console Script):**
+  - [X] Implement a basic query command in the public console script:
+        ```bash
+        chroma-client query "your natural language query" -n 5
         ```
 
 ---
@@ -448,6 +455,8 @@
 ---
 
 ## Phase 4: Feedback Loop & Reinforcement (via MCP)
+
+*This phase relies entirely on the interactive MCP server running via the IDE and requires MCP communication from Python clients.*
 
 - [ ] **4.1 Create Feedback Collection (via MCP):**
   - [ ] Use MCP client:

@@ -8,7 +8,7 @@ version = "0.1.106"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
+license = { file = "LICENSE" }
 authors = [
     { name = "Nold Coaching & Consulting", email = "info@noldcoaching.de" }
 ]
@@ -23,6 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules"
 ]
+
 dependencies = [
     # Core dependencies
     "python-dotenv>=1.1.0",
@@ -55,13 +56,6 @@ full = [
 
 # Development dependencies
 dev = [
-    # Testing
-    "pytest>=8.3.5",
-    "pytest-asyncio>=0.26.0",
-    "pytest-cov>=6.1.1",
-    "pytest-mock>=3.14.0",
-    "pytest-xdist[psutil]>=3.6.1",
-    "trio>=0.29.0",
     # Code quality
     "black>=25.1.0",
     "isort>=6.0.1",
@@ -71,8 +65,13 @@ dev = [
     "types-PyYAML>=6.0.12.20250402",
 ]
 
+server = []
+client = []
+
 [project.scripts]
 chroma-mcp-server = "chroma_mcp.cli:main"
+chroma-client = "chroma_mcp_client.cli:main"
+# Add future scripts here: record-feedback = ..., record-thought = ...
 
 [project.entry-points."smithery.mcps"]
 chroma = "chroma_mcp.cli:main"
@@ -82,18 +81,102 @@ Homepage = "https://github.com/djm81/chroma_mcp_server"
 Repository = "https://github.com/djm81/chroma_mcp_server.git"
 Documentation = "https://github.com/djm81/chroma_mcp_server#readme"
 
+[tool.hatch.envs.default]
+features = ["server"]
+dependencies = [
+]
+
 [tool.hatch.envs.default.scripts]
 chroma-mcp-server-dev = "python -m chroma_mcp.cli"
 print-cwd = "python -c 'import os; print(os.getcwd())'"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/chroma_mcp"]
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "/src",
-    "/tests",
+[tool.hatch.envs.test]
+dependencies = [
+  "pytest>=8.3.5",
+  "pytest-mock>=3.14.0",
+  "trio>=0.29.0", # For existing async server tests
+  "pytest-trio>=0.8.0", # For existing async server tests
+  "pytest-asyncio>=0.26.0", # For handling async def tests
+  "coverage[toml]>=7.8.0",
+  "GitPython>=3.1.44", # Needed for git ls-files in index --all test
 ]
+# Specify optional features from the project to include
+features = ["full"]
+
+# Add env-vars to specify CPU-only PyTorch index for installation
+# This affects transitive dependencies like torch pulled in by sentence-transformers
+[tool.hatch.envs.test.env-vars]
+PIP_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cpu"
+
+[tool.hatch.envs.test.scripts]
+run = "pytest {args:tests}"
+cov = [
+  # Run pytest via coverage run, remove --cov args from pytest command
+  "pytest --timeout=120 -p no:xdist {args:tests}",
+]
+html = [
+  # Run pytest via coverage run, remove --cov args from pytest command
+  "pytest --timeout=120 -p no:xdist {args:tests}",
+]
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.10", "3.11", "3.12"]
+
+[tool.coverage.run]
+branch = false
+parallel = false
+source = ["src/chroma_mcp", "src/chroma_mcp_client"]
+relative_files = true
+# Add omit from .coveragerc
+omit = [
+    "*/tests/*",
+    "src/chroma_mcp/__init__.py", # Make path more specific
+    "setup.py", # Keep if relevant, otherwise remove
+]
+
+[tool.coverage.paths]
+source = [
+    "src/",
+    "*/site-packages/"
+]
+
+[tool.coverage.report]
+# Keep omit for main
+omit = ["src/chroma_mcp/__main__.py"]
+# Consolidate exclude_lines
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "pass", # from .coveragerc
+    "raise AssertionError", # from .coveragerc
+    "@abstractmethod", # from .coveragerc
+]
+show_missing = true
+
+# Add html output settings from .coveragerc
+[tool.coverage.html]
+directory = "coverage_html"
+
+# Add xml output settings from .coveragerc (for Codecov)
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.pytest-asyncio]
+mode = "strict"
+
+[tool.hatch.build]
+dev-mode-dirs = ["src"]  # This enables editable install for development 
+
+[tool.hatch.envs.default.env-vars]
+CHROMA_CLIENT_TYPE = "persistent"
+CHROMA_DATA_DIR = "/Users/dominikus/git/nold-ai/chroma_mcp_server/data"
+CHROMA_LOG_DIR = "/Users/dominikus/git/nold-ai/chroma_mcp_server/logs"
+LOG_LEVEL = "DEBUG"
+MCP_LOG_LEVEL = "DEBUG"
 
 [tool.black]
 line-length = 120
@@ -160,92 +243,3 @@ disable = [
 
 [tool.pylint.format]
 max-line-length = 120
-
-[tool.hatch.envs.test]
-dependencies = [
-  "coverage[toml]>=7.8.0",
-  "pytest>=8.3.5",
-  "pytest-asyncio>=0.26.0",
-  "pytest-cov>=6.1.1",
-  "pytest-mock>=3.14.0",
-  "pytest-xdist[psutil]>=3.6.1",
-  "pytest-timeout>=2.3.1",
-  "trio>=0.29.0",
-]
-# Specify optional features from the project to include
-features = ["full"]
-
-# Add env-vars to specify CPU-only PyTorch index for installation
-# This affects transitive dependencies like torch pulled in by sentence-transformers
-[tool.hatch.envs.test.env-vars]
-PIP_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cpu"
-
-[tool.hatch.envs.test.scripts]
-run = "pytest {args:tests}"
-cov = [
-  # Run pytest via coverage run, remove --cov args from pytest command
-  "pytest --timeout=120 -p no:xdist {args:tests}",
-]
-html = [
-  # Run pytest via coverage run, remove --cov args from pytest command
-  "pytest --timeout=120 -p no:xdist {args:tests}",
-]
-
-[[tool.hatch.envs.test.matrix]]
-python = ["3.10", "3.11", "3.12"]
-
-[tool.coverage.run]
-branch = false
-parallel = false
-source = ["src/chroma_mcp"]
-relative_files = true
-# Add omit from .coveragerc
-omit = [
-    "*/tests/*",
-    "src/chroma_mcp/__init__.py", # Make path more specific
-    "setup.py", # Keep if relevant, otherwise remove
-]
-
-[tool.coverage.paths]
-source = [
-    "src/",
-    "*/site-packages/"
-]
-
-[tool.coverage.report]
-# Keep omit for main
-omit = ["src/chroma_mcp/__main__.py"]
-# Consolidate exclude_lines
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-    "pass", # from .coveragerc
-    "raise AssertionError", # from .coveragerc
-    "@abstractmethod", # from .coveragerc
-]
-show_missing = true
-
-# Add html output settings from .coveragerc
-[tool.coverage.html]
-directory = "coverage_html"
-
-# Add xml output settings from .coveragerc (for Codecov)
-[tool.coverage.xml]
-output = "coverage.xml"
-
-[tool.pytest-asyncio]
-mode = "strict"
-
-[tool.hatch.build]
-dev-mode-dirs = ["src"]  # This enables editable install for development 
-
-[tool.hatch.envs.default.env-vars]
-CHROMA_CLIENT_TYPE = "persistent"
-CHROMA_DATA_DIR = "/Users/dominikus/git/nold-ai/chroma_mcp_server/data"
-CHROMA_LOG_DIR = "/Users/dominikus/git/nold-ai/chroma_mcp_server/logs"
-LOG_LEVEL = "DEBUG"
-MCP_LOG_LEVEL = "DEBUG"
