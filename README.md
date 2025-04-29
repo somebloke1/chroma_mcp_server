@@ -217,3 +217,4 @@ MIT License (see [LICENSE](LICENSE))
 
 # Test Git Post-Commit Hook
 This line is added to test the Git post-commit hook for incremental indexing.
+Testing the hook again with a fixed locking mechanism.
