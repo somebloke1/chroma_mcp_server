@@ -221,3 +221,4 @@ Testing the hook again with a fixed locking mechanism.
 Final test with cleared lockfile.
 Testing with fixed file path parameter.
 Final test with absolute paths correctly constructed.
+Final test with simplified approach (indexing all files).
