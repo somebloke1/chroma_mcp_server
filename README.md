@@ -214,11 +214,3 @@ A simulated workflow using the MCP tools is available in the **[MCP Test Flow](d
 ## License
 
 MIT License (see [LICENSE](LICENSE))
-
-# Test Git Post-Commit Hook
-This line is added to test the Git post-commit hook for incremental indexing.
-Testing the hook again with a fixed locking mechanism.
-Final test with cleared lockfile.
-Testing with fixed file path parameter.
-Final test with absolute paths correctly constructed.
-Final test with simplified approach (indexing all files).

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.106"
+version = "0.1.109"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -72,6 +72,7 @@ client = []
 chroma-mcp-server = "chroma_mcp.cli:main"
 chroma-client = "chroma_mcp_client.cli:main"
 # Add future scripts here: record-feedback = ..., record-thought = ...
+record-thought = "chroma_mcp_thinking.thinking_cli:main"
 
 [project.entry-points."smithery.mcps"]
 chroma = "chroma_mcp.cli:main"
@@ -99,7 +100,10 @@ dependencies = [
   "pytest-asyncio>=0.26.0", # For handling async def tests
   "coverage[toml]>=7.8.0",
   "GitPython>=3.1.44", # Needed for git ls-files in index --all test
+  "pytest-timeout>=2.3.1", # Add pytest-timeout plugin
 ]
+# Add dev-mode setting
+dev-mode = true
 # Specify optional features from the project to include
 features = ["full"]
 
@@ -125,7 +129,7 @@ python = ["3.10", "3.11", "3.12"]
 [tool.coverage.run]
 branch = false
 parallel = false
-source = ["src/chroma_mcp", "src/chroma_mcp_client"]
+source = ["src/chroma_mcp", "src/chroma_mcp_client", "src/chroma_mcp_thinking"]
 relative_files = true
 # Add omit from .coveragerc
 omit = [
@@ -170,6 +174,10 @@ mode = "strict"
 
 [tool.hatch.build]
 dev-mode-dirs = ["src"]  # This enables editable install for development 
+
+# Add this section to tell hatch where the package source code is
+[tool.hatch.build.targets.wheel]
+packages = ["src/chroma_mcp", "src/chroma_mcp_client", "src/chroma_mcp_thinking"]
 
 [tool.hatch.envs.default.env-vars]
 CHROMA_CLIENT_TYPE = "persistent"

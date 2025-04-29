@@ -255,14 +255,12 @@ def test_get_embedding_function_instantiation_error_api_key(mock_logger):
     )
 
     # Mock the registry to ensure the key exists, regardless of actual library install
-    mock_registry = {
-        'openai': MagicMock(name="MockOpenAIInstantiator")
-    }
+    mock_registry = {"openai": MagicMock(name="MockOpenAIInstantiator")}
 
     # Ensure the availability flag is True, so the check proceeds
-    with patch.object(chroma_client, "OPENAI_AVAILABLE", True), \
-         patch.object(chroma_client, "KNOWN_EMBEDDING_FUNCTIONS", mock_registry), \
-         patch.object(chroma_client, 'get_api_key', return_value=None) as mock_get_key:
+    with patch.object(chroma_client, "OPENAI_AVAILABLE", True), patch.object(
+        chroma_client, "KNOWN_EMBEDDING_FUNCTIONS", mock_registry
+    ), patch.object(chroma_client, "get_api_key", return_value=None) as mock_get_key:
         with pytest.raises(McpError) as excinfo:
             get_embedding_function(ef_name)
 

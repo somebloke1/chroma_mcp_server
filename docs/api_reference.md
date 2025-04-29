@@ -324,42 +324,99 @@ A JSON object confirming the addition.
 
 ### `chroma_query_documents`
 
-Queries documents by semantic similarity.
-
-**Client Limitation Note:** Some MCP clients may incorrectly serialize list parameters (`query_texts`, `include`) or optional parameters (`where`, `where_document`). If encountering validation errors, ensure lists are correctly formatted or try omitting optional parameters.
+Query documents using semantic search (no filters). Returns IDs and potentially distances/scores.
+Use `chroma_get_documents_by_ids` to fetch document details.
 
 #### Parameters for chroma_query_documents
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `collection_name` | string | Yes | Name of the target collection |
-| `query_texts` | array of strings | Yes | Query text strings |
-| `n_results` | integer | No | Number of results per query (default: 10) |
-| `where` | string | No | Metadata filters as JSON string (e.g., '{"source": "technical"}') |
-| `where_document` | string | No | Document content filters as JSON string |
-| `include` | array of strings | No | (DEPRECATED) What to include in response |
+| `collection_name` | string | Yes | Name of the collection |
+| `query_texts` | array (string) | Yes | List of query strings |
+| `n_results` | integer | No | Max results per query (default: 10) |
 
 #### Returns from chroma_query_documents
 
-A JSON object containing query results organized by the query text.
+A JSON object containing the query results, primarily the document IDs.
+
+```json
+{
+  "ids": [["id1", "id2"]],
+  "distances": [[0.5, 0.6]]
+}
+```
 
 #### Example for chroma_query_documents
 
 ```json
 {
   "collection_name": "my_documents",
-  "query_texts": ["How does vector search work?"],
-  "n_results": 3,
-  "where": {"source": "technical"},
-  "include": ["documents", "metadatas", "distances"]
+  "query_texts": ["search term"],
+  "n_results": 5
+}
+```
+
+### `chroma_query_documents_with_where_filter`
+
+Query documents using semantic search with a metadata filter. Returns IDs and potentially distances/scores.
+Use `chroma_get_documents_by_ids` to fetch document details.
+
+#### Parameters for chroma_query_documents_with_where_filter
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection |
+| `query_texts` | array (string) | Yes | List of query strings |
+| `where` | string | Yes | Metadata filter JSON string |
+| `n_results` | integer | No | Max results per query (default: 10) |
+
+#### Returns from chroma_query_documents_with_where_filter
+
+A JSON object containing the filtered query results, primarily the document IDs.
+
+#### Example for chroma_query_documents_with_where_filter
+
+```json
+{
+  "collection_name": "my_documents",
+  "query_texts": ["search term"],
+  "where": "{\"source\": \"pdf\"}",
+  "n_results": 3
+}
+```
+
+### `chroma_query_documents_with_document_filter`
+
+Query documents using semantic search with a document content filter. Returns IDs and potentially distances/scores.
+Use `chroma_get_documents_by_ids` to fetch document details.
+
+#### Parameters for chroma_query_documents_with_document_filter
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `collection_name` | string | Yes | Name of the collection |
+| `query_texts` | array (string) | Yes | List of query strings |
+| `where_document` | string | Yes | Document content filter JSON string |
+| `n_results` | integer | No | Max results per query (default: 10) |
+
+#### Returns from chroma_query_documents_with_document_filter
+
+A JSON object containing the filtered query results, primarily the document IDs.
+
+#### Example for chroma_query_documents_with_document_filter
+
+```json
+{
+  "collection_name": "my_documents",
+  "query_texts": ["search term"],
+  "where_document": "{\"$contains\": \"important\"}",
+  "n_results": 10
 }
 ```
 
 ### `chroma_get_documents_by_ids`
 
-Gets documents from a ChromaDB collection by specific IDs.
-
-**Client Limitation Note:** Some MCP clients may incorrectly serialize list parameters (`ids`, `include`). If encountering validation errors, ensure lists are correctly formatted JSON arrays.
+Get document content and metadata from a collection using specific IDs (obtained from a query tool).
 
 #### Parameters for chroma_get_documents_by_ids
 
@@ -367,19 +424,25 @@ Gets documents from a ChromaDB collection by specific IDs.
 |------|------|----------|-------------|
 | `collection_name` | string | Yes | Name of the collection |
 | `ids` | array (string) | Yes | List of document IDs to retrieve |
-| `include` | array (string) | No | Fields to include (e.g., `["documents", "metadatas"]`) |
 
 #### Returns from chroma_get_documents_by_ids
 
-A JSON object containing the matching documents and their data (or an empty list if not found).
+A JSON object containing the requested documents, including their IDs, content (`documents`), and `metadatas`.
+
+```json
+{
+  "ids": ["id1", "id2"],
+  "documents": ["content for id1", "content for id2"],
+  "metadatas": [{"source": "fileA"}, {"source": "fileB"}]
+}
+```
 
 #### Example for chroma_get_documents_by_ids
 
 ```json
 {
   "collection_name": "my_documents",
-  "ids": ["doc-manual-id-001", "doc-manual-id-002"],
-  "include": ["documents", "metadatas"]
+  "ids": ["id1", "id2", "id3"]
 }
 ```
 

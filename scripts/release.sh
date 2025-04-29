@@ -365,7 +365,8 @@ if [ "$UPDATE_TARGET" == "test" ]; then
     STRATEGY_ARG="--index-strategy unsafe-best-match"
 else
     echo "  Installing version $VERSION from PyPI for local uvx command..."
-    INSTALL_ARGS="--refresh --default-index $PYPI_URL" # Explicitly use PyPI
+    # INSTALL_ARGS="--refresh --default-index $PYPI_URL" # Explicitly use PyPI
+    INSTALL_ARGS="--refresh" # Avoid using default-index for pypi as this does not work
 fi
 
 install_command="uvx ${INSTALL_ARGS} ${STRATEGY_ARG} ${PACKAGE_SPEC}"

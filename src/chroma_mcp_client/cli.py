@@ -16,24 +16,25 @@ from .connection import get_client_and_ef
 from .indexing import index_file, index_git_files
 
 # Basic logging configuration (can be enhanced)
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 # --- Constants ---
 DEFAULT_COLLECTION_NAME = "codebase_v1"
 DEFAULT_QUERY_RESULTS = 5
 
+
 def main():
     """Main entry point for the chroma-client CLI."""
     parser = argparse.ArgumentParser(
         description="ChromaDB Client CLI for indexing and querying.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set the logging level."
+        help="Set the logging level.",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
@@ -42,7 +43,7 @@ def main():
     index_parser = subparsers.add_parser(
         "index",
         help="Index specific files or all git-tracked files into ChromaDB.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     index_parser.add_argument(
         "paths",
@@ -55,12 +56,10 @@ def main():
         "--repo-root",
         type=Path,
         default=Path(os.getcwd()),
-        help="Repository root path (used for determining relative paths for IDs)."
+        help="Repository root path (used for determining relative paths for IDs).",
     )
     index_parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Index all files currently tracked by git in the repo."
+        "--all", action="store_true", help="Index all files currently tracked by git in the repo."
     )
     index_parser.add_argument(
         "--collection-name",
@@ -96,14 +95,16 @@ def main():
 
     # Set logging level
     log_level = getattr(logging, args.log_level.upper(), logging.INFO)
-    logging.getLogger().setLevel(log_level) # Set root logger level
+    logging.getLogger().setLevel(log_level)  # Set root logger level
     logger.info(f"Log level set to {args.log_level}")
 
     # Initialize client/EF early to catch connection errors
     try:
         logger.info("Initializing ChromaDB connection...")
-        client, ef = get_client_and_ef() # Loads config from .env via connection module
-        logger.info(f"ChromaDB connection successful (Client type: {client.__class__.__name__}, EF: {ef.__class__.__name__ if ef else 'Default'})")
+        client, ef = get_client_and_ef()  # Loads config from .env via connection module
+        logger.info(
+            f"ChromaDB connection successful (Client type: {client.__class__.__name__}, EF: {ef.__class__.__name__ if ef else 'Default'})"
+        )
     except Exception as e:
         logger.critical(f"Failed to initialize ChromaDB client: {e}", exc_info=True)
         sys.exit(1)
@@ -116,7 +117,7 @@ def main():
         repo_root_path = args.repo_root.resolve()
         collection = client.get_or_create_collection(
             name=collection_name,
-            embedding_function=ef, # Pass embedding function here
+            embedding_function=ef,  # Pass embedding function here
             # Add metadata if needed: metadata=get_collection_settings(...)
         )
 
@@ -132,7 +133,9 @@ def main():
                     if index_file(path_item, repo_root_path, collection):
                         indexed_count += 1
                 elif path_item.is_dir():
-                    logger.warning(f"Skipping directory: {path_item}. Indexing directories directly is not yet supported.")
+                    logger.warning(
+                        f"Skipping directory: {path_item}. Indexing directories directly is not yet supported."
+                    )
                     # TODO: Implement recursive directory indexing if needed
                 else:
                     logger.warning(f"Skipping non-existent path: {path_item}")
@@ -160,9 +163,7 @@ def main():
         try:
             collection = client.get_collection(name=collection_name, embedding_function=ef)
             results = collection.query(
-                query_texts=[args.query_text],
-                n_results=args.n_results,
-                include=["metadatas", "documents", "distances"]
+                query_texts=[args.query_text], n_results=args.n_results, include=["metadatas", "documents", "distances"]
             )
 
             print(f"\n--- Query Results for '{args.query_text}' ({args.n_results} requested) ---")
@@ -183,15 +184,18 @@ def main():
                         print(f"  Metadata: {metadatas[i]}")
                     if documents and documents[i]:
                         # Show first N characters as snippet
-                        snippet = documents[i].replace('\n', ' ').strip()
+                        snippet = documents[i].replace("\n", " ").strip()
                         max_snippet_len = 150
-                        print(f"  Snippet: {snippet[:max_snippet_len]}{'...' if len(snippet) > max_snippet_len else ''}")
+                        print(
+                            f"  Snippet: {snippet[:max_snippet_len]}{'...' if len(snippet) > max_snippet_len else ''}"
+                        )
                 print("---------------------------------------------")
 
         except Exception as e:
             logger.error(f"Failed to query collection '{collection_name}': {e}", exc_info=True)
             print(f"Error: Could not query collection '{collection_name}'. Does it exist?", file=sys.stderr)
             sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

@@ -507,7 +507,7 @@ async def _get_documents_by_ids_impl(input_data: GetDocumentsByIdsInput) -> List
         client = get_chroma_client()
         collection = client.get_collection(collection_name)
         # Pass include=None to use ChromaDB defaults
-        get_result: GetResult = collection.get(ids=ids, include=[])
+        get_result: GetResult = collection.get(ids=ids)
         logger.debug(f"ChromaDB get result: {get_result}")
 
         # Use json.dumps with NumpyEncoder to handle potential non-serializable data in results

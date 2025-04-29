@@ -426,22 +426,22 @@ async def list_tools() -> List[types.Tool]:
         ),
         types.Tool(
             name=TOOL_NAMES["QUERY_DOCS"],
-            description="Query documents using semantic search (no filters). Requires: `collection_name`, `query_texts`. Optional: `n_results`, `include`.",
+            description="Query documents using semantic search (no filters). Returns IDs and potentially distances/scores. Use `chroma_get_documents_by_ids` to fetch details. Requires: `collection_name`, `query_texts`. Optional: `n_results`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["QUERY_DOCS"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["QUERY_DOCS_WHERE"],
-            description="Query documents using semantic search with a metadata filter. Requires: `collection_name`, `query_texts`, `where`. Optional: `n_results`, `include`.",
+            description="Query documents using semantic search with a metadata filter. Returns IDs and potentially distances/scores. Use `chroma_get_documents_by_ids` to fetch details. Requires: `collection_name`, `query_texts`, `where`. Optional: `n_results`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["QUERY_DOCS_WHERE"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["QUERY_DOCS_DOC"],
-            description="Query documents using semantic search with a document content filter. Requires: `collection_name`, `query_texts`, `where_document`. Optional: `n_results`, `include`.",
+            description="Query documents using semantic search with a document content filter. Returns IDs and potentially distances/scores. Use `chroma_get_documents_by_ids` to fetch details. Requires: `collection_name`, `query_texts`, `where_document`. Optional: `n_results`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["QUERY_DOCS_DOC"]].model_json_schema(),
         ),
         types.Tool(
             name=TOOL_NAMES["GET_DOCS_IDS"],
-            description="Get documents from a collection by specific IDs. Requires: `collection_name`, `ids`. Optional: `include`.",
+            description="Get document content and metadata from a collection using specific IDs (obtained from a query). Requires: `collection_name`, `ids`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["GET_DOCS_IDS"]].model_json_schema(),
         ),
         types.Tool(
