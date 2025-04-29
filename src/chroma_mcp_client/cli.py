@@ -115,22 +115,25 @@ def main():
         logger.info(f"Executing 'index' command for collection '{collection_name}'...")
         # Resolve repo root path - specific to index command
         repo_root_path = args.repo_root.resolve()
-        collection = client.get_or_create_collection(
-            name=collection_name,
-            embedding_function=ef,  # Pass embedding function here
-            # Add metadata if needed: metadata=get_collection_settings(...)
-        )
+        # REMOVED: Premature get_or_create_collection call
+        # collection = client.get_or_create_collection(
+        #     name=collection_name,
+        #     embedding_function=ef,  # Pass embedding function here
+        #     # Add metadata if needed: metadata=get_collection_settings(...)
+        # )
 
         if args.all:
             logger.info(f"Indexing all tracked git files in {repo_root_path}...")
-            count = index_git_files(repo_root_path, collection)
+            # Pass the collection_name string
+            count = index_git_files(repo_root_path, collection_name)
             logger.info(f"Git index command finished. Indexed {count} files.")
         elif args.paths:
             logger.info(f"Processing {len(args.paths)} specified file/directory paths...")
             indexed_count = 0
             for path_item in args.paths:
                 if path_item.is_file():
-                    if index_file(path_item, repo_root_path, collection):
+                    # Pass the collection_name string
+                    if index_file(path_item, repo_root_path, collection_name):
                         indexed_count += 1
                 elif path_item.is_dir():
                     logger.warning(
