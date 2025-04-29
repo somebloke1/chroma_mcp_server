@@ -132,11 +132,26 @@ mcp_chroma_add_document_with_id_and_metadata(
     id="doc2",
     metadata='{"source": "file2"}'
 )
+
+# Step 1: Query to get relevant document IDs
 results = mcp_chroma_query_documents(
     collection_name="my_docs",
     query_texts=["document"],
     n_results=2 # Optional, defaults to 10
 )
+
+# Assuming 'results' contains a structure like {"ids": [["id1", "id2"]], ...}
+# Extract the IDs (adjust based on actual result structure)
+retrieved_ids = results['ids'][0] 
+
+# Step 2: Fetch the document details using the retrieved IDs
+if retrieved_ids:
+    document_details = mcp_chroma_get_documents_by_ids(
+        collection_name="my_docs",
+        ids=retrieved_ids
+    )
+    print(document_details) # Now contains documents, metadatas etc.
+
 ```
 
 ## Troubleshooting

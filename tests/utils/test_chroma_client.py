@@ -254,27 +254,30 @@ def test_get_embedding_function_instantiation_error_api_key(mock_logger):
         f"Configuration error for embedding function '{ef_name}': API key for '{ef_name}' not found"
     )
 
+    # Mock the registry to ensure the key exists, regardless of actual library install
+    mock_registry = {"openai": MagicMock(name="MockOpenAIInstantiator")}
+
     # Ensure the availability flag is True, so the check proceeds
-    with patch("src.chroma_mcp.utils.chroma_client.OPENAI_AVAILABLE", True):
-        # Patch get_api_key to return None specifically for this function
-        with patch("src.chroma_mcp.utils.chroma_client.get_api_key", return_value=None) as mock_get_key:
-            with pytest.raises(McpError) as excinfo:
-                get_embedding_function(ef_name)
+    with patch.object(chroma_client, "OPENAI_AVAILABLE", True), patch.object(
+        chroma_client, "KNOWN_EMBEDDING_FUNCTIONS", mock_registry
+    ), patch.object(chroma_client, "get_api_key", return_value=None) as mock_get_key:
+        with pytest.raises(McpError) as excinfo:
+            get_embedding_function(ef_name)
 
-            # Assert get_api_key was called
-            mock_get_key.assert_called_with(ef_name)
+        # Assert get_api_key was called
+        mock_get_key.assert_called_with(ef_name)
 
-            # Assert the correct McpError is raised due to missing key
-            # Revert to checking the string representation
-            assert expected_error_msg_part in str(excinfo.value)
+        # Assert the correct McpError is raised due to missing key
+        # Revert to checking the string representation
+        assert expected_error_msg_part in str(excinfo.value)
 
-            # Check logger (get_embedding_function logs error before raising)
-            # REMOVE check for the warning log inside the mocked get_api_key:
-            # mock_logger.warning.assert_any_call(f"API key for {ef_name} not found in env var {ef_name.upper()}_API_KEY")
-            mock_logger.error.assert_any_call(
-                f"Configuration error instantiating '{ef_name}': API key for '{ef_name}' not found in environment variable.",
-                exc_info=True,  # Check if exc_info is logged
-            )
+        # Check logger (get_embedding_function logs error before raising)
+        # REMOVE check for the warning log inside the mocked get_api_key:
+        # mock_logger.warning.assert_any_call(f"API key for {ef_name} not found in env var {ef_name.upper()}_API_KEY")
+        mock_logger.error.assert_any_call(
+            f"Configuration error instantiating '{ef_name}': API key for '{ef_name}' not found in environment variable.",
+            exc_info=True,  # Check if exc_info is logged
+        )
 
 
 # This test needs the fixture to mock the lambda returning a faulty instance

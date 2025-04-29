@@ -561,7 +561,7 @@ class TestDocumentTools:
         # --- Assert ---
         mock_validate.assert_called_once_with(collection_name)
         mock_client.get_collection.assert_called_once_with(collection_name)
-        mock_collection.get.assert_called_once_with(ids=ids_to_get, include=[])
+        mock_collection.get.assert_called_once_with(ids=ids_to_get)
         assert_successful_json_result(result, expected_get_result)
 
     @pytest.mark.asyncio
@@ -702,7 +702,7 @@ class TestDocumentTools:
 
         mock_validate.assert_called_once_with(collection_name)
         mock_client.get_collection.assert_called_once_with(collection_name)
-        mock_collection.get.assert_called_once_with(ids=["id1"], include=[])
+        mock_collection.get.assert_called_once_with(ids=["id1"])
 
     # --- Update Documents Tests ---
 
