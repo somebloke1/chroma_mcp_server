@@ -145,15 +145,8 @@ def test_index_single_file(mock_index_file, mock_get_client_ef, mock_argparse, t
 
     # Assertions
     mock_get_client_ef.assert_called_once()
-    mock_client_instance.get_or_create_collection.assert_called_once_with(
-        name=collection_name, embedding_function=mock_get_client_ef.return_value[1]
-    )
-    # Check that index_file was called correctly from within cli.main
-    mock_index_file.assert_called_once_with(
-        file_to_index,  # Path object
-        test_dir.resolve(),  # Resolved repo root path
-        mock_collection,  # The mock collection object
-    )
+    # Assert that index_file was called correctly by the cli handler
+    mock_index_file.assert_called_once_with(file_to_index, test_dir, collection_name)
 
 
 @patch("argparse.ArgumentParser")
@@ -186,13 +179,8 @@ def test_index_all_files(mock_index_git, mock_get_client_ef, mock_argparse, test
 
     # Assertions
     mock_get_client_ef.assert_called_once()
-    mock_client_instance.get_or_create_collection.assert_called_once_with(
-        name=collection_name, embedding_function=mock_get_client_ef.return_value[1]
-    )
-    # Check that index_git_files was called correctly from within cli.main
-    mock_index_git.assert_called_once_with(
-        test_dir.resolve(), mock_collection  # Resolved repo root path  # The mock collection object
-    )
+    # Assert that index_git_files was called correctly by the cli handler
+    mock_index_git.assert_called_once_with(test_dir, collection_name)
 
 
 # =====================================================================
