@@ -1,10 +1,10 @@
-# Cursor Integration Guide
+# MCP Integration Guide into your IDE of choice
 
-This guide explains how to integrate Chroma MCP Server with Cursor AI to enable vector database capabilities in your AI applications.
+This guide explains how to integrate Chroma MCP Server with your IDE of choice (e.g. Cursor AI) to enable vector database capabilities in your AI applications.
 
 ## Prerequisites
 
-- Cursor AI installed (<https://cursor.sh>)
+- IDE (e.g. Cursor AI) installed
 - Python 3.10 or higher
 - `uv` and `uvx` for optimal integration
   
@@ -26,9 +26,15 @@ This guide explains how to integrate Chroma MCP Server with Cursor AI to enable 
    pip install uv uvx
    ```
 
-## Configuration
+## MCP Configuration in Workspace
 
-Create or update the `.cursor/mcp.json` file in your project directory:
+Create or update the MCP config file in your project directory, depending on the actual IDE:
+
+|IDE|MCP Workspace Config|
+|---|---|
+|Cursor|`.cursor/mcp.json`|
+|VS Code|`.vscode/mcp.json`|
+|Windsurf|`~/.codeium/windsurf/mcp_config.json`|
 
 ### Example Configuration
 

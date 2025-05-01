@@ -103,6 +103,29 @@ class NumpyEncoder(json.JSONEncoder):
 from .chroma_client import get_chroma_client, get_embedding_function
 from .errors import ValidationError, EmbeddingError, ClientError, ConfigurationError
 
+# Add the function to retrieve the globally initialized ChromaDB client
+def get_chroma_client():
+    """Retrieves the globally initialized ChromaDB client instance."""
+    # Import the server module locally to access its global variable
+    # This avoids circular imports at the top level
+    try:
+        from chroma_mcp import server 
+    except ImportError:
+        # This case might happen during testing or if structure changes
+        raise RuntimeError("Could not import chroma_mcp.server module.")
+
+    if not server.CHROMA_AVAILABLE:
+        # Log or raise an error if chromadb is not installed
+        get_logger().error("chromadb library is not installed. Chroma client is unavailable.")
+        raise RuntimeError("chromadb library is not installed.")
+        
+    client_instance = getattr(server, '_chroma_client_instance', None)
+    if not client_instance:
+        # This indicates initialization hasn't happened via _initialize_chroma_client
+        get_logger().error("Chroma client has not been initialized.")
+        raise RuntimeError("Chroma client has not been initialized. Call _initialize_chroma_client first.")
+    return client_instance
+
 __all__ = [
     # Global Accessors
     "get_logger",

@@ -158,8 +158,10 @@ async def _base_sequential_thinking_impl(
     Returns:
         A list containing a single TextContent object.
     """
+    # Use root logger for entry debug
+    logging.info("--- ENTERING _base_sequential_thinking_impl ---")
 
-    logger = get_logger("tools.thinking")
+    logger = get_logger("tools.thinking") # Keep module logger for other messages
     try:
         # Access validated data from input model
         thought = input_data.thought
@@ -188,36 +190,43 @@ async def _base_sequential_thinking_impl(
                 raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e)))
         # --- End Parsing --- #
 
+        # Use root logger before client calls
+        logging.info("--- Getting Chroma client... ---")
         client = get_chroma_client()
+        logging.info("--- Chroma client obtained. ---")
 
+        # Ensure the collection exists before proceeding
+        logging.info("--- Getting/Creating collection... ---")
         try:
-            collection = client.get_or_create_collection(THOUGHTS_COLLECTION)
-            # Moved metadata creation and logic inside the main try block after client/collection setup
-            # Handle default values for session_id and branch_from_thought
-            effective_session_id = session_id if session_id else str(uuid.uuid4())
-            effective_branch_from_thought = branch_from_thought if branch_from_thought > 0 else None
-            effective_branch_id = branch_id if branch_id else None
-            timestamp = int(time.time())
-            metadata = ThoughtMetadata(
-                session_id=effective_session_id,
-                thought_number=thought_number,
-                total_thoughts=total_thoughts,
-                timestamp=timestamp,
-                branch_from_thought=effective_branch_from_thought,  # Use effective value
-                branch_id=effective_branch_id,  # Use effective value
-                next_thought_needed=next_thought_needed,
-                custom_data=parsed_custom_data,
+            collection = client.get_or_create_collection(
+                name=THOUGHTS_COLLECTION
+                # Add metadata if needed for default EF for this collection
+                # metadata={"hnsw:space": "cosine"} # Example if defaults are needed
+                # Specify EF explicitly if needed
+                # embedding_function=get_embedding_function(get_server_config().embedding_function_name)
             )
-
+            logging.info(f"--- Collection '{collection.name}' obtained/created. ---")
         except Exception as e:
-            logger.error(f"Error getting/creating collection '{THOUGHTS_COLLECTION}': {e}", exc_info=True)
-            # Raise McpError instead of returning CallToolResult
-            raise McpError(
-                ErrorData(
-                    code=INTERNAL_ERROR,  # Use INTERNAL_ERROR for DB access issues
-                    message=f"ChromaDB Error accessing collection '{THOUGHTS_COLLECTION}': {str(e)}",
-                )
-            )
+            logging.error(f"--- FAILED to get/create collection: {e} ---", exc_info=True) # Root log error
+            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Could not access thinking collection: {str(e)}"))
+
+        # Validate branch logic
+
+        # Handle default values for session_id and branch_from_thought
+        effective_session_id = session_id if session_id else str(uuid.uuid4())
+        effective_branch_from_thought = branch_from_thought if branch_from_thought > 0 else None
+        effective_branch_id = branch_id if branch_id else None
+        timestamp = int(time.time())
+        metadata = ThoughtMetadata(
+            session_id=effective_session_id,
+            thought_number=thought_number,
+            total_thoughts=total_thoughts,
+            timestamp=timestamp,
+            branch_from_thought=effective_branch_from_thought,  # Use effective value
+            branch_id=effective_branch_id,  # Use effective value
+            next_thought_needed=next_thought_needed,
+            custom_data=parsed_custom_data,
+        )
 
         thought_id = f"thought_{effective_session_id}_{thought_number}"
         if effective_branch_id:  # Check effective value
@@ -243,14 +252,16 @@ async def _base_sequential_thinking_impl(
         metadata_dict_for_chroma = filtered_metadata_dict
 
         try:
-            # Add the correctly constructed metadata_dict_for_chroma
+            # Use root logger around add
+            logging.info(f"--- Attempting collection.add for ID: {thought_id} ---")
             collection.add(documents=[thought], metadatas=[metadata_dict_for_chroma], ids=[thought_id])
+            logging.info(f"--- Successfully added thought ID: {thought_id} ---")
         except (ValueError, InvalidDimensionException) as e:
-            logger.error(f"Error adding thought to collection '{THOUGHTS_COLLECTION}': {e}", exc_info=True)
-            # Raise McpError instead of returning CallToolResult
+            # Use root logger for error
+            logging.error(f"--- FAILED collection.add: {e} ---", exc_info=True)
             raise McpError(
                 ErrorData(
-                    code=INTERNAL_ERROR,  # Use INTERNAL_ERROR for DB add issues
+                    code=INTERNAL_ERROR,
                     message=f"ChromaDB Error adding thought: {str(e)}",
                 )
             )
@@ -340,6 +351,8 @@ async def _base_sequential_thinking_impl(
             "previous_thoughts_count": len(previous_thoughts),
         }
         result_json = json.dumps(result_data, indent=2)
+
+        logging.info("--- EXITING _base_sequential_thinking_impl NORMALLY ---") # Root log exit
         return [types.TextContent(type="text", text=result_json)]
 
     except ValidationError as e:
@@ -349,6 +362,8 @@ async def _base_sequential_thinking_impl(
     except McpError as e:  # Re-raise already caught McpError (from custom_data parsing)
         raise e
     except Exception as e:  # Catch other unexpected errors
+        # Root log unexpected exceptions
+        logging.error(f"--- EXITING _base_sequential_thinking_impl VIA EXCEPTION: {type(e).__name__} ---", exc_info=True)
         logger.error(f"Unexpected error during sequential thinking: {e}", exc_info=True)
         # Raise McpError instead of returning CallToolResult
         raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred: {str(e)}"))
@@ -522,45 +537,21 @@ async def _get_session_summary_impl(input_data: GetSessionSummaryInput) -> List[
 
         client = get_chroma_client()
 
-        # Get collection, handle not found
+        # Ensure the collection exists before proceeding
+        logger.debug(f"Ensuring collection '{THOUGHTS_COLLECTION}' exists for summary...")
         try:
-            collection = client.get_collection(THOUGHTS_COLLECTION)
-        except ValueError as e:
-            if f"Collection {THOUGHTS_COLLECTION} does not exist." in str(e):
-                logger.warning(f"Cannot get session summary: Collection '{THOUGHTS_COLLECTION}' not found.")
-                # Return success with empty results if collection doesn't exist
-                return [  # Return list
-                    types.TextContent(
-                        type="text",
-                        text=json.dumps(
-                            {
-                                "session_id": session_id,
-                                "session_thoughts": [],
-                                "total_thoughts_in_session": 0,
-                                "message": f"Collection '{THOUGHTS_COLLECTION}' not found.",
-                            },
-                            indent=2,
-                        ),
-                    )
-                ]
-            else:
-                raise e  # Re-raise other ValueErrors
-        except Exception as e:  # Catch other potential errors during get_collection
-            logger.error(f"Error getting collection '{THOUGHTS_COLLECTION}' for session summary: {e}", exc_info=True)
-            # Raise McpError instead of returning CallToolResult
-            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"ChromaDB Error: {str(e)}"))
-
-        # Apply filtering based on effective_include_branches if needed
-        where_clause = {"session_id": session_id}
-        if not include_branches:
-            # Modify where_clause to exclude branches, e.g. check if branch_id is null/absent
-            # Example (exact field depends on storage): where_clause["branch_id"] = None
-            # This might need $and: [{"session_id": ...}, {"branch_id": None}] depending on DB
-            pass  # Placeholder - Add actual branch exclusion logic here if needed
+            collection = client.get_or_create_collection(name=THOUGHTS_COLLECTION)
+            logger.debug(f"Collection '{THOUGHTS_COLLECTION}' obtained or created for summary.")
+        except Exception as e:
+            logger.error(f"Failed to get or create collection '{THOUGHTS_COLLECTION}' for summary: {e}", exc_info=True)
+            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Could not access thinking collection: {str(e)}"))
 
         # Get thoughts, handle errors
         try:
-            results = collection.get(where=where_clause, include=["documents", "metadatas"])  # Remove "ids"
+            # Fetch ALL documents first
+            logger.debug(f"Fetching all documents from {THOUGHTS_COLLECTION}...")
+            results = collection.get(include=["documents", "metadatas"])  # Fetch all
+            logger.debug(f"Fetched {len(results.get('ids', []))} documents in total.")
         except ValueError as e:  # Catch errors from get (e.g., bad filter)
             logger.error(f"Error getting thoughts for session '{session_id}': {e}", exc_info=True)
             # Raise McpError instead of returning CallToolResult
@@ -574,7 +565,14 @@ async def _get_session_summary_impl(input_data: GetSessionSummaryInput) -> List[
             thought_data = []
             for i in range(len(results["ids"])):
                 raw_meta = results["metadatas"][i] or {}
-                # Reconstruct custom data
+                # --- Filter by session_id in Python ---
+                if raw_meta.get("session_id") != session_id:
+                    continue
+                # --- Filter by branch_id if needed ---
+                if not include_branches and raw_meta.get("branch_id") is not None:
+                    continue
+
+                # Reconstruct custom data (Corrected logic)
                 reconstructed_custom = {k[len("custom:") :]: v for k, v in raw_meta.items() if k.startswith("custom:")}
                 base_meta = {k: v for k, v in raw_meta.items() if not k.startswith("custom:")}
                 if reconstructed_custom:
@@ -584,8 +582,8 @@ async def _get_session_summary_impl(input_data: GetSessionSummaryInput) -> List[
                     {
                         "id": results["ids"][i],  # Include ID
                         "content": results["documents"][i],
-                        "metadata": base_meta,
-                        "thought_number_sort_key": base_meta.get("thought_number", 999999),  # Temp key for sorting
+                        "metadata": base_meta, # Use the fully reconstructed base_meta
+                        "thought_number_sort_key": base_meta.get("thought_number", 999999),  # Get from base_meta
                     }
                 )
 
@@ -597,7 +595,7 @@ async def _get_session_summary_impl(input_data: GetSessionSummaryInput) -> List[
                 {k: v for k, v in thought.items() if k != "thought_number_sort_key"} for thought in sorted_thoughts
             ]
 
-        # Success result
+        # Success result - RESTORED
         result_data = {
             "session_id": session_id,
             "session_thoughts": session_thoughts,

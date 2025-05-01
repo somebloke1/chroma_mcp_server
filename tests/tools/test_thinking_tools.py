@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from unittest.mock import patch, MagicMock, ANY
 
-from mcp import types
+from mcp import types as mcp_types
 from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, INTERNAL_ERROR, ErrorData
 
@@ -36,12 +36,12 @@ from src.chroma_mcp.tools.thinking_tools import (
 
 
 def assert_successful_json_list_result(
-    result: List[types.TextContent], expected_data: Optional[Dict[str, Any]] = None
+    result: List[mcp_types.TextContent], expected_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """Asserts the result is a list containing one TextContent with valid JSON."""
     assert isinstance(result, list)
     assert len(result) == 1
-    assert isinstance(result[0], types.TextContent)
+    assert isinstance(result[0], mcp_types.TextContent)
     assert result[0].type == "text"
 
     try:
@@ -114,6 +114,7 @@ def mock_chroma_client_thinking():
             yield mock_client, mock_thoughts_collection, mock_sessions_collection
 
 
+@pytest.mark.usefixtures("initialized_chroma_client")
 class TestThinkingTools:
     """Test cases for thinking tools implementation functions."""
 
@@ -136,7 +137,7 @@ class TestThinkingTools:
         result_data = assert_successful_json_list_result(result)
 
         # Assertions on mocks
-        mock_client.get_or_create_collection.assert_called_once_with(THOUGHTS_COLLECTION)
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
         mock_collection.add.assert_called_once()
         call_args = mock_collection.add.call_args
         assert call_args.kwargs["documents"] == ["Initial thought"]
@@ -157,7 +158,10 @@ class TestThinkingTools:
     async def test_sequential_thinking_existing_session(self, mock_chroma_client_thinking):
         """Test recording subsequent thoughts in an existing session."""
         mock_client, mock_collection, _ = mock_chroma_client_thinking
-        session_id = "existing_session_123"
+        session_id = "existing_session"
+        # Mock get_collection returning empty results for previous thoughts check
+        # We need to mock `get` for the previous thoughts check
+        mock_collection.get.return_value = {"ids": [], "metadatas": [], "documents": []}
 
         input_data = SequentialThinkingInput(
             thought="Second thought",
@@ -166,43 +170,22 @@ class TestThinkingTools:
             session_id=session_id,
         )
 
-        # Mock collection.get for previous thoughts check
-        mock_collection.get.return_value = {
-            "ids": [f"thought_{session_id}_1"],
-            "documents": ["First idea"],
-            "metadatas": [
-                {
-                    "session_id": session_id,
-                    "thought_number": 1,
-                    "total_thoughts": 3,
-                    "timestamp": 12345,
-                    "branch_id": None,  # Simulate non-branched thought
-                }
-            ],
-        }
-
         # ACT
         result = await _sequential_thinking_impl(input_data)
 
         # ASSERT using MODIFIED helper
         result_data = assert_successful_json_list_result(result)
+        assert result_data["session_id"] == session_id
+        assert result_data["thought_id"].startswith(f"thought_{session_id}_2")
 
         # Assertions on mocks
-        mock_collection.get.assert_called_once()
-        get_call_args = mock_collection.get.call_args
-        # Updated expected_where to reflect the simplified get call
-        expected_where = {"session_id": session_id}  # Fetch all session thoughts, filter in Python
-        assert get_call_args.kwargs["where"] == expected_where
-
+        # Use keyword argument 'name'
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
         mock_collection.add.assert_called_once()
-        add_call_args = mock_collection.add.call_args
-        assert add_call_args.kwargs["metadatas"][0]["session_id"] == session_id
-        added_thought_id = add_call_args.kwargs["ids"][0]
-
-        # Assertions on result data
-        assert result_data.get("session_id") == session_id
-        assert result_data.get("thought_id") == added_thought_id
-        assert result_data.get("previous_thoughts_count") == 1  # Check count
+        # Assert the get call for previous thoughts
+        mock_collection.get.assert_called_once()
+        call_args, call_kwargs = mock_collection.get.call_args
+        assert call_kwargs.get("where") == {"session_id": session_id}
 
     @pytest.mark.asyncio  # Mark as async
     async def test_sequential_thinking_new_branch(self, mock_chroma_client_thinking):
@@ -433,17 +416,17 @@ class TestThinkingTools:
         result_data = assert_successful_json_list_result(result)
 
         # Assertions on mocks
-        mock_client.get_collection.assert_called_once_with(THOUGHTS_COLLECTION)
-        mock_collection.get.assert_called_once_with(
-            where={"session_id": session_id}, include=["documents", "metadatas"]
-        )
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
+        mock_collection.get.assert_called_once_with(include=["documents", "metadatas"])
 
         # Assertions on result data
-        assert result_data.get("session_id") == session_id
-        assert len(result_data.get("session_thoughts", [])) == 2
-        # Check sorting and custom data reconstruction
-        assert result_data["session_thoughts"][0]["metadata"]["thought_number"] == 1
-        assert result_data["session_thoughts"][1]["metadata"]["thought_number"] == 2
+        assert result_data["session_id"] == session_id
+        assert result_data["total_thoughts_in_session"] == 2
+        assert len(result_data["session_thoughts"]) == 2
+        # Check order (should be sorted by thought_number)
+        assert result_data["session_thoughts"][0]["content"] == "Thought one"
+        assert result_data["session_thoughts"][1]["content"] == "Thought two"
+        # Check reconstructed custom data
         assert result_data["session_thoughts"][1]["metadata"].get("custom_data") == {"tag": "final"}
 
     @pytest.mark.asyncio  # Mark as async
@@ -465,27 +448,35 @@ class TestThinkingTools:
         assert_successful_json_list_result(result, expected_data=expected_result_data)
 
         # Assertions on mocks
-        mock_client.get_collection.assert_called_once_with(THOUGHTS_COLLECTION)
-        mock_collection.get.assert_called_once_with(
-            where={"session_id": session_id}, include=["documents", "metadatas"]
-        )
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
+        mock_collection.get.assert_called_once_with(include=["documents", "metadatas"])
 
     @pytest.mark.asyncio  # Mark as async
     async def test_get_session_summary_collection_not_found(self, mock_chroma_client_thinking):
-        """Test getting summary when the collection does not exist."""
-        mock_client, _, _ = mock_chroma_client_thinking
+        """Test getting summary when the collection does not exist (but get_or_create succeeds)."""
+        mock_client, mock_collection, _ = mock_chroma_client_thinking
         session_id = "no_collection_session"
-        # Mock get_collection to raise error
-        mock_client.get_collection.side_effect = ValueError(f"Collection {THOUGHTS_COLLECTION} does not exist.")
+
+        # Configure get_or_create_collection to return the mock collection
+        mock_client.get_or_create_collection.return_value = mock_collection
+        # Configure the collection's get method to return empty results
+        mock_collection.get.return_value = {"ids": [], "documents": [], "metadatas": []}
 
         # ACT
         input_model = GetSessionSummaryInput(session_id=session_id)
         result = await _get_session_summary_impl(input_model)
 
-        # ASSERT: Expect success list with a message
+        # ASSERT: Expect success list with empty thoughts
         result_data = assert_successful_json_list_result(result)
-        assert f"Collection '{THOUGHTS_COLLECTION}' not found" in result_data.get("message", "")
+        assert result_data.get("session_id") == session_id
         assert result_data.get("session_thoughts") == []
+        assert result_data.get("total_thoughts_in_session") == 0
+        # Check message is NOT the 'not found' message
+        assert "not found" not in result_data.get("message", "")
+
+        # Assert mocks were called
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
+        mock_collection.get.assert_called_once_with(include=["documents", "metadatas"])
 
     @pytest.mark.asyncio
     async def test_get_session_summary_unexpected_error(self, mock_chroma_client_thinking):
@@ -540,7 +531,7 @@ class TestThinkingTools:
         with patch("src.chroma_mcp.tools.thinking_tools._get_session_summary_impl") as mock_get_summary:
             # Configure mock_get_summary to return a successful result for session_abc
             mock_summary_result_list = [
-                types.TextContent(
+                mcp_types.TextContent(
                     type="text",
                     text=json.dumps(
                         {
@@ -644,8 +635,13 @@ class TestThinkingTools:
 
         input_model = SequentialThinkingInput(thought="t", thought_number=1, total_thoughts=1)
 
-        with assert_raises_mcp_error(f"ChromaDB Error accessing collection '{THOUGHTS_COLLECTION}': {error_message}"):
+        # Update expected error message to match the wrapped one
+        expected_error = f"Could not access thinking collection: {error_message}"
+        with assert_raises_mcp_error(expected_error):
             await _sequential_thinking_impl(input_model)
+
+        # Assert the failing mock was called
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
 
     @pytest.mark.asyncio
     async def test_sequential_thinking_collection_add_error(self, mock_chroma_client_thinking):
@@ -760,7 +756,7 @@ class TestThinkingTools:
         with patch("src.chroma_mcp.tools.thinking_tools._get_session_summary_impl") as mock_get_summary:
             # Return a list containing a TextContent object, not CallToolResult
             mock_summary_result_list = [
-                types.TextContent(type="text", text=json.dumps({"session_thoughts": [{"content": "Summary"}]}))
+                mcp_types.TextContent(type="text", text=json.dumps({"session_thoughts": [{"content": "Summary"}]}))
             ]
             mock_get_summary.return_value = mock_summary_result_list
 

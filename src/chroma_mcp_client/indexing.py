@@ -99,29 +99,31 @@ def index_file(
                 not_found = True
             if f"collection named {collection_name} does not exist" in error_str:
                 not_found = True
-                
+
             if not_found:
                 logger.info(f"Collection '{collection_name}' not found, creating...")
                 try:
                     # Explicitly create the collection
                     collection = client.create_collection(
-                        name=collection_name, 
+                        name=collection_name,
                         embedding_function=embedding_func,
                         # metadata=None, # Optional: Add default metadata if needed
-                        get_or_create=False # Ensure creation
+                        get_or_create=False,  # Ensure creation
                     )
                     logger.info(f"Successfully created collection: {collection_name}")
                 except Exception as create_e:
-                    logger.error(f"Failed to create collection '{collection_name}' after not found: {create_e}", exc_info=True)
-                    return False # Exit if creation fails
+                    logger.error(
+                        f"Failed to create collection '{collection_name}' after not found: {create_e}", exc_info=True
+                    )
+                    return False  # Exit if creation fails
             else:
                 # If the ValueError was for a different reason, re-raise it or handle
                 logger.error(f"Error getting collection '{collection_name}': {e}", exc_info=True)
-                return False # Exit on unexpected get error
+                return False  # Exit on unexpected get error
         except Exception as get_e:
-             # Catch other exceptions during get_collection
-             logger.error(f"Unexpected error getting collection '{collection_name}': {get_e}", exc_info=True)
-             return False
+            # Catch other exceptions during get_collection
+            logger.error(f"Unexpected error getting collection '{collection_name}': {get_e}", exc_info=True)
+            return False
 
         # Upsert the document (adds or updates)
         # Note: ChromaDB handles embedding generation internally if EF is set on collection
