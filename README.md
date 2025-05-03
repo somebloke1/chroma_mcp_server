@@ -77,7 +77,7 @@ npx -y @smithery/cli install chroma-mcp-server
 chroma-mcp-server [OPTIONS]
 
 # Or using the Python module (in an environment where it's installed)
-python -m chroma_mcp.server [OPTIONS]
+python -m chroma_mcp.cli [OPTIONS]
 
 # Or via Smithery CLI (after npx ... install)
 # Example with config:
@@ -106,12 +106,16 @@ The server can be configured with command-line options or environment variables:
 #### Command-line Options
 
 ```bash
+# Example setting mode to stdio
+chroma-mcp-server --mode stdio --client-type persistent --data-dir ./my_data
+# Example using default http mode
 chroma-mcp-server --client-type persistent --data-dir ./my_data --log-dir ./logs --embedding-function accurate
 ```
 
 #### Environment Variables
 
 ```bash
+export CHROMA_SERVER_MODE=stdio # Optional, defaults to http
 export CHROMA_CLIENT_TYPE=persistent
 export CHROMA_DATA_DIR=./my_data
 export CHROMA_LOG_DIR=./logs
@@ -121,17 +125,18 @@ chroma-mcp-server
 
 #### Available Configuration Options
 
-- `--client-type`: Type of Chroma client (`ephemeral`, `persistent`, `http`, `cloud`)
-- `--data-dir`: Path to data directory for persistent client
-- `--log-dir`: Path to log directory
-- `--host`: Host address for HTTP client
-- `--port`: Port for HTTP client
-- `--ssl`: Whether to use SSL for HTTP client
-- `--tenant`: Tenant ID for Cloud client
-- `--database`: Database name for Cloud client
-- `--api-key`: API key for Cloud client
-- `--cpu-execution-provider`: Force CPU execution provider for local embedding functions (`auto`, `true`, `false`)
-- `--embedding-function`: Name of the embedding function to use. Choices: 'default'/'fast' (Local CPU, balanced), 'accurate' (Local CPU/GPU via sentence-transformers, higher accuracy), 'openai' (API, general purpose), 'cohere' (API, retrieval/multilingual focus), 'huggingface' (API, flexible model choice), 'jina' (API, long context focus), 'voyageai' (API, retrieval focus), 'gemini' (API, general purpose). API-based functions require corresponding API keys set as environment variables (e.g., OPENAI_API_KEY).
+- `--mode`: Server mode (`stdio` or `http`, default: `http`). Also configurable via `CHROMA_SERVER_MODE`.
+- `--client-type`: Type of Chroma client (`ephemeral`, `persistent`, `http`, `cloud`). Also configurable via `CHROMA_CLIENT_TYPE`.
+- `--data-dir`: Path to data directory for persistent client. Also configurable via `CHROMA_DATA_DIR`.
+- `--log-dir`: Path to log directory. Also configurable via `CHROMA_LOG_DIR`.
+- `--host`: Host address for HTTP client. Also configurable via `CHROMA_HOST`.
+- `--port`: Port for HTTP client. Also configurable via `CHROMA_PORT`.
+- `--ssl`: Whether to use SSL for HTTP client. Also configurable via `CHROMA_SSL`.
+- `--tenant`: Tenant ID for Cloud client. Also configurable via `CHROMA_TENANT`.
+- `--database`: Database name for Cloud client. Also configurable via `CHROMA_DATABASE`.
+- `--api-key`: API key for Cloud client. Also configurable via `CHROMA_API_KEY`.
+- `--cpu-execution-provider`: Force CPU execution provider for local embedding functions (`auto`, `true`, `false`). Also configurable via `CHROMA_CPU_EXECUTION_PROVIDER`.
+- `--embedding-function`: Name of the embedding function to use. Choices: 'default'/'fast' (Local CPU, balanced), 'accurate' (Local CPU/GPU via sentence-transformers, higher accuracy), 'openai' (API, general purpose), 'cohere' (API, retrieval/multilingual focus), 'huggingface' (API, flexible model choice), 'jina' (API, long context focus), 'voyageai' (API, retrieval focus), 'gemini' (API, general purpose). API-based functions require corresponding API keys set as environment variables (e.g., OPENAI_API_KEY). Also configurable via `CHROMA_EMBEDDING_FUNCTION`.
 
 See [Getting Started](docs/getting_started.md) for more setup details.
 
@@ -205,7 +210,7 @@ Running the server during development is typically done using the `scripts/run_c
 
 ## Working Memory and Thinking Tools
 
-This server includes specialized tools for creating a persistent, searchable "working memory" to aid AI development workflows. Learn more about how these tools leverage embeddings to manage context across sessions in the **[Embeddings and Thinking Tools Guide](docs/embeddings_and_thinking.md)**.
+This server includes specialized tools for creating a persistent, searchable "working memory" to aid AI development workflows. Learn more about how these tools leverage embeddings to manage context across sessions in the **[Embeddings and Thinking Tools Guide](docs/thinking_tools/embeddings_and_thinking.md)**.
 
 ## Testing the Tools
 

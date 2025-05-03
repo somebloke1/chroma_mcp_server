@@ -36,6 +36,7 @@ from .utils import (
     set_main_logger,
     get_server_config,  # Keep getter for potential internal use
     set_server_config,
+    get_embedding_function,
     BASE_LOGGER_NAME,
     # raise_validation_error # Keep these if used directly in server?
 )
@@ -118,6 +119,7 @@ from .tools.thinking_tools import (
 CHROMA_AVAILABLE = False
 try:
     import chromadb
+    from chromadb.config import Settings
 
     CHROMA_AVAILABLE = True
 except ImportError:
@@ -135,58 +137,150 @@ except ImportError:
     # We will log this warning properly within config_server
     pass
 
+# Global variable to hold the initialized client (accessed via utils.get_chroma_client)
+_chroma_client_instance = None
+
+
+def _initialize_chroma_client(args: argparse.Namespace) -> None:
+    """Initializes the ChromaDB client based on args and stores it globally."""
+    global _chroma_client_instance
+    logger = get_logger()  # Get the potentially pre-configured logger
+
+    if _chroma_client_instance:
+        logger.warning("Chroma client already initialized. Skipping re-initialization.")
+        return
+
+    try:
+        # --- Load .env if specified in args ---
+        if args.dotenv_path and os.path.exists(args.dotenv_path):
+            load_dotenv(dotenv_path=args.dotenv_path)
+            logger.info(f"Loaded environment variables from: {args.dotenv_path}")
+
+        # --- Handle CPU provider setting ---
+        use_cpu_provider = None  # Auto-detect
+        if args.cpu_execution_provider != "auto":
+            use_cpu_provider = args.cpu_execution_provider == "true"
+
+        # --- Create ChromaClientConfig ---
+        # Use os.getenv as fallback if args attribute doesn't exist (e.g., simpler stdio setup)
+        # This makes it more robust if stdio mode doesn't parse all args
+
+        # Get port value robustly
+        port_arg = getattr(args, "port", None)
+        port_env = os.getenv("CHROMA_PORT")
+        port_val = port_arg if port_arg is not None else port_env if port_env is not None else 8000
+
+        client_config = ChromaClientConfig(
+            client_type=getattr(args, "client_type", os.getenv("CHROMA_CLIENT_TYPE", "persistent")),
+            data_dir=getattr(args, "data_dir", os.getenv("CHROMA_DATA_DIR")),
+            host=getattr(args, "host", os.getenv("CHROMA_HOST")),
+            port=int(port_val),  # Use the robustly determined port value
+            ssl=bool(getattr(args, "ssl", os.getenv("CHROMA_SSL", "False").lower() == "true")),
+            tenant=getattr(args, "tenant", os.getenv("CHROMA_TENANT", "default_tenant")),
+            database=getattr(args, "database", os.getenv("CHROMA_DATABASE", "default_database")),
+            api_key=getattr(args, "api_key", os.getenv("CHROMA_API_KEY")),
+            use_cpu_provider=use_cpu_provider,
+            embedding_function_name=getattr(
+                args, "embedding_function_name", os.getenv("CHROMA_EMBEDDING_FUNCTION", "default")
+            ),
+        )
+
+        # Store the config globally via setter
+        set_server_config(client_config)
+        logger.info(f"Chroma client configuration set: {client_config.client_type}")
+
+        # --- Initialize ChromaDB Client Instance ---
+        # Reuse logic similar to get_chroma_client but store globally
+        if not CHROMA_AVAILABLE:
+            logger.error("chromadb library not found. Cannot initialize client.")
+            raise McpError(ErrorData(code=INTERNAL_ERROR, message="chromadb library not installed"))
+
+        client_type = client_config.client_type
+        embedding_function = get_embedding_function(client_config.embedding_function_name)
+
+        if client_type == "persistent":
+            data_path = client_config.data_dir or "./chroma_data"
+            logger.info(f"Initializing persistent ChromaDB client at: {data_path}")
+            _chroma_client_instance = chromadb.PersistentClient(
+                path=data_path, settings=Settings(anonymized_telemetry=False)
+            )
+        elif client_type == "http":
+            host = client_config.host or "localhost"
+            port = client_config.port or 8000
+            ssl = client_config.ssl
+            logger.info(f"Initializing HTTP ChromaDB client for: host={host}, port={port}, ssl={ssl}")
+            _chroma_client_instance = chromadb.HttpClient(
+                host=host, port=port, ssl=ssl, settings=Settings(anonymized_telemetry=False)
+            )
+        elif client_type == "cloud":
+            # Assuming API key etc. are handled by chromadb library via env vars or config
+            logger.info("Initializing Cloud ChromaDB client")
+            tenant = client_config.tenant
+            database = client_config.database
+            api_key = client_config.api_key
+            # Basic validation
+            if not tenant or not database or not api_key:
+                logger.error("Missing Chroma Cloud configuration (tenant, database, api_key).")
+                raise ValueError("Missing Chroma Cloud configuration.")
+
+            _chroma_client_instance = chromadb.HttpClient(
+                host=client_config.host or "api.trychroma.com",  # Default cloud host
+                port=client_config.port or 443,  # Default cloud port
+                ssl=True,  # Cloud always uses SSL
+                headers={"Authorization": f"Bearer {api_key}"},
+                tenant=tenant,
+                database=database,
+                settings=Settings(anonymized_telemetry=False),
+                embedding_function=embedding_function,  # Keep EF for cloud client init
+            )
+        else:  # ephemeral
+            logger.info("Initializing ephemeral ChromaDB client (in-memory)")
+            # Ephemeral client (chromadb.Client) might not take EF in constructor
+            _chroma_client_instance = chromadb.Client(settings=Settings(anonymized_telemetry=False))
+
+        # Set embedding function ONLY for persistent and http (non-cloud)
+        # This check is removed as PersistentClient gets embedding_function at init
+        # if hasattr(_chroma_client_instance, 'set_embedding_function') and callable(getattr(_chroma_client_instance, 'set_embedding_function')):
+        #     _chroma_client_instance.set_embedding_function(embedding_function)
+        # else:
+        #     logger.warning(f"Client type '{client_type}' instance does not have set_embedding_function method. Skipping.")
+
+        logger.info(f"ChromaDB client ({client_type}) initialized successfully.")
+
+    except Exception as e:
+        if logger:
+            logger.critical(f"Failed to initialize Chroma client: {e}", exc_info=True)
+        else:
+            print(f"CRITICAL: Failed to initialize Chroma client: {e}", file=sys.stderr)
+        # Use ErrorData
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Chroma client initialization failed: {e}"))
+
 
 def config_server(args: argparse.Namespace) -> None:
     """
     Configures the Chroma MCP server based on parsed command-line arguments.
-
-    This involves:
-    - Loading environment variables from a specified .env file (if it exists).
-    - Setting up logging (console and optional file handlers) with the specified level.
-    - Creating a ChromaClientConfig object based on client type, connection details,
-      and other settings provided in `args`.
-    - Storing the logger and client configuration globally for access by other modules.
-    - Logging configuration details and warnings about missing optional dependencies
-      (chromadb, fastmcp).
-
-    Args:
-        args: An argparse.Namespace object containing the parsed command-line
-              arguments from `cli.py`.
-
-    Raises:
-        McpError: Wraps any exception that occurs during configuration, ensuring
-                  a consistent error format is propagated upwards. Logs critical
-                  errors before raising.
+    Now focuses on logger setup and calling client initialization.
     """
     logger = None  # Initialize logger to None before try block
     try:
-        # Load environment variables if dotenv file exists
-        if args.dotenv_path and os.path.exists(args.dotenv_path):
-            load_dotenv(dotenv_path=args.dotenv_path)
+        # --- Load .env --- > (No longer needed here, handled in _initialize_chroma_client)
+        # if args.dotenv_path and os.path.exists(args.dotenv_path):
+        #    load_dotenv(dotenv_path=args.dotenv_path)
 
-        # --- Start: Logger Configuration ---
+        # --- Start: Logger Configuration --- (Keep this section)
         log_dir = args.log_dir
         log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
         log_level = getattr(logging, log_level_str, logging.INFO)
-
-        # Get the root logger for our application
         logger = logging.getLogger(BASE_LOGGER_NAME)
         logger.setLevel(log_level)
-
-        # Prevent adding handlers multiple times if config_server is called again (e.g., in tests)
         if not logger.hasHandlers():
-            # Create formatter
             formatter = logging.Formatter(
                 f"%(asctime)s | %(name)-{len(BASE_LOGGER_NAME)+15}s | %(levelname)-8s | %(message)s",
                 datefmt="%Y-%m-%d %H:%M:%S",
             )
-
-            # Create console handler
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(formatter)
             logger.addHandler(console_handler)
-
-            # Create file handler if log_dir is specified
             if log_dir:
                 os.makedirs(log_dir, exist_ok=True)
                 log_file = os.path.join(log_dir, "chroma_mcp_server.log")
@@ -195,68 +289,39 @@ def config_server(args: argparse.Namespace) -> None:
                 )
                 file_handler.setFormatter(formatter)
                 logger.addHandler(file_handler)
-
-        # Store the configured logger instance globally via setter
         set_main_logger(logger)
         # --- End: Logger Configuration ---
 
-        # Handle CPU provider setting
-        use_cpu_provider = None  # Auto-detect
-        if args.cpu_execution_provider != "auto":
-            use_cpu_provider = args.cpu_execution_provider == "true"
+        # --- Initialize Chroma Client --- > Call the new function
+        _initialize_chroma_client(args)
 
-        # Create client configuration
-        client_config = ChromaClientConfig(
-            client_type=args.client_type,
-            data_dir=args.data_dir,
-            host=args.host,
-            port=args.port,
-            ssl=args.ssl,
-            tenant=args.tenant,
-            database=args.database,
-            api_key=args.api_key,
-            use_cpu_provider=use_cpu_provider,
-            embedding_function_name=args.embedding_function_name,
-        )
-
-        # Store the config globally via setter
-        set_server_config(client_config)
-
-        # This will initialize our configurations for later use
+        # --- Log Status / Warnings --- (Keep this part)
         provider_status = (
-            "auto-detected" if use_cpu_provider is None else ("enabled" if use_cpu_provider else "disabled")
+            "auto-detected"
+            if getattr(args, "cpu_execution_provider", "auto") == "auto"
+            else ("enabled" if getattr(args, "cpu_execution_provider", "auto") == "true" else "disabled")
         )
         logger.info(f"Server configured (CPU provider: {provider_status})")
-
-        # Log the configuration details
         if log_dir:
             logger.info(f"Logs will be saved to: {log_dir}")
-        if args.data_dir:
-            logger.info(f"Data directory: {args.data_dir}")
-
-        # Check for required dependencies
         if not CHROMA_AVAILABLE:
-            logger.warning("ChromaDB is not installed. Vector database operations will not be available.")
-            logger.warning("To enable full functionality, install the optional dependencies:")
-            logger.warning("pip install chroma-mcp-server[full]")
-
+            logger.warning("Optional dependency 'chromadb' not found. ChromaDB functionality will be unavailable.")
         if not MCP_AVAILABLE:
-            logger.warning("MCP is not installed. MCP tools will not be available.")
-            logger.warning("To enable full functionality, install the optional dependencies:")
-            logger.warning("pip install chroma-mcp-server[full]")
+            logger.warning("Optional dependency 'fastmcp' not found. MCP server functionality might be limited.")
 
+    except McpError as e:
+        # Re-raise McpError directly if it came from _initialize_chroma_client
+        raise e
     except Exception as e:
-        # If logger isn't initialized yet, use print for critical errors
-        error_msg = f"Failed to configure server: {str(e)}"
+        # Log critical error if logger exists, otherwise print
+        # Use ErrorData for other unexpected config errors
+        error_msg = f"Server configuration failed: {str(e)}"
         if logger:
-            # Use critical level for configuration failures
             logger.critical(error_msg)
         else:
-            # Last resort if logger setup failed completely
-            print(f"CRITICAL CONFIG ERROR: {error_msg}", file=sys.stderr)
-
-        # Wrap the exception in McpError
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=error_msg))
+            print(f"CRITICAL: {error_msg}", file=sys.stderr)
+        err_data = ErrorData(code=INTERNAL_ERROR, message=error_msg)
+        raise McpError(err_data)
 
 
 # --- Tool Registration (list_tools) ---
@@ -628,26 +693,32 @@ def main() -> None:
 
         async def run_server():
             options = server.create_initialization_options()
+            print("SERVER: Attempting to enter stdio_server context...", file=sys.stderr)
             async with stdio.stdio_server() as (read_stream, write_stream):
-                await server.run(read_stream, write_stream, options, raise_exceptions=True)
+                print("SERVER: Entered stdio_server context. Attempting server.run...", file=sys.stderr)
+                try:
+                    await server.run(read_stream, write_stream, options, raise_exceptions=True)
+                    print("SERVER: server.run completed.", file=sys.stderr)
+                except Exception as run_err:
+                    print(f"SERVER: ERROR during server.run: {run_err}", file=sys.stderr)
+                    raise  # Re-raise after logging
+            print("SERVER: Exited stdio_server context.", file=sys.stderr)
 
         # Run the async server function
+        print("SERVER: Calling asyncio.run(run_server())...", file=sys.stderr)
         asyncio.run(run_server())
+        print("SERVER: asyncio.run(run_server()) finished.", file=sys.stderr)
 
     except McpError as e:
         if logger:
             logger.error(f"MCP Error: {str(e)}")
-        # Re-raise McpError to potentially be caught by CLI
-        # Ensure ErrorData is propagated if available, otherwise use the message
-        err_data = (
-            e.args[0] if e.args and isinstance(e.args[0], ErrorData) else ErrorData(code=INTERNAL_ERROR, message=str(e))
-        )
-        raise McpError(err_data)
+        # Re-raise McpError directly
+        raise e
     except Exception as e:
         error_msg = f"Critical error running MCP server: {str(e)}"
         if logger:
             logger.error(error_msg)
-        # Convert unexpected errors to McpError for consistent exit
+        # Use ErrorData
         err_data = ErrorData(code=INTERNAL_ERROR, message=error_msg)
         raise McpError(err_data)
 

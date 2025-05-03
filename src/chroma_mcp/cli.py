@@ -10,7 +10,15 @@ Model Context Protocol (MCP).
 import os
 import sys
 import argparse
+import asyncio
 from typing import List, Optional
+import importlib.metadata
+
+# Import app module to access main_stdio
+from chroma_mcp import app
+
+# Import server functions needed for HTTP mode at the top level
+from chroma_mcp.server import config_server, main as server_main, _initialize_chroma_client
 
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -29,6 +37,18 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         An argparse.Namespace object containing the parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Chroma MCP Server")
+
+    # Change mode from positional to an optional flag
+    parser.add_argument(
+        "--mode",
+        choices=["stdio", "http"],
+        # Read default from env var, fallback to "http"
+        default=os.getenv("CHROMA_SERVER_MODE", "http"),
+        help="Server mode: 'stdio' for stdio transport, 'http' for default HTTP server (or set CHROMA_SERVER_MODE).",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f'%(prog)s {importlib.metadata.version("chroma-mcp-server")}'
+    )  # Add version flag
 
     # Client configuration
     parser.add_argument(
@@ -110,32 +130,49 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
 def main() -> int:
     """Main entry point for the Chroma MCP server CLI.
 
-    Parses command-line arguments, loads the server configuration based on them,
-    and runs the main server loop. Handles graceful shutdown on KeyboardInterrupt
-    and logs other exceptions.
+    Parses command-line arguments. If --help or --version are used, argparse handles
+    the exit. Otherwise, runs the appropriate server mode (stdio or http).
+    Handles graceful shutdown on KeyboardInterrupt and logs other exceptions.
 
     Returns:
         0 on successful execution or graceful shutdown, 1 on error.
     """
-    # Parse arguments
-    args = parse_args()
-
-    # Import server module here to avoid circular imports
-    from chroma_mcp.server import config_server, main as server_main
+    args = parse_args()  # Let argparse handle --help/--version exit here
 
     try:
-        # Configure server
-        config_server(args)
-
-        # Run the server
-        return server_main()
+        if args.mode == "stdio":
+            # Initialize the Chroma client first!
+            print("Initializing Chroma client for stdio mode...", file=sys.stderr)
+            _initialize_chroma_client(args)
+            print("Chroma client initialized. Starting server in stdio mode...", file=sys.stderr)
+            # Run the stdio server
+            asyncio.run(app.main_stdio())
+            print("Stdio server finished.", file=sys.stderr)
+            # stdio mode might finish normally, so return 0
+            return 0
+        else:  # Default HTTP mode
+            # Run the default (HTTP) server
+            print("Starting server in default (HTTP) mode...", file=sys.stderr)
+            # Imports moved to top level
+            # Configure server first
+            config_server(args)  # Pass parsed args
+            # Now run the server main loop
+            server_main()
+            print("HTTP server finished normally.", file=sys.stderr)
+            return 0
     except KeyboardInterrupt:
-        print("Server stopped by user", file=sys.stderr)
-        return 0
+        print("\nServer stopped by user (KeyboardInterrupt).")
+        return 0  # Graceful exit
     except Exception as e:
-        print(f"Error running server: {e}", file=sys.stderr)
-        return 1
+        # Use print for critical startup errors before logger might be ready
+        print(f"ERROR: Server failed to start or encountered a fatal error: {e}", file=sys.stderr)
+        # Optionally add traceback here if needed for debugging
+        # import traceback
+        # traceback.print_exc()
+        return 1  # Indicate error
 
 
 if __name__ == "__main__":
+    # Rely solely on argparse action='version' to handle --version and exit.
+    # Remove the explicit pre-check.
     sys.exit(main())

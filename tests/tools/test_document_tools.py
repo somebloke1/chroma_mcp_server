@@ -181,6 +181,8 @@ def mock_chroma_client_document():
         yield mock_client_instance, mock_collection_instance, mock_validate_name  # Yield validator too
 
 
+# Apply the fixture to the whole class
+@pytest.mark.usefixtures("initialized_chroma_client")
 class TestDocumentTools:
     """Test cases for document management tools."""
 

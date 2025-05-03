@@ -137,13 +137,13 @@ Alternatively, you can manually run the server directly within the activated Hat
 ```bash
 # Ensure the Hatch environment is active (./scripts/develop.sh or hatch shell)
 # Run the server using python -m
-python -m chroma_mcp.server [OPTIONS]
+python -m chroma_mcp.cli [OPTIONS]
 
 # Example with persistent storage:
-python -m chroma_mcp.server --client-type persistent --data-dir ./dev_data --log-dir ./dev_logs
+python -m chroma_mcp.cli --client-type persistent --data-dir ./dev_data --log-dir ./dev_logs
 
 # Example connecting to an external HTTP server:
-python -m chroma_mcp.server --client-type http --host localhost --port 8000
+python -m chroma_mcp.cli --client-type http --host localhost --port 8000
 ```
 
 **Important:** When using `--client-type http` or `--client-type cloud`, the MCP server acts *only as a client*. You must have a separate ChromaDB server instance (e.g., running in Docker or via Chroma Cloud) accessible at the specified address or configured via cloud credentials.
