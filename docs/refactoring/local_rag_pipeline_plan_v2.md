@@ -113,7 +113,7 @@
   - [X] Implemented cross-platform features.
   - [X] Modified hook to only index changed files.
   - [X] Made the hook executable.
-  - [X] **Resolved:** Fixed environment and collection handling issues; hook is working.
+  - [X] **Resolved:** Fixed environment, collection handling, and path resolution issues; hook is working.
 
 - [X] **2.3 Initial Codebase Indexing (via Console Script):**
   - [X] Trigger indexing using `chroma-client index --all`.

@@ -7,10 +7,17 @@ from pathlib import Path
 from typing import Set
 import os
 
-from .connection import get_client_and_ef
-
-# Configure logging for this module
+# Explicitly configure logger for this module to ensure DEBUG messages are shown
 logger = logging.getLogger(__name__)
+# Check if handlers are already present to avoid duplicates if run multiple times
+if not logger.handlers:
+    handler = logging.StreamHandler() # Or use appropriate handler
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+logger.setLevel(logging.DEBUG) # Force DEBUG level for this logger
+
+from .connection import get_client_and_ef
 
 # Define supported file types (can be extended)
 DEFAULT_SUPPORTED_SUFFIXES: Set[str] = {
@@ -60,6 +67,13 @@ def index_file(
     Returns:
         True if the file was indexed successfully, False otherwise.
     """
+    # --- Ensure file_path is absolute --- START
+    if not file_path.is_absolute():
+        logger.warning(f"[index_file] Received relative path '{file_path}'. Assuming relative to repo_root '{repo_root}'.")
+        file_path = (repo_root / file_path).resolve()
+        logger.debug(f"[index_file] Resolved to absolute path: '{file_path}'")
+    # --- Ensure file_path is absolute --- END
+
     client, embedding_func = get_client_and_ef()  # Gets client/EF from connection module
 
     if not file_path.exists() or file_path.is_dir():
@@ -78,9 +92,9 @@ def index_file(
             return False
 
         # Use relative path for ID generation and metadata
-        # --- DEBUGGING START ---
-        logger.debug(f"Attempting relative_to: file_path='{file_path}' (absolute: {file_path.is_absolute()}), repo_root='{repo_root}' (absolute: {repo_root.is_absolute()})")
-        # --- DEBUGGING END ---
+        # --- DEBUGGING START (index_file) ---
+        logger.debug(f"[index_file] Received: file_path='{file_path}' (absolute: {file_path.is_absolute()}), repo_root='{repo_root}' (absolute: {repo_root.is_absolute()})")
+        # --- DEBUGGING END (index_file) ---
         relative_path = str(file_path.relative_to(repo_root))
         # Generate a stable ID based on the relative path
         doc_id = hashlib.sha1(relative_path.encode("utf-8")).hexdigest()
@@ -224,6 +238,9 @@ def index_paths(
                     logger.debug(f"Indexing file: {p}")
                     # Construct absolute path from repo_root and the relative path_obj
                     absolute_file_path = (repo_root / path_obj).resolve()
+                    # --- DEBUGGING START (index_paths) ---
+                    logger.debug(f"[index_paths] Calling index_file with: absolute_file_path='{absolute_file_path}', repo_root='{repo_root}'")
+                    # --- DEBUGGING END (index_paths) ---
                     if index_file(absolute_file_path, repo_root, collection_name, supported_suffixes):
                         indexed_count += 1
                 else:
