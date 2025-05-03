@@ -483,14 +483,14 @@ def shutdown_logging_after_tests():
 @pytest.fixture(scope="function")
 def initialized_chroma_client():
     """Fixture to ensure chroma client is initialized before a test runs.
-    
+
     Uses ephemeral client by default. Resets after test.
     """
     # Create mock args for initialization (using ephemeral client)
     mock_args = argparse.Namespace(
-        dotenv_path=None, # Assume no .env for basic test
-        cpu_execution_provider='auto',
-        client_type='ephemeral', 
+        dotenv_path=None,  # Assume no .env for basic test
+        cpu_execution_provider="auto",
+        client_type="ephemeral",
         data_dir=None,
         host=None,
         port=8000,
@@ -498,11 +498,11 @@ def initialized_chroma_client():
         tenant=None,
         database=None,
         api_key=None,
-        embedding_function_name='default'
+        embedding_function_name="default"
         # Add other args _initialize_chroma_client might access, even via getattr
         # Though getattr should handle missing ones
     )
-    
+
     # Patch get_logger to avoid side effects during init
     with patch("chroma_mcp.server.get_logger") as mock_get_logger:
         # Ensure chromadb is available or mocked if needed for specific tests
@@ -510,7 +510,7 @@ def initialized_chroma_client():
         # Call the actual initialization function
         _initialize_chroma_client(mock_args)
 
-    yield # Test runs here
+    yield  # Test runs here
 
     # Teardown: Reset the client instance after the test
     # This assumes you have a way to reset the global _chroma_client_instance

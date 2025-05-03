@@ -271,10 +271,10 @@ def test_cli_main_http_success(mock_server_main, mock_config_server, mock_parse_
     mock_parse_args.return_value = mock_args
 
     # Simulate server_main running without error
-    mock_server_main.return_value = None 
+    mock_server_main.return_value = None
 
     result = cli_main()
-    assert result == 0 # Expect 0 on normal HTTP exit now
+    assert result == 0  # Expect 0 on normal HTTP exit now
     mock_config_server.assert_called_once_with(mock_args)
     mock_server_main.assert_called_once()
 

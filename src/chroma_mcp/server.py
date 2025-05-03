@@ -140,10 +140,11 @@ except ImportError:
 # Global variable to hold the initialized client (accessed via utils.get_chroma_client)
 _chroma_client_instance = None
 
+
 def _initialize_chroma_client(args: argparse.Namespace) -> None:
     """Initializes the ChromaDB client based on args and stores it globally."""
     global _chroma_client_instance
-    logger = get_logger() # Get the potentially pre-configured logger
+    logger = get_logger()  # Get the potentially pre-configured logger
 
     if _chroma_client_instance:
         logger.warning("Chroma client already initialized. Skipping re-initialization.")
@@ -160,30 +161,32 @@ def _initialize_chroma_client(args: argparse.Namespace) -> None:
         if args.cpu_execution_provider != "auto":
             use_cpu_provider = args.cpu_execution_provider == "true"
 
-        # --- Create ChromaClientConfig --- 
+        # --- Create ChromaClientConfig ---
         # Use os.getenv as fallback if args attribute doesn't exist (e.g., simpler stdio setup)
         # This makes it more robust if stdio mode doesn't parse all args
-        
+
         # Get port value robustly
-        port_arg = getattr(args, 'port', None)
+        port_arg = getattr(args, "port", None)
         port_env = os.getenv("CHROMA_PORT")
         port_val = port_arg if port_arg is not None else port_env if port_env is not None else 8000
-        
+
         client_config = ChromaClientConfig(
-            client_type=getattr(args, 'client_type', os.getenv("CHROMA_CLIENT_TYPE", "persistent")),
-            data_dir=getattr(args, 'data_dir', os.getenv("CHROMA_DATA_DIR")),
-            host=getattr(args, 'host', os.getenv("CHROMA_HOST")),
-            port=int(port_val), # Use the robustly determined port value
-            ssl=bool(getattr(args, 'ssl', os.getenv("CHROMA_SSL", 'False').lower() == 'true')),
-            tenant=getattr(args, 'tenant', os.getenv("CHROMA_TENANT", "default_tenant")),
-            database=getattr(args, 'database', os.getenv("CHROMA_DATABASE", "default_database")),
-            api_key=getattr(args, 'api_key', os.getenv("CHROMA_API_KEY")),
+            client_type=getattr(args, "client_type", os.getenv("CHROMA_CLIENT_TYPE", "persistent")),
+            data_dir=getattr(args, "data_dir", os.getenv("CHROMA_DATA_DIR")),
+            host=getattr(args, "host", os.getenv("CHROMA_HOST")),
+            port=int(port_val),  # Use the robustly determined port value
+            ssl=bool(getattr(args, "ssl", os.getenv("CHROMA_SSL", "False").lower() == "true")),
+            tenant=getattr(args, "tenant", os.getenv("CHROMA_TENANT", "default_tenant")),
+            database=getattr(args, "database", os.getenv("CHROMA_DATABASE", "default_database")),
+            api_key=getattr(args, "api_key", os.getenv("CHROMA_API_KEY")),
             use_cpu_provider=use_cpu_provider,
-            embedding_function_name=getattr(args, 'embedding_function_name', os.getenv("CHROMA_EMBEDDING_FUNCTION", "default")),
+            embedding_function_name=getattr(
+                args, "embedding_function_name", os.getenv("CHROMA_EMBEDDING_FUNCTION", "default")
+            ),
         )
 
         # Store the config globally via setter
-        set_server_config(client_config) 
+        set_server_config(client_config)
         logger.info(f"Chroma client configuration set: {client_config.client_type}")
 
         # --- Initialize ChromaDB Client Instance ---
@@ -194,11 +197,13 @@ def _initialize_chroma_client(args: argparse.Namespace) -> None:
 
         client_type = client_config.client_type
         embedding_function = get_embedding_function(client_config.embedding_function_name)
-        
+
         if client_type == "persistent":
             data_path = client_config.data_dir or "./chroma_data"
             logger.info(f"Initializing persistent ChromaDB client at: {data_path}")
-            _chroma_client_instance = chromadb.PersistentClient(path=data_path, settings=Settings(anonymized_telemetry=False))
+            _chroma_client_instance = chromadb.PersistentClient(
+                path=data_path, settings=Settings(anonymized_telemetry=False)
+            )
         elif client_type == "http":
             host = client_config.host or "localhost"
             port = client_config.port or 8000
@@ -215,33 +220,30 @@ def _initialize_chroma_client(args: argparse.Namespace) -> None:
             api_key = client_config.api_key
             # Basic validation
             if not tenant or not database or not api_key:
-                 logger.error("Missing Chroma Cloud configuration (tenant, database, api_key).")
-                 raise ValueError("Missing Chroma Cloud configuration.")
-            
+                logger.error("Missing Chroma Cloud configuration (tenant, database, api_key).")
+                raise ValueError("Missing Chroma Cloud configuration.")
+
             _chroma_client_instance = chromadb.HttpClient(
-                host=client_config.host or "api.trychroma.com", # Default cloud host
-                port=client_config.port or 443, # Default cloud port
-                ssl=True, # Cloud always uses SSL
+                host=client_config.host or "api.trychroma.com",  # Default cloud host
+                port=client_config.port or 443,  # Default cloud port
+                ssl=True,  # Cloud always uses SSL
                 headers={"Authorization": f"Bearer {api_key}"},
                 tenant=tenant,
                 database=database,
                 settings=Settings(anonymized_telemetry=False),
-                embedding_function=embedding_function # Keep EF for cloud client init
+                embedding_function=embedding_function,  # Keep EF for cloud client init
             )
-        else: # ephemeral
+        else:  # ephemeral
             logger.info("Initializing ephemeral ChromaDB client (in-memory)")
             # Ephemeral client (chromadb.Client) might not take EF in constructor
-            _chroma_client_instance = chromadb.Client(
-                settings=Settings(anonymized_telemetry=False)
-            )
+            _chroma_client_instance = chromadb.Client(settings=Settings(anonymized_telemetry=False))
 
         # Set embedding function ONLY for persistent and http (non-cloud)
-        if client_type in ["persistent", "http"]:
-             # Check if method exists before calling - Defensive check
-            if hasattr(_chroma_client_instance, 'set_embedding_function') and callable(getattr(_chroma_client_instance, 'set_embedding_function')):
-                 _chroma_client_instance.set_embedding_function(embedding_function)
-            else:
-                 logger.warning(f"Client type '{client_type}' instance does not have set_embedding_function method. Skipping.")
+        # This check is removed as PersistentClient gets embedding_function at init
+        # if hasattr(_chroma_client_instance, 'set_embedding_function') and callable(getattr(_chroma_client_instance, 'set_embedding_function')):
+        #     _chroma_client_instance.set_embedding_function(embedding_function)
+        # else:
+        #     logger.warning(f"Client type '{client_type}' instance does not have set_embedding_function method. Skipping.")
 
         logger.info(f"ChromaDB client ({client_type}) initialized successfully.")
 
@@ -252,6 +254,7 @@ def _initialize_chroma_client(args: argparse.Namespace) -> None:
             print(f"CRITICAL: Failed to initialize Chroma client: {e}", file=sys.stderr)
         # Use ErrorData
         raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Chroma client initialization failed: {e}"))
+
 
 def config_server(args: argparse.Namespace) -> None:
     """
@@ -288,14 +291,15 @@ def config_server(args: argparse.Namespace) -> None:
                 logger.addHandler(file_handler)
         set_main_logger(logger)
         # --- End: Logger Configuration ---
-        
+
         # --- Initialize Chroma Client --- > Call the new function
         _initialize_chroma_client(args)
 
         # --- Log Status / Warnings --- (Keep this part)
         provider_status = (
-            "auto-detected" if getattr(args, 'cpu_execution_provider', 'auto') == 'auto' 
-            else ("enabled" if getattr(args, 'cpu_execution_provider', 'auto') == 'true' else "disabled")
+            "auto-detected"
+            if getattr(args, "cpu_execution_provider", "auto") == "auto"
+            else ("enabled" if getattr(args, "cpu_execution_provider", "auto") == "true" else "disabled")
         )
         logger.info(f"Server configured (CPU provider: {provider_status})")
         if log_dir:
@@ -303,11 +307,11 @@ def config_server(args: argparse.Namespace) -> None:
         if not CHROMA_AVAILABLE:
             logger.warning("Optional dependency 'chromadb' not found. ChromaDB functionality will be unavailable.")
         if not MCP_AVAILABLE:
-             logger.warning("Optional dependency 'fastmcp' not found. MCP server functionality might be limited.")
+            logger.warning("Optional dependency 'fastmcp' not found. MCP server functionality might be limited.")
 
     except McpError as e:
         # Re-raise McpError directly if it came from _initialize_chroma_client
-        raise e 
+        raise e
     except Exception as e:
         # Log critical error if logger exists, otherwise print
         # Use ErrorData for other unexpected config errors
@@ -709,7 +713,7 @@ def main() -> None:
         if logger:
             logger.error(f"MCP Error: {str(e)}")
         # Re-raise McpError directly
-        raise e 
+        raise e
     except Exception as e:
         error_msg = f"Critical error running MCP server: {str(e)}"
         if logger:

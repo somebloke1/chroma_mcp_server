@@ -31,18 +31,43 @@ logger = logging.getLogger(__name__)  # Create logger instance
 
 
 def _get_server_params() -> StdioServerParameters:
-    """Helper to create StdioServerParameters."""
+    """Helper to create StdioServerParameters, passing necessary environment variables."""
     # Use the cli.py entry point with the '--mode stdio' flag
     server_command = "python"
     server_args = ["-m", "chroma_mcp.cli", "--mode", "stdio"]
 
-    # print(f"Server command: {server_command} {' '.join(server_args)}", file=sys.stderr)
-    # print(f"Server CWD: {os.getcwd()}", file=sys.stderr)
+    # Explicitly pass necessary environment variables from the current environment
+    # These are typically set by hatch run based on pyproject.toml
+    server_env = {
+        key: os.environ[key]
+        for key in [
+            "CHROMA_CLIENT_TYPE",
+            "CHROMA_DATA_DIR",
+            "CHROMA_LOG_DIR",
+            "LOG_LEVEL",
+            "MCP_LOG_LEVEL",
+            # Add any other relevant CHROMA_ variables if needed (HOST, PORT, SSL, TENANT, DATABASE, API_KEY, EMBEDDING_FUNCTION)
+            "CHROMA_HOST",
+            "CHROMA_PORT",
+            "CHROMA_SSL",
+            "CHROMA_TENANT",
+            "CHROMA_DATABASE",
+            "CHROMA_API_KEY",
+            "CHROMA_EMBEDDING_FUNCTION",
+        ]
+        if key in os.environ  # Only pass if they exist in the current env
+    }
+    # Add PATH to ensure the correct python/modules are found if necessary
+    # This might be important if VS Code's integrated terminal has a different PATH
+    if "PATH" in os.environ:
+        server_env["PATH"] = os.environ["PATH"]
+
+    logger.debug(f"Passing environment to server subprocess: {server_env}")
 
     return StdioServerParameters(
         command=server_command,
         args=server_args,
-        env=None,  # Inherit environment
+        env=server_env,  # Pass the explicit environment
         cwd=os.getcwd(),  # Run server in the same CWD
         # Consider adding a startup timeout if needed
         # startup_timeout=timedelta(seconds=30)
@@ -62,7 +87,7 @@ async def cmd_record_async(args: argparse.Namespace) -> None:
 
             # Handle direct thought input vs file input vs environment variable
             thoughts = []
-            thought_source = None # Keep track of where the thought came from
+            thought_source = None  # Keep track of where the thought came from
 
             if args.thought:
                 thoughts = [args.thought]
@@ -85,7 +110,10 @@ async def cmd_record_async(args: argparse.Namespace) -> None:
 
             if not thoughts:
                 # Modify error message
-                print("Error: No thought provided via --thought, --file, or RECORD_THOUGHT_TEXT environment variable.", file=sys.stderr)
+                print(
+                    "Error: No thought provided via --thought, --file, or RECORD_THOUGHT_TEXT environment variable.",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
 
             # logger.info(f"Received thought from: {thought_source}") # Optional debug log
@@ -119,7 +147,11 @@ async def cmd_record_async(args: argparse.Namespace) -> None:
 
                 # Safely extract session_id from result content
                 result_content_list = result.content if result else []
-                result_text = result_content_list[0].text if result_content_list and isinstance(result_content_list[0], mcp_types.TextContent) else "{}"
+                result_text = (
+                    result_content_list[0].text
+                    if result_content_list and isinstance(result_content_list[0], mcp_types.TextContent)
+                    else "{}"
+                )
 
                 try:
                     result_data = json.loads(result_text)
@@ -255,15 +287,19 @@ async def cmd_search_async(args: argparse.Namespace) -> None:
                     name="chroma_find_similar_thoughts",
                     arguments={
                         "query": args.query,
-                        "session_id": args.session_id,  # Can be None
+                        "session_id": args.session_id if args.session_id is not None else "",  # Send default "" if None
                         "n_results": args.n_results,
-                        "threshold": args.threshold if args.threshold != -1.0 else None,  # Pass None if default
+                        "threshold": args.threshold,  # Always send the value (default is -1.0)
                         "include_branches": args.include_branches,
                     },
                 )
                 # Process results - results_raw is a CallToolResult object
                 results_content_list = results_raw.content if results_raw else []
-                results_text = results_content_list[0].text if results_content_list and isinstance(results_content_list[0], mcp_types.TextContent) else "{}"
+                results_text = (
+                    results_content_list[0].text
+                    if results_content_list and isinstance(results_content_list[0], mcp_types.TextContent)
+                    else "{}"
+                )
                 try:
                     # Parse the text content
                     results = json.loads(results_text)
@@ -323,7 +359,11 @@ async def cmd_summary_async(args: argparse.Namespace) -> None:
 
                 # Process results - results_raw is a CallToolResult object
                 results_content_list = results_raw.content if results_raw else []
-                results_text = results_content_list[0].text if results_content_list and isinstance(results_content_list[0], mcp_types.TextContent) else "{}"
+                results_text = (
+                    results_content_list[0].text
+                    if results_content_list and isinstance(results_content_list[0], mcp_types.TextContent)
+                    else "{}"
+                )
 
                 try:
                     # Parse the text content of the first result part
@@ -337,13 +377,20 @@ async def cmd_summary_async(args: argparse.Namespace) -> None:
                 else:
                     print(f"Summary for session: {args.session_id}")
                     # Sort thoughts for consistent display (optional, but helpful)
-                    session_thoughts.sort(key=lambda x: (x.get("branch_id", ""), x.get("thought_number", 0)))
+                    session_thoughts.sort(
+                        key=lambda x: (
+                            x.get("metadata", {}).get("branch_id", ""),
+                            x.get("metadata", {}).get("thought_number", 0),
+                        )
+                    )
                     current_branch = None
                     for thought_info in session_thoughts:
-                        thought_text = thought_info.get("thought", "")
-                        thought_num = thought_info.get("thought_number", "?")
-                        branch_id = thought_info.get("branch_id", "")
-                        branch_from = thought_info.get("branch_from_thought", 0)
+                        # Extract data based on the actual JSON structure
+                        thought_text = thought_info.get("content", "")  # Get content directly
+                        metadata = thought_info.get("metadata", {})
+                        thought_num = metadata.get("thought_number", "?")  # Get from metadata
+                        branch_id = metadata.get("branch_id", "")  # Get from metadata
+                        branch_from = metadata.get("branch_from_thought", 0)  # Get from metadata
 
                         if branch_id and branch_id != current_branch:
                             print(f"  --- Branch: {branch_id} (from thought #{branch_from}) ---")

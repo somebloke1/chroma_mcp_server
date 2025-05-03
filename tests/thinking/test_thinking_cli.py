@@ -36,7 +36,7 @@ def mock_mcp_client():
         if name == "chroma_sequential_thinking":
             arguments = kwargs.get("arguments", {})
             thought_num = arguments.get("thought_number", 0)
-            session_id_arg = arguments.get("session_id", "mock-session-id") # Use provided or default
+            session_id_arg = arguments.get("session_id", "mock-session-id")  # Use provided or default
             if thought_num == 1:
                 result_text = json.dumps({"session_id": session_id_arg})
             else:
@@ -64,7 +64,7 @@ def mock_mcp_client():
             )
         # Create a CallToolResult object containing the TextContent
         # Ensure the 'type' field is included for TextContent
-        return types.CallToolResult(content=[types.TextContent(type='text', text=result_text)])
+        return types.CallToolResult(content=[types.TextContent(type="text", text=result_text)])
 
     client.call_tool = AsyncMock(side_effect=mock_call_tool)
     return client
@@ -193,7 +193,7 @@ async def test_cmd_search_thoughts(MockSessionClass, mock_stdio, mock_mcp_client
     assert call_args["name"] == "chroma_find_similar_thoughts"
     assert call_args["arguments"]["query"] == "test query"
     assert call_args["arguments"]["n_results"] == 5
-    assert call_args["arguments"]["threshold"] is None
+    assert call_args["arguments"]["threshold"] == -1.0
     assert call_args["arguments"]["include_branches"] is False
 
 

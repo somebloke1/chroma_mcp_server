@@ -7,6 +7,22 @@
 - **Automation (Git Hooks, CI, Scripts):** Use dedicated Python client modules (`src/chroma_mcp_client/`) exposed via installable console scripts (e.g., `chroma-client`) that connect *directly* to the ChromaDB backend based on `.env` config. Wrapper scripts (`scripts/`) can be used for internal repo tasks like git hooks.
 - **Interaction (IDE - Cursor, Windsurf, etc.):** Use the `chroma-mcp-server` running via the IDE's MCP integration for feedback loops and sequential thinking tools. The thinking tools CLI (`record-thought`) now correctly uses stdio communication with the server.
 
+**Important Development Workflow Notes:**
+
+- **Rebuild & Reinstall after Changes:** After modifying the `chroma-mcp-server` codebase (including client or thinking modules), you **must** rebuild and reinstall the package within the Hatch environment to ensure the changes take effect when using `hatch run` commands (like the test script or the VS Code task). Use the following command from the project root:
+
+  ```bash
+  hatch build && hatch run pip uninstall chroma-mcp-server -y && hatch run pip install dist/*.whl
+  ```
+
+- **Run Tests After Updates:** After making code changes and reinstalling, always run the unit tests to ensure nothing is broken. Use the provided test script:
+
+  ```bash
+  ./scripts/test.sh -c -v
+  ```
+
+  This script handles coverage and verbose output automatically.
+
 ---
 
 ## Phase 1: Setup & Configuration (Common Components)
@@ -76,6 +92,7 @@
   - [X] Test argument parsing, file handling, ID generation, JSON output.
   - [X] Aim for >= 80% code coverage. (Current: ~78%)
   - [X] Run tests: `hatch run test` (All tests passing).
+  - [X] **Remember:** Run `./scripts/test.sh -c -v` after code changes to verify tests pass.
 
 - [X] **1.11 Document Client Usage (`docs/usage/client_commands.md`):**
   - [X] Documented Python library usage.
@@ -168,7 +185,7 @@
 - [X] **5.2 Implement Sequential Thinking Logic (`src/chroma_mcp_thinking/`):**
   - [X] Create directory and modules.
   - [X] Refactored `ThinkingSession` to use standard `mcp.ClientSession`.
-  - [X] Resolved stdio communication issues (`record-thought` now works).
+  - [X] Resolved stdio communication issues (`record-thought` now works by passing env vars to subprocess).
   - [X] Ensured correct MCP tool names and response parsing.
 
 - [X] **5.3 Create Thought Recorder Wrapper Script (`scripts/record_thought.sh` - for Internal Use):**
@@ -178,13 +195,14 @@
 
 - [X] **5.4 Integrate with Development Workflow:**
   - [X] IDE integration (`docs/integration/ide_integration.md`) documented using `record-thought` via hatch.
-  - [ ] **Needs Definition:** Checkpoints and specific workflow steps.
+  - [X] IDE integration (VS Code task) tested and working.
+  - [~] **Needs Definition:** Define specific workflow checkpoints/usage patterns.
 
-- [ ] **5.5 Connect with Interactive RAG Query Pipeline (via MCP):**
-  - [ ] Enhance prompts to call `chroma_find_similar_thoughts` / `_sessions`.
+- [X] **5.5 Connect with Interactive RAG Query Pipeline (via MCP):**
+  - [X] Enhance prompts/rules to call `chroma_find_similar_thoughts` / `_sessions` (Implemented via `.cursor/rules/memory-integration-rule.mdc`).
 
 - [X] **5.6 Test Working Memory Integration (via MCP):**
-  - [X] Use `record-thought` console script extensively during debugging. Verified working.
+  - [X] Use `record-thought` console script extensively during debugging (via CLI & VS Code task). Verified working.
 
 - [X] **5.7 Add Unit Tests for Thinking Logic (`tests/thinking/`):**
   - [X] Create directory and tests.

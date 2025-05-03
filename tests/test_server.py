@@ -192,7 +192,7 @@ def create_dummy_args(**kwargs):
 def test_config_server_basic(mock_getenv, mock_get_logger, mock_set_main_logger):
     """Test basic server configuration."""
     # Improved logger mock using autospec for better accuracy
-    mock_logger = MagicMock(spec=logging.Logger, name="MockLogger") # Add name
+    mock_logger = MagicMock(spec=logging.Logger, name="MockLogger")  # Add name
     mock_logger.hasHandlers.return_value = False
     mock_logger.handlers = []
     mock_logger.level = logging.NOTSET
@@ -204,7 +204,7 @@ def test_config_server_basic(mock_getenv, mock_get_logger, mock_set_main_logger)
 
     # Configure getenv mock to return the desired level for LOG_LEVEL
     mock_getenv.side_effect = lambda key, default=None: "DEBUG" if key == "LOG_LEVEL" else default
-    args = create_dummy_args() # log_level in args is not used by config_server
+    args = create_dummy_args()  # log_level in args is not used by config_server
 
     # Patch _initialize_chroma_client to prevent real initialization
     with patch("src.chroma_mcp.server._initialize_chroma_client") as mock_init_client:
@@ -224,7 +224,7 @@ def test_config_server_basic(mock_getenv, mock_get_logger, mock_set_main_logger)
 # @patch("src.chroma_mcp.server.set_server_config")
 @patch("logging.getLogger")
 def test_config_server_with_log_file(
-    mock_get_logger, mock_set_logger, mock_file_handler, mock_makedirs # Removed mock_set_config
+    mock_get_logger, mock_set_logger, mock_file_handler, mock_makedirs  # Removed mock_set_config
 ):
     """Test server configuration with log file creation."""
     # Improved logger mock
@@ -255,7 +255,7 @@ def test_config_server_with_log_file(
 def test_config_server_cpu_provider_false(mock_get_logger, mock_set_config):
     """Test server config forces CPU provider off."""
     mock_logger = MagicMock(spec=logging.Logger)
-    mock_logger.hasHandlers.return_value = False # Add handler info
+    mock_logger.hasHandlers.return_value = False  # Add handler info
     mock_logger.handlers = []
     mock_logger.level = logging.INFO
     mock_get_logger.return_value = mock_logger
@@ -276,13 +276,13 @@ def test_config_server_cpu_provider_false(mock_get_logger, mock_set_config):
 
 
 @patch("src.chroma_mcp.server.load_dotenv", side_effect=Exception("dotenv fail"))
-@patch("logging.getLogger") # Keep this to avoid real logger calls
+@patch("logging.getLogger")  # Keep this to avoid real logger calls
 def test_config_server_dotenv_error(mock_get_logger, mock_load_dotenv, capsys):
     """Test exception during dotenv load is caught and raised as McpError."""
     # Provide a basic logger mock
     mock_logger = MagicMock(spec=logging.Logger)
     mock_get_logger.return_value = mock_logger
-    args = create_dummy_args(dotenv_path="/path/to/.env") # Need path to trigger load_dotenv
+    args = create_dummy_args(dotenv_path="/path/to/.env")  # Need path to trigger load_dotenv
 
     # Need to mock os.path.exists if dotenv_path is set
     with patch("os.path.exists", return_value=True):
@@ -466,7 +466,7 @@ def test_config_server_success(mock_getenv, mock_get_logger, mock_set_main_logge
     mock_logger = MagicMock(spec=logging.Logger)
     mock_logger.hasHandlers.return_value = False
     mock_logger.handlers = []
-    mock_logger.level = logging.INFO # Default level
+    mock_logger.level = logging.INFO  # Default level
     mock_get_logger.return_value = mock_logger
 
     # Configure getenv mock
@@ -478,7 +478,7 @@ def test_config_server_success(mock_getenv, mock_get_logger, mock_set_main_logge
     mock_args = create_dummy_args(
         client_type="persistent",
         data_dir="/test/data",
-        cpu_execution_provider="auto", # Test auto
+        cpu_execution_provider="auto",  # Test auto
         embedding_function_name="test-ef",
     )
 

@@ -161,7 +161,7 @@ async def _base_sequential_thinking_impl(
     # Use root logger for entry debug
     logging.info("--- ENTERING _base_sequential_thinking_impl ---")
 
-    logger = get_logger("tools.thinking") # Keep module logger for other messages
+    logger = get_logger("tools.thinking")  # Keep module logger for other messages
     try:
         # Access validated data from input model
         thought = input_data.thought
@@ -207,7 +207,7 @@ async def _base_sequential_thinking_impl(
             )
             logging.info(f"--- Collection '{collection.name}' obtained/created. ---")
         except Exception as e:
-            logging.error(f"--- FAILED to get/create collection: {e} ---", exc_info=True) # Root log error
+            logging.error(f"--- FAILED to get/create collection: {e} ---", exc_info=True)  # Root log error
             raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Could not access thinking collection: {str(e)}"))
 
         # Validate branch logic
@@ -352,7 +352,7 @@ async def _base_sequential_thinking_impl(
         }
         result_json = json.dumps(result_data, indent=2)
 
-        logging.info("--- EXITING _base_sequential_thinking_impl NORMALLY ---") # Root log exit
+        logging.info("--- EXITING _base_sequential_thinking_impl NORMALLY ---")  # Root log exit
         return [types.TextContent(type="text", text=result_json)]
 
     except ValidationError as e:
@@ -363,7 +363,9 @@ async def _base_sequential_thinking_impl(
         raise e
     except Exception as e:  # Catch other unexpected errors
         # Root log unexpected exceptions
-        logging.error(f"--- EXITING _base_sequential_thinking_impl VIA EXCEPTION: {type(e).__name__} ---", exc_info=True)
+        logging.error(
+            f"--- EXITING _base_sequential_thinking_impl VIA EXCEPTION: {type(e).__name__} ---", exc_info=True
+        )
         logger.error(f"Unexpected error during sequential thinking: {e}", exc_info=True)
         # Raise McpError instead of returning CallToolResult
         raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"An unexpected error occurred: {str(e)}"))
@@ -582,7 +584,7 @@ async def _get_session_summary_impl(input_data: GetSessionSummaryInput) -> List[
                     {
                         "id": results["ids"][i],  # Include ID
                         "content": results["documents"][i],
-                        "metadata": base_meta, # Use the fully reconstructed base_meta
+                        "metadata": base_meta,  # Use the fully reconstructed base_meta
                         "thought_number_sort_key": base_meta.get("thought_number", 999999),  # Get from base_meta
                     }
                 )

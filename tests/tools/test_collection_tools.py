@@ -204,7 +204,7 @@ class TestCollectionTools:
         mock_collection = MagicMock()
         mock_collection.name = collection_name
         mock_collection.id = "uuid-123"
-        default_settings = get_collection_settings() # Get defaults
+        default_settings = get_collection_settings()  # Get defaults
         stored_metadata = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings.items()}
         mock_collection.metadata = stored_metadata
         mock_collection.count.return_value = 0
@@ -215,11 +215,13 @@ class TestCollectionTools:
         mock_ef_instance = MockEmbeddingFunction(name="default")
 
         # --- Patching --- #
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance) as mock_get_client, \
-             patch("src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance) as mock_get_ef, \
-             patch("src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings) as mock_get_settings:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance
+        ) as mock_get_client, patch(
+            "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance
+        ) as mock_get_ef, patch(
+            "src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings
+        ) as mock_get_settings:
             # --- Act --- #
             input_data = CreateCollectionInput(collection_name=collection_name)
             result = await _create_collection_impl(input_data)
@@ -227,8 +229,8 @@ class TestCollectionTools:
             # --- Assert --- #
             mock_validate_name.assert_called_once_with(collection_name)
             mock_get_client.assert_called_once()
-            mock_get_ef.assert_called_once_with("default") # Assumes default config
-            mock_get_settings.assert_called_once() # Ensure settings were fetched
+            mock_get_ef.assert_called_once_with("default")  # Assumes default config
+            mock_get_settings.assert_called_once()  # Ensure settings were fetched
 
             expected_metadata_passed = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings.items()}
             mock_client_instance.create_collection.assert_called_once_with(
@@ -251,7 +253,7 @@ class TestCollectionTools:
         mock_collection = MagicMock()
         mock_collection.name = collection_name
         mock_collection.id = "uuid-123"
-        default_settings = get_collection_settings() # Get defaults
+        default_settings = get_collection_settings()  # Get defaults
         stored_metadata = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings.items()}
         mock_collection.metadata = stored_metadata
         mock_collection.count.return_value = 0
@@ -262,11 +264,13 @@ class TestCollectionTools:
         mock_ef_instance = MockEmbeddingFunction(name="default")
 
         # --- Patching --- #
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance) as mock_get_client, \
-             patch("src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance) as mock_get_ef, \
-             patch("src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings) as mock_get_settings:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance
+        ) as mock_get_client, patch(
+            "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance
+        ) as mock_get_ef, patch(
+            "src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings
+        ) as mock_get_settings:
             # --- Act --- #
             input_data = CreateCollectionInput(collection_name=collection_name)
             await _create_collection_impl(input_data)
@@ -274,7 +278,7 @@ class TestCollectionTools:
             # --- Assert --- #
             mock_validate_name.assert_called_once_with(collection_name)
             mock_get_client.assert_called_once()
-            mock_get_ef.assert_called_once_with("default") # Main assertion: default was used
+            mock_get_ef.assert_called_once_with("default")  # Main assertion: default was used
             mock_get_settings.assert_called_once()
 
             expected_metadata_passed = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings.items()}
@@ -296,7 +300,7 @@ class TestCollectionTools:
         mock_collection = MagicMock()
         mock_collection.name = collection_name
         mock_collection.id = mock_collection_id
-        default_settings = get_collection_settings() # Get defaults
+        default_settings = get_collection_settings()  # Get defaults
         metadata_stored_by_chroma = {f"chroma:setting:{k.replace(':', '_')}": v for k, v in default_settings.items()}
         mock_collection.metadata = metadata_stored_by_chroma
         mock_collection.count.return_value = 0
@@ -307,11 +311,13 @@ class TestCollectionTools:
         mock_ef_instance = MockEmbeddingFunction(name="default")
 
         # --- Patching --- #
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance) as mock_get_client, \
-             patch("src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance) as mock_get_ef, \
-             patch("src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings) as mock_get_settings:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance
+        ) as mock_get_client, patch(
+            "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance
+        ) as mock_get_ef, patch(
+            "src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings
+        ) as mock_get_settings:
             # --- Act --- #
             input_model = CreateCollectionInput(collection_name=collection_name)
             result_list = await _create_collection_impl(input_model)
@@ -616,7 +622,7 @@ class TestCollectionTools:
                 await _create_collection_with_metadata_impl(input_model)
 
             local_mock_validate.assert_called_once_with(invalid_name)
-            mock_create_collection.assert_not_called() # Client method should not be called
+            mock_create_collection.assert_not_called()  # Client method should not be called
 
     @pytest.mark.asyncio
     async def test_create_collection_with_metadata_invalid_json(self):
@@ -642,9 +648,9 @@ class TestCollectionTools:
         valid_metadata_json = '{"key": "value"}'
 
         # Patch validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
+        ) as mock_get_client:
             # Configure the mock client returned by get_chroma_client
             mock_client_instance = MagicMock()
             # Set the side effect directly on the mock client's method
@@ -670,9 +676,9 @@ class TestCollectionTools:
         valid_metadata_json = '{"key": "value"}'
 
         # Patch validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
+        ) as mock_get_client:
             # Configure the mock client returned by get_chroma_client
             mock_client_instance = MagicMock()
             # Set the side effect directly on the mock client's method
@@ -749,7 +755,9 @@ class TestCollectionTools:
             assert result_data.get("limit") == 1
             assert result_data.get("offset") == 1
 
-    @pytest.mark.skip(reason="got empty parameter set ['limit', 'offset', 'expected_error_msg'], function test_list_collections_validation_error at /Users/dominikus/git/nold-ai/chroma_mcp_server/tests/tools/test_collection_tools.py:745")
+    @pytest.mark.skip(
+        reason="got empty parameter set ['limit', 'offset', 'expected_error_msg'], function test_list_collections_validation_error at /Users/dominikus/git/nold-ai/chroma_mcp_server/tests/tools/test_collection_tools.py:745"
+    )
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "limit, offset, expected_error_msg",
@@ -1000,13 +1008,13 @@ class TestCollectionTools:
         new_name = "renamed_successfully"
 
         # Patch validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
+        ) as mock_get_client:
             # Configure mock client and the collection it returns
             mock_client_instance = MagicMock()
             mock_collection_instance = MagicMock()
-            mock_collection_instance.modify.return_value = None # modify returns None on success
+            mock_collection_instance.modify.return_value = None  # modify returns None on success
             mock_client_instance.get_collection.return_value = mock_collection_instance
             mock_get_client.return_value = mock_client_instance
 
@@ -1035,9 +1043,9 @@ class TestCollectionTools:
         new_name = "new_name_irrelevant"
 
         # Patch validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
+        ) as mock_get_client:
             # Configure the mock client's get_collection method to raise the error
             mock_client_instance = MagicMock()
             mock_client_instance.get_collection.side_effect = ValueError(f"Collection {original_name} does not exist.")
@@ -1062,12 +1070,14 @@ class TestCollectionTools:
         new_name = "new_name_exists"
 
         # Patch validator, client.get_collection, and collection.modify
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, \
-             patch("chromadb.api.client.Client.get_collection") as mock_get_collection_method, \
-             patch("chromadb.api.models.Collection.Collection.modify", # Patch the real modify
-                   side_effect=ValueError(f"Collection {new_name} already exists.")) as mock_modify_method, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=MagicMock()) as mock_get_client: # Add this patch
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
+            "chromadb.api.client.Client.get_collection"
+        ) as mock_get_collection_method, patch(
+            "chromadb.api.models.Collection.Collection.modify",  # Patch the real modify
+            side_effect=ValueError(f"Collection {new_name} already exists."),
+        ) as mock_modify_method, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=MagicMock()
+        ) as mock_get_client:  # Add this patch
             # Configure the mock collection returned by get_collection
             mock_collection_instance = MagicMock()
 
@@ -1081,12 +1091,14 @@ class TestCollectionTools:
         error_msg = "Rename blew up"
 
         # Patch validator, client.get_collection, and collection.modify
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, \
-             patch("chromadb.api.client.Client.get_collection") as mock_get_collection_method, \
-             patch("chromadb.api.models.Collection.Collection.modify", # Patch the real modify
-                   side_effect=Exception(error_msg)) as mock_modify_method, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=MagicMock()) as mock_get_client: # Add this patch
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
+            "chromadb.api.client.Client.get_collection"
+        ) as mock_get_collection_method, patch(
+            "chromadb.api.models.Collection.Collection.modify",  # Patch the real modify
+            side_effect=Exception(error_msg),
+        ) as mock_modify_method, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=MagicMock()
+        ) as mock_get_client:  # Add this patch
             # Configure the mock collection returned by get_collection
             mock_collection_instance = MagicMock()
 
@@ -1100,9 +1112,9 @@ class TestCollectionTools:
         error_msg = "Some other value issue"
 
         # Patch validator AND get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
+        ) as mock_get_chroma_client:
             # Configure mock client and the collection it returns
             mock_client_instance = MagicMock()
             mock_collection_instance = MagicMock()
@@ -1135,12 +1147,12 @@ class TestCollectionTools:
         collection_name = "delete_me"
 
         # Use nested patches for validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
+        ) as mock_get_chroma_client:
             # Configure mock client and its delete method
             mock_client_instance = MagicMock()
-            mock_client_instance.delete_collection.return_value = None # Successful delete
+            mock_client_instance.delete_collection.return_value = None  # Successful delete
             mock_get_chroma_client.return_value = mock_client_instance
 
             # --- Act ---
@@ -1169,9 +1181,9 @@ class TestCollectionTools:
         error_message = f"Collection {collection_name} does not exist."
 
         # Use nested patches for validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
+        ) as mock_get_chroma_client:
             # Configure mock client to raise ValueError on delete
             mock_client_instance = MagicMock()
             mock_client_instance.delete_collection.side_effect = ValueError(error_message)
@@ -1196,9 +1208,9 @@ class TestCollectionTools:
         error_msg = "Delete failed unexpectedly"
 
         # Use nested patches for validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
+        ) as mock_get_chroma_client:
             # Configure mock client to raise generic Exception on delete
             mock_client_instance = MagicMock()
             mock_client_instance.delete_collection.side_effect = Exception(error_msg)
@@ -1225,17 +1237,16 @@ class TestCollectionTools:
         error_msg = "Invalid collection name format"
 
         # Patch only the validator to raise error
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name",
-                   side_effect=ValidationError(error_msg)) as mock_validate, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client:
-
+        with patch(
+            "src.chroma_mcp.tools.collection_tools.validate_collection_name", side_effect=ValidationError(error_msg)
+        ) as mock_validate, patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client:
             input_model = DeleteCollectionInput(collection_name=collection_name)
             with assert_raises_mcp_error(f"Validation Error: {error_msg}"):
                 await _delete_collection_impl(input_model)
 
             # Assert mocks
             mock_validate.assert_called_once_with(collection_name)
-            mock_get_chroma_client.assert_not_called() # Client should not be fetched
+            mock_get_chroma_client.assert_not_called()  # Client should not be fetched
 
     @pytest.mark.asyncio
     # REMOVE explicit fixture if applied at class level
@@ -1246,9 +1257,9 @@ class TestCollectionTools:
         error_msg = "Another delete value error"
 
         # Use nested patches for validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, \
-             patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client:
-
+        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
+            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
+        ) as mock_get_chroma_client:
             # Configure mock client to raise specific ValueError (not 'not found')
             mock_client_instance = MagicMock()
             mock_client_instance.delete_collection.side_effect = ValueError(error_msg)
