@@ -222,8 +222,8 @@ def index_paths(
                                 indexed_count += 1
                 elif path_obj.is_file():
                     logger.debug(f"Indexing file: {p}")
-                    # Construct absolute path from CWD (which is repo root)
-                    absolute_file_path = (Path.cwd() / path_obj).resolve()
+                    # Construct absolute path from repo_root and the relative path_obj
+                    absolute_file_path = (repo_root / path_obj).resolve()
                     if index_file(absolute_file_path, repo_root, collection_name, supported_suffixes):
                         indexed_count += 1
                 else:
