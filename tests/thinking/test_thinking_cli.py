@@ -74,10 +74,10 @@ def mock_mcp_client():
 @pytest.mark.asyncio
 # @patch("chroma_mcp_thinking.thinking_cli.stdio_client")  # Remove if not needed for setup
 # @patch("chroma_mcp_thinking.thinking_cli.ClientSession") # Remove if not needed for setup
-@patch("builtins.open", new_callable=mock_open) # Mock open directly
+@patch("builtins.open", new_callable=mock_open)  # Mock open directly
 # Removed mock_stdio, MockSessionClass, mock_mcp_client args as they might not be needed if only testing file reading error path
 # async def test_cmd_record_from_file(mock_file_open, MockSessionClass, mock_stdio, mock_mcp_client):
-async def test_cmd_record_from_file(mock_file_open, mocker): # Added mocker fixture
+async def test_cmd_record_from_file(mock_file_open, mocker):  # Added mocker fixture
     """Test recording thoughts read from a file."""
     # Setup mock_open to return a file handle that behaves correctly with readlines()
     mock_file = MagicMock()
@@ -92,10 +92,8 @@ async def test_cmd_record_from_file(mock_file_open, mocker): # Added mocker fixt
     # --- Refined Async Context Manager Mocking --- #
     # Mock stdio_client to return an async context manager
     mock_stdio_cm = AsyncMock()
-    mock_stdio_cm.__aenter__.return_value = (AsyncMock(), AsyncMock()) # Mock read/write streams
-    mock_stdio = mocker.patch(
-        "chroma_mcp_thinking.thinking_cli.stdio_client", return_value=mock_stdio_cm
-    )
+    mock_stdio_cm.__aenter__.return_value = (AsyncMock(), AsyncMock())  # Mock read/write streams
+    mock_stdio = mocker.patch("chroma_mcp_thinking.thinking_cli.stdio_client", return_value=mock_stdio_cm)
 
     # Mock ClientSession class
     mock_client_session_cls = mocker.patch("chroma_mcp_thinking.thinking_cli.ClientSession")
@@ -113,10 +111,10 @@ async def test_cmd_record_from_file(mock_file_open, mocker): # Added mocker fixt
 
     args = argparse.Namespace(
         thought=None,
-        file="thoughts.txt", # Specify file input
+        file="thoughts.txt",  # Specify file input
         session_id="file-session",
         metadata=None,
-        thought_number=None, # Let it determine chain
+        thought_number=None,  # Let it determine chain
         total_thoughts=None,
         next_thought_needed=False,
         verbose=False,
@@ -134,21 +132,21 @@ async def test_cmd_record_from_file(mock_file_open, mocker): # Added mocker fixt
     assert mock_mcp_client.call_tool.await_count == 2
 
     # Check arguments of the first call
-    call1_args = mock_mcp_client.call_tool.await_args_list[0].kwargs['arguments']
+    call1_args = mock_mcp_client.call_tool.await_args_list[0].kwargs["arguments"]
     # Let's assert with the newline and see if *that* passes, confirming strip() isn't working in mock context
     # assert call1_args['thought'] == "Thought from file 1"
-    assert call1_args['thought'] == "Thought from file 1\\n" # Temporarily assert with newline
-    assert call1_args['thought_number'] == 1
-    assert call1_args['total_thoughts'] == 2
-    assert call1_args['session_id'] == "file-session"
+    assert call1_args["thought"] == "Thought from file 1\\n"  # Temporarily assert with newline
+    assert call1_args["thought_number"] == 1
+    assert call1_args["total_thoughts"] == 2
+    assert call1_args["session_id"] == "file-session"
 
     # Check arguments of the second call
-    call2_args = mock_mcp_client.call_tool.await_args_list[1].kwargs['arguments']
+    call2_args = mock_mcp_client.call_tool.await_args_list[1].kwargs["arguments"]
     # assert call2_args['thought'] == "Thought from file 2"
-    assert call2_args['thought'] == "Thought from file 2\\n" # Temporarily assert with newline
-    assert call2_args['thought_number'] == 2
-    assert call2_args['total_thoughts'] == 2
-    assert call2_args['session_id'] == "file-session"
+    assert call2_args["thought"] == "Thought from file 2\\n"  # Temporarily assert with newline
+    assert call2_args["thought_number"] == 2
+    assert call2_args["total_thoughts"] == 2
+    assert call2_args["session_id"] == "file-session"
 
 
 @pytest.mark.xfail(reason="Teardown issues with SystemExit and async context mocks")
@@ -199,7 +197,7 @@ async def test_cmd_record_invalid_metadata(mock_json_loads, mock_sys_exit):
         thought="A thought",
         file=None,
         session_id="meta-error-session",
-        metadata='{"invalid json', # Invalid JSON string
+        metadata='{"invalid json',  # Invalid JSON string
         thought_number=1,
         total_thoughts=1,
         next_thought_needed=False,
@@ -218,24 +216,22 @@ async def test_cmd_record_invalid_metadata(mock_json_loads, mock_sys_exit):
 @pytest.mark.asyncio
 @patch("chroma_mcp_thinking.thinking_cli._get_server_params")
 # @patch("chroma_mcp_thinking.thinking_cli.stdio_client") # Keep stdio mock
-@patch("chroma_mcp_thinking.thinking_cli.ClientSession") # Keep ClientSession mock
+@patch("chroma_mcp_thinking.thinking_cli.ClientSession")  # Keep ClientSession mock
 # async def test_cmd_record_client_init_error(mock_stdio, MockSessionClass, mock_get_params):
-async def test_cmd_record_client_init_error(MockSessionClass, mock_get_params, mocker): # Added mocker
+async def test_cmd_record_client_init_error(MockSessionClass, mock_get_params, mocker):  # Added mocker
     """Test handling failure during client initialization."""
-    mock_get_params.return_value = MagicMock() # Mock server params
+    mock_get_params.return_value = MagicMock()  # Mock server params
 
     # --- Refined Async Context Manager Mocking --- #
     # Mock stdio_client context manager
     mock_stdio_cm = AsyncMock()
-    mock_stdio_cm.__aenter__.return_value = (AsyncMock(), AsyncMock()) # Mock streams
-    mock_stdio = mocker.patch(
-        "chroma_mcp_thinking.thinking_cli.stdio_client", return_value=mock_stdio_cm
-    )
+    mock_stdio_cm.__aenter__.return_value = (AsyncMock(), AsyncMock())  # Mock streams
+    mock_stdio = mocker.patch("chroma_mcp_thinking.thinking_cli.stdio_client", return_value=mock_stdio_cm)
 
     # Mock the client instance and its methods
     mock_mcp_client = AsyncMock(spec=ClientSession)
-    mock_mcp_client.initialize = AsyncMock(side_effect=Exception("Init failed")) # Simulate init error
-    mock_mcp_client.call_tool = AsyncMock() # Need this for spec
+    mock_mcp_client.initialize = AsyncMock(side_effect=Exception("Init failed"))  # Simulate init error
+    mock_mcp_client.call_tool = AsyncMock()  # Need this for spec
 
     # Mock the ClientSession context manager to return the client instance
     mock_session_cm = AsyncMock()
@@ -253,7 +249,7 @@ async def test_cmd_record_client_init_error(MockSessionClass, mock_get_params, m
         next_thought_needed=False,
         verbose=False,
     )
-    with pytest.raises(Exception, match="Init failed"): # Expect the original exception
+    with pytest.raises(Exception, match="Init failed"):  # Expect the original exception
         await cmd_record_async(args)
 
     # Check context managers were called
@@ -261,30 +257,28 @@ async def test_cmd_record_client_init_error(MockSessionClass, mock_get_params, m
     MockSessionClass.assert_called_once()
 
     mock_mcp_client.initialize.assert_awaited_once()
-    mock_mcp_client.call_tool.assert_not_called() # Should not reach call_tool
+    mock_mcp_client.call_tool.assert_not_called()  # Should not reach call_tool
 
 
 @pytest.mark.asyncio
 @patch("chroma_mcp_thinking.thinking_cli._get_server_params")
 # @patch("chroma_mcp_thinking.thinking_cli.stdio_client") # Keep stdio mock
-@patch("chroma_mcp_thinking.thinking_cli.ClientSession") # Keep ClientSession mock
+@patch("chroma_mcp_thinking.thinking_cli.ClientSession")  # Keep ClientSession mock
 # async def test_cmd_record_call_tool_error(mock_stdio, MockSessionClass, mock_get_params):
-async def test_cmd_record_call_tool_error(MockSessionClass, mock_get_params, mocker): # Added mocker
+async def test_cmd_record_call_tool_error(MockSessionClass, mock_get_params, mocker):  # Added mocker
     """Test handling failure during client.call_tool."""
-    mock_get_params.return_value = MagicMock() # Mock server params
+    mock_get_params.return_value = MagicMock()  # Mock server params
 
     # --- Refined Async Context Manager Mocking --- #
     # Mock stdio_client context manager
     mock_stdio_cm = AsyncMock()
-    mock_stdio_cm.__aenter__.return_value = (AsyncMock(), AsyncMock()) # Mock streams
-    mock_stdio = mocker.patch(
-        "chroma_mcp_thinking.thinking_cli.stdio_client", return_value=mock_stdio_cm
-    )
+    mock_stdio_cm.__aenter__.return_value = (AsyncMock(), AsyncMock())  # Mock streams
+    mock_stdio = mocker.patch("chroma_mcp_thinking.thinking_cli.stdio_client", return_value=mock_stdio_cm)
 
     # Mock the client instance and its methods
     mock_mcp_client = AsyncMock(spec=ClientSession)
     mock_mcp_client.initialize = AsyncMock()
-    mock_mcp_client.call_tool = AsyncMock(side_effect=Exception("Tool call failed")) # Simulate tool call error
+    mock_mcp_client.call_tool = AsyncMock(side_effect=Exception("Tool call failed"))  # Simulate tool call error
 
     # Mock the ClientSession context manager to return the client instance
     mock_session_cm = AsyncMock()
@@ -302,7 +296,7 @@ async def test_cmd_record_call_tool_error(MockSessionClass, mock_get_params, moc
         next_thought_needed=False,
         verbose=False,
     )
-    with pytest.raises(Exception, match="Tool call failed"): # Expect the original exception
+    with pytest.raises(Exception, match="Tool call failed"):  # Expect the original exception
         await cmd_record_async(args)
 
     # Check context managers were called
@@ -310,7 +304,7 @@ async def test_cmd_record_call_tool_error(MockSessionClass, mock_get_params, moc
     MockSessionClass.assert_called_once()
 
     mock_mcp_client.initialize.assert_awaited_once()
-    mock_mcp_client.call_tool.assert_awaited_once() # Should attempt the call
+    mock_mcp_client.call_tool.assert_awaited_once()  # Should attempt the call
 
 
 @pytest.mark.asyncio
@@ -330,11 +324,11 @@ async def test_cmd_record_from_env_var(MockSessionClass, mock_stdio, mock_mcp_cl
     mock_stdio.return_value = mock_stdio_cm
 
     args = argparse.Namespace(
-        thought=None, # No direct thought
-        file=None,    # No file
+        thought=None,  # No direct thought
+        file=None,  # No file
         session_id="env-session",
         metadata=None,
-        thought_number=1, # Specify thought number
+        thought_number=1,  # Specify thought number
         total_thoughts=1,
         next_thought_needed=False,
         verbose=False,
