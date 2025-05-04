@@ -32,7 +32,8 @@ chroma-client [OPTIONS] COMMAND [ARGS]...
 
 ### Global Options
 
-- `--log-level LEVEL`: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default: `INFO`.
+- `-h`, `--help`: Show the help message and exit.
+- `--log-level LEVEL`: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Overrides the `LOG_LEVEL` environment variable if set. Defaults to the value of the `LOG_LEVEL` environment variable, or `INFO` if the environment variable is not set or invalid.
 
 ### Commands
 

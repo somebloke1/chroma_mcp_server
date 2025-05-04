@@ -47,7 +47,7 @@ This approach uses the `chroma-mcp-client` CLI, run via `hatch` to ensure the co
         fi
     }
     
-    # Portable locking mechanism to prevent multiple hooks running simultaneously
+    # Portable locking mechanism (doesn't rely on flock)
     LOCKFILE="/tmp/chroma_index.lock.$(calculate_md5 "$REPO_ROOT")"
     
     # Try to create the lockfile as an atomic operation
@@ -85,8 +85,9 @@ This approach uses the `chroma-mcp-client` CLI, run via `hatch` to ensure the co
     # Ensure we are in the project root for hatch and for relative paths
     cd "$REPO_ROOT"
     
-    # Execute the client CLI using hatch run
-    hatch run python -m chroma_mcp_client.cli index \
+    # Run the client indexing command via hatch
+    # By default, it uses LOG_LEVEL from .env or INFO, if not set in .env
+    hatch run python -m chroma_mcp_client.cli --log-level INFO index \
         --repo-root "$REPO_ROOT" \
         --collection-name "$COLLECTION_NAME" \
         -- "${changed_files[@]}" # Pass files as positional arguments after --
