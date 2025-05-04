@@ -169,7 +169,9 @@
         ---
         ```
 
-  - [ ] **Feasibility:** Investigate the reliability of enforcing such actions via IDE rules. Develop fallback or complementary mechanisms if needed.
+    See [Automated Chat History Logging](docs/integration/automated_chat_logging.md) for details on setting up this rule.
+
+  - [X] **Feasibility Confirmed:** ~~Investigate the reliability of enforcing such actions via IDE rules. Develop fallback or complementary mechanisms if needed.~~ **Confirmed:** Initial tests show the mechanism of using an IDE rule to trigger automated logging via MCP calls is feasible. **Note:** Continued monitoring for reliability across diverse interactions is recommended, as rule refinements were needed during initial testing.
 
 - [ ] **4.3 Develop Analysis Engine (e.g., `scripts/analyze_chat_history.py`):**
   - [ ] Create a script or tool that:

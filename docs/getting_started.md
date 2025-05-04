@@ -172,6 +172,12 @@ Cursor uses `.cursor/mcp.json` to configure server launch commands:
 
 After installing, restart the `chroma` server in Cursor.
 
+### Automated Chat History Logging
+
+Leveraging the MCP integration, the server supports automatically logging summaries of AI chat interactions into a dedicated ChromaDB collection. This provides a persistent record for analysis and context retrieval.
+
+See the **[Automated Chat History Logging Guide](integration/automated_chat_logging.md)** for configuration details.
+
 ## Development
 
 ### Development Prerequisites
