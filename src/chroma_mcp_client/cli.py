@@ -9,6 +9,7 @@ import os
 import sys
 import logging
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Removed sys.path manipulation logic
 # Imports should work directly when the package is installed
@@ -23,6 +24,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_COLLECTION_NAME = "codebase_v1"
 DEFAULT_QUERY_RESULTS = 5
 
+# Load environment variables from .env file
+load_dotenv()
+
+# Determine default log level from environment or fallback
+default_log_level_env = os.getenv("LOG_LEVEL", "INFO").upper()
+if default_log_level_env not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+    default_log_level_env = "INFO"  # Fallback if invalid value in env
+
 
 def main():
     """Main entry point for the chroma-client CLI."""
@@ -32,9 +41,9 @@ def main():
     )
     parser.add_argument(
         "--log-level",
-        default="INFO",
+        default=default_log_level_env,
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set the logging level.",
+        help="Set the logging level. Overrides LOG_LEVEL env var.",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
@@ -93,10 +102,12 @@ def main():
 
     args = parser.parse_args()
 
-    # Set logging level
-    log_level = getattr(logging, args.log_level.upper(), logging.INFO)
+    # Set logging level based on the final value in args (priority: CLI arg > env var > INFO)
+    log_level_name = args.log_level  # Already incorporates the default logic
+    log_level = getattr(logging, log_level_name, logging.INFO)
     logging.getLogger().setLevel(log_level)  # Set root logger level
-    logger.info(f"Log level set to {args.log_level}")
+    # Use log_level_name in the message for clarity
+    logger.info(f"Log level set to {log_level_name}")
 
     # Initialize client/EF early to catch connection errors
     try:

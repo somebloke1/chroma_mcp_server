@@ -18,9 +18,17 @@ The Chroma MCP Server aims to streamline this process by providing a persistent,
 
 By integrating ChromaDB through MCP, this server facilitates more seamless and context-aware AI-assisted development, reducing manual overhead and improving the continuity of complex tasks across multiple sessions.
 
+Learn more about how this approach creates an integrated "Second Brain" in the [Getting Started with your Second Brain guide](docs/getting_started_second_brain.md).
+
 ## Overview
 
-The Chroma MCP Server allows you to connect AI applications with Chroma through the Model Context Protocol. This enables AI models to:
+The Chroma MCP Server allows you to connect AI applications with Chroma through the Model Context Protocol. Beyond standard MCP interactions, this implementation emphasizes creating a persistent, automatically updated "Second Brain" for development by integrating:
+
+- **Automated Codebase Indexing:** Tools and configurations (like Git hooks calling a dedicated `chroma-mcp-client`) enable automatic indexing of code changes into a designated Chroma collection.
+- **Automated Chat Logging:** IDE rules (like `auto_log_chat` for Cursor) facilitate automatic summarization and logging of AI chat interactions into a separate Chroma collection.
+- **Working Memory Tools:** Specialized MCP commands for capturing and retrieving structured thoughts and development context.
+
+This enables AI models to:
 
 - Store and retrieve embeddings
 - Perform semantic search on vector data

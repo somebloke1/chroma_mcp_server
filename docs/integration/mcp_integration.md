@@ -160,6 +160,12 @@ if retrieved_ids:
 
 ```
 
+## Automated Chat History Logging
+
+A key feature enabled by this MCP integration is the ability to automatically log summaries of chat interactions (prompts, AI responses, actions) directly into a ChromaDB collection (e.g., `chat_history_v1`). This is typically configured using IDE-specific rules that instruct the AI assistant to perform the logging after each response.
+
+See the **[Automated Chat History Logging Guide](automated_chat_logging.md)** for details on setting up this feature in your IDE.
+
 ## Troubleshooting
 
 ### Common Issues

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Set
 import os
 
-# Explicitly configure logger for this module to ensure DEBUG messages are shown
+# Explicitly configure logger for this module to ensure DEBUG messages are shown when configured
 logger = logging.getLogger(__name__)
 # Check if handlers are already present to avoid duplicates if run multiple times
 if not logger.handlers:
@@ -15,7 +15,6 @@ if not logger.handlers:
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)  # Force DEBUG level for this logger
 
 from .connection import get_client_and_ef
 

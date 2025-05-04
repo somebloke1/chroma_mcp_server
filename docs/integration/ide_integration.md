@@ -98,4 +98,10 @@ JetBrains IDEs allow configuring "External Tools".
 
 Most other programmable IDEs or text editors (e.g., Sublime Text, Neovim) offer ways to run external shell commands and bind them to shortcuts or commands, often involving configuration files or scripting. Consult your specific IDE's documentation for running shell commands and accessing selected text.
 
-The core principle remains the same: execute `hatch run python -m chroma_mcp_thinking.thinking_cli record "<selected_text_or_input>"` from the project root directory.
+The core principle remains the same: execute `hatch run python -m chroma_mcp_thinking.thinking_cli record \"<selected_text_or_input>\"` from the project root directory.
+
+## Automated Chat Logging Integration
+
+Beyond recording individual thoughts, this project also supports automatically logging summaries of entire chat interactions using the `auto_log_chat` rule. This provides a persistent history of prompts, responses, and actions taken.
+
+For details on how to configure your IDE (especially Cursor) to enable this feature, see the **[Automated Chat History Logging Guide](automated_chat_logging.md)**.

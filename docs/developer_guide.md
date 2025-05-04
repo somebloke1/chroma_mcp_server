@@ -197,6 +197,12 @@ The Smithery CLI reads the `smithery.yaml` file within the installed package, ex
 
 **Note:** As detailed in the [Smithery Integration Guide](docs/refactoring/hatch_smithery_integration.md), this server only supports local execution via Smithery. Online hosting (Smithery Deployments) is **not** supported due to potential interaction with local sensitive data.
 
+## Automated Chat Logging
+
+This project includes capabilities for automatically logging summaries of AI chat interactions to ChromaDB, facilitated by IDE rules (e.g., `.cursor/rules/auto_log_chat.mdc`). See the [Automated Chat History Logging Guide](docs/integration/automated_chat_logging.md) for setup details.
+
+## Working Memory and Thinking Tools
+
 ## Testing
 
 Tests are located in the `tests/` directory and use `pytest`. Run tests using the script:
