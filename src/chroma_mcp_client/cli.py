@@ -30,7 +30,8 @@ load_dotenv()
 # Determine default log level from environment or fallback
 default_log_level_env = os.getenv("LOG_LEVEL", "INFO").upper()
 if default_log_level_env not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-    default_log_level_env = "INFO" # Fallback if invalid value in env
+    default_log_level_env = "INFO"  # Fallback if invalid value in env
+
 
 def main():
     """Main entry point for the chroma-client CLI."""
@@ -102,7 +103,7 @@ def main():
     args = parser.parse_args()
 
     # Set logging level based on the final value in args (priority: CLI arg > env var > INFO)
-    log_level_name = args.log_level # Already incorporates the default logic
+    log_level_name = args.log_level  # Already incorporates the default logic
     log_level = getattr(logging, log_level_name, logging.INFO)
     logging.getLogger().setLevel(log_level)  # Set root logger level
     # Use log_level_name in the message for clarity

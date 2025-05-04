@@ -284,6 +284,7 @@ def test_query_command(mock_get_client_ef, mock_argparse, test_dir, capsys):
 
 # --- Test Log Level Setting ---
 
+
 # Use parametrize to test different scenarios
 @pytest.mark.parametrize(
     "cli_args, env_vars, expected_level_name, expected_log_level",
@@ -304,8 +305,8 @@ def test_query_command(mock_get_client_ef, mock_argparse, test_dir, capsys):
         (["--log-level", "DEBUG", "count"], {"LOG_LEVEL": "INVALID"}, "DEBUG", logging.DEBUG),
     ],
 )
-@patch("chroma_mcp_client.cli.get_client_and_ef") # Mock client connection
-@patch("logging.getLogger") # Mock getLogger to check setLevel
+@patch("chroma_mcp_client.cli.get_client_and_ef")  # Mock client connection
+@patch("logging.getLogger")  # Mock getLogger to check setLevel
 def test_log_level_precedence(
     mock_getLogger, mock_get_client, monkeypatch, cli_args, env_vars, expected_level_name, expected_log_level
 ):
@@ -327,7 +328,7 @@ def test_log_level_precedence(
     mock_collection_instance = MagicMock()
     mock_collection_instance.count.return_value = 5
     mock_client_instance.get_collection.return_value = mock_collection_instance
-    mock_get_client.return_value = (mock_client_instance, MagicMock()) # Return mock client and EF
+    mock_get_client.return_value = (mock_client_instance, MagicMock())  # Return mock client and EF
 
     # Run the CLI main function (need to reload module to pick up env vars for default)
     # Since default is calculated at import time, need a way to re-evaluate
@@ -345,24 +346,25 @@ def test_log_level_precedence(
     with patch("argparse.ArgumentParser") as mock_ArgumentParser:
         # Instance that ArgumentParser() returns
         mock_parser_instance = MagicMock()
+
         # Simulate the behavior of add_argument and parse_args
         def add_argument_side_effect(*args, **kwargs):
-             # Capture the default value logic when --log-level is added
-            if kwargs.get('dest') == 'log_level':
+            # Capture the default value logic when --log-level is added
+            if kwargs.get("dest") == "log_level":
                 # Re-calculate default based on current env for this test run
                 # Use os.getenv here as well
                 env_level = os.getenv("LOG_LEVEL", "INFO").upper()
                 if env_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-                     env_level = "INFO"
-                kwargs['default'] = env_level
+                    env_level = "INFO"
+                kwargs["default"] = env_level
             # Store args/kwargs or simulate behavior if needed
-            pass # Simplified: just capture default
+            pass  # Simplified: just capture default
 
         mock_parser_instance.add_argument = MagicMock(side_effect=add_argument_side_effect)
         # Make parse_args return the test args
         mock_parse_result = MagicMock()
         # Simulate parsed args based on cli_args and the *correct* default
-        parsed_args_dict = {'command': cli_args[-1]} # Assuming command is last
+        parsed_args_dict = {"command": cli_args[-1]}  # Assuming command is last
         # Calculate the expected default for this specific run
         # Use os.getenv here
         current_env_default = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -371,12 +373,12 @@ def test_log_level_precedence(
 
         if "--log-level" in cli_args:
             log_level_index = cli_args.index("--log-level")
-            parsed_args_dict['log_level'] = cli_args[log_level_index + 1]
+            parsed_args_dict["log_level"] = cli_args[log_level_index + 1]
         else:
-            parsed_args_dict['log_level'] = current_env_default # Use env or INFO default
+            parsed_args_dict["log_level"] = current_env_default  # Use env or INFO default
 
         # Add other necessary args for the 'count' command
-        parsed_args_dict['collection_name'] = cli.DEFAULT_COLLECTION_NAME
+        parsed_args_dict["collection_name"] = cli.DEFAULT_COLLECTION_NAME
 
         # Set attributes on the mock result object
         for key, value in parsed_args_dict.items():
@@ -390,10 +392,9 @@ def test_log_level_precedence(
             cli.main()
         except SystemExit as e:
             # Allow sys.exit(0) for successful commands like count
-             assert e.code == 0 or e.code is None, f"CLI exited with unexpected code {e.code}"
+            assert e.code == 0 or e.code is None, f"CLI exited with unexpected code {e.code}"
         except Exception as e:
             pytest.fail(f"cli.main() raised an unexpected exception: {e}")
-
 
     # Assert that the root logger's setLevel was called with the correct level
     mock_root_logger.setLevel.assert_called_once_with(expected_log_level)
@@ -407,46 +408,54 @@ def test_log_level_precedence(
 @pytest.fixture
 def mock_chromadb_client():
     # ... existing code ...
-    pass # Add pass to fix indentation error
+    pass  # Add pass to fix indentation error
+
 
 # --- Index Command Tests ---
 @patch("chroma_mcp_client.cli.index_git_files")
 @patch("chroma_mcp_client.cli.get_client_and_ef")
 def test_index_all(mock_get_client, mock_index_git, monkeypatch, tmp_path):
     # ... existing code ...
-    pass # Add pass to fix indentation error
+    pass  # Add pass to fix indentation error
+
 
 @patch("chroma_mcp_client.cli.index_file")
 @patch("chroma_mcp_client.cli.get_client_and_ef")
 def test_index_specific_files(mock_get_client, mock_index_file, monkeypatch, tmp_path):
     # ... existing code ...
-    pass # Add pass to fix indentation error
+    pass  # Add pass to fix indentation error
+
 
 # --- Count Command Tests ---
 @patch("chroma_mcp_client.cli.get_client_and_ef")
 def test_count_command_success(mock_get_client, monkeypatch, capsys):
     # ... existing code ...
-    pass # Add pass to fix indentation error
+    pass  # Add pass to fix indentation error
+
 
 @patch("chroma_mcp_client.cli.get_client_and_ef")
 def test_count_command_collection_not_found(mock_get_client, monkeypatch, capsys):
     # ... existing code ...
-    pass # Add pass to fix indentation error
+    pass  # Add pass to fix indentation error
+
 
 # --- Query Command Tests ---
 @patch("chroma_mcp_client.cli.get_client_and_ef")
 def test_query_command_success(mock_get_client, monkeypatch, capsys):
     # ... existing code ...
-    pass # Add pass to fix indentation error
+    pass  # Add pass to fix indentation error
+
 
 @patch("chroma_mcp_client.cli.get_client_and_ef")
 def test_query_command_no_results(mock_get_client, monkeypatch, capsys):
     # ... existing code ...
-    pass # Add pass to fix indentation error
+    pass  # Add pass to fix indentation error
+
 
 @patch("chroma_mcp_client.cli.get_client_and_ef")
 def test_query_command_collection_not_found(mock_get_client, monkeypatch, capsys):
     # ... existing code ...
-    pass # Add pass to fix indentation error
+    pass  # Add pass to fix indentation error
+
 
 # Add other tests as needed for error handling, edge cases etc.
