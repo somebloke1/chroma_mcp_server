@@ -68,7 +68,7 @@ def index_file(
     """
     # --- Ensure file_path is absolute --- START
     if not file_path.is_absolute():
-        logger.warning(
+        logger.debug(
             f"[index_file] Received relative path '{file_path}'. Assuming relative to repo_root '{repo_root}'."
         )
         file_path = (repo_root / file_path).resolve()
