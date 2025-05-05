@@ -114,8 +114,8 @@ The server primarily uses environment variables for configuration. A `.env` file
   - `cloud`: Connects to a ChromaDB Cloud instance. Requires `CHROMA_TENANT`, `CHROMA_DATABASE`, and `CHROMA_API_KEY` to be set. The MCP server acts only as a client.
 - `CHROMA_DATA_DIR`: Path for persistent storage (required and only used if `CHROMA_CLIENT_TYPE=persistent`).
 - `CHROMA_LOG_DIR`: Path for log files (defaults to a temporary directory).
-- `LOG_LEVEL`: Logging verbosity (e.g., `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). Defaults to `INFO`.
-- `MCP_LOG_LEVEL`: Specific logging verbosity for the MCP server components.
+- `LOG_LEVEL`: Sets the default logging level for server components and the client CLI (if not overridden by `-v`/`--verbose`).
+- `MCP_LOG_LEVEL`: Sets the logging level specifically for the MCP framework components (e.g., `INFO`, `DEBUG`).
 - `CHROMA_EMBEDDING_FUNCTION`: Specifies the embedding function to use (e.g., `default`, `accurate`, `openai`). See README or API reference for all options. Requires API keys for non-local models.
 - API Keys: If using API-based embedding functions (like `openai`, `gemini`), ensure the relevant environment variables (e.g., `OPENAI_API_KEY`, `GOOGLE_API_KEY`) are set.
 - Connection Details (`http`/`cloud` modes):
@@ -325,7 +325,6 @@ Certain arguments can also be set via environment variables:
 - `CHROMA_API_KEY`: Overrides `--api-key` (for persistent HTTP/HTTPS clients).
 - `CHROMA_EMBEDDING_FUNCTION`: Overrides `--embedding-function`.
 - `CHROMA_LOG_DIR`: Overrides `--log-dir`.
-- `CHROMA_LOG_LEVEL`: Overrides `--log-level`.
 - `ONNX_CPU_PROVIDER`: Overrides `--cpu-execution-provider` (true/false).
 - `OPENAI_API_KEY`: Required if using `--embedding-function openai`.
 - `COHERE_API_KEY`: Required if using `--embedding-function cohere`.

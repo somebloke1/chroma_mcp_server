@@ -351,3 +351,12 @@ These arguments apply when running the server directly (e.g., `chroma-mcp-server
 * `-h`, `--help`: Show help message and exit.
 
 Environment variables often override these defaults. See the `.env.template` file for corresponding variable names.
+
+Key environment variables (set in `.env`):
+
+* `CHROMA_CLIENT_TYPE`: `persistent`, `http`, `cloud`, etc.
+* `CHROMA_DATA_DIR`: Path for persistent data.
+* `LOG_LEVEL`: Sets the default logging level for server components and the client CLI (if not overridden by the client's `-v`/`--verbose` flags).
+* `MCP_LOG_LEVEL`: Sets the logging level specifically for MCP framework components.
+* `CHROMA_EMBEDDING_FUNCTION`: `default`, `accurate`, `openai`, etc.
+* API keys (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, etc.) as needed for embedding functions.

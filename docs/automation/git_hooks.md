@@ -30,69 +30,42 @@ This approach uses the `chroma-mcp-client` CLI, run via `hatch` to ensure the co
 3. **Paste the script content:** Open the `post-commit` file in a text editor and paste the following script:
 
     ```bash
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    REPO_ROOT=$(git rev-parse --show-toplevel)
-    
-    # Cross-platform MD5 - macOS uses md5, Linux uses md5sum
-    calculate_md5() {
-        if command -v md5sum >/dev/null 2>&1; then
-            echo "$1" | md5sum | cut -d' ' -f1
-        elif command -v md5 >/dev/null 2>&1; then
-            echo "$1" | md5 | cut -d'=' -f2 | tr -d ' '
-        else
-            # Fallback to simple hash
-            echo "$1" | cksum | cut -d' ' -f1
-        fi
-    }
-    
-    # Portable locking mechanism (doesn't rely on flock)
-    LOCKFILE="/tmp/chroma_index.lock.$(calculate_md5 "$REPO_ROOT")"
-    
-    # Try to create the lockfile as an atomic operation
-    if ! mkdir "$LOCKFILE" 2>/dev/null; then
-        echo "Indexer already running, skipping commit hook index." >&2
-        exit 0 # Exit successfully if lock held
-    fi
-    
-    # Register trap to remove the lockfile on exit (including errors)
-    trap 'rm -rf "$LOCKFILE"' EXIT
-    
-    # --- Configuration --- 
-    # Default collection name - change if needed
-    COLLECTION_NAME="codebase_v1" 
-    # -------------------
+    #!/bin/sh
+    # .git/hooks/post-commit
 
-    # Get list of changed files (Added or Modified) in the last commit
-    # Use -z and mapfile/readarray for safer filename handling
-    changed_files=()
-    while IFS= read -r -d $'\0' file; do
-        # Only add files that actually exist (handles edge cases)
-        if [ -f "$REPO_ROOT/$file" ]; then
-             changed_files+=("$file")
-        fi
-    done < <(git diff-tree --no-commit-id --name-only --diff-filter=d -r -z HEAD)
-    
-    # Exit if no tracked files were changed/added
-    if [ ${#changed_files[@]} -eq 0 ]; then
-        echo "No files added/modified in this commit. Skipping indexing." >&2
-        exit 0
+    echo "Running post-commit hook: Indexing changed files..."
+
+    # Ensure we are in the project root
+    PROJECT_ROOT=$(git rev-parse --show-toplevel)
+    cd "$PROJECT_ROOT" || exit 1
+
+    # Get list of changed/added Python files in the last commit
+    # Use --diff-filter=AM to only get Added or Modified files
+    FILES=$(git diff-tree --no-commit-id --name-only -r HEAD --diff-filter=AM -- "*.py" "*.md" "*.txt")
+
+    if [ -z "$FILES" ]; then
+      echo "No relevant files changed in this commit."
+      exit 0
     fi
-    
-    echo "Running post-commit indexing for ${#changed_files[@]} changed files via hatch..." >&2
-    # Construct the command with the changed files as arguments
-    # Ensure we are in the project root for hatch and for relative paths
-    cd "$REPO_ROOT"
-    
-    # Run the client indexing command via hatch
-    # By default, it uses LOG_LEVEL from .env or INFO, if not set in .env
-    hatch run python -m chroma_mcp_client.cli --log-level INFO index \
-        --repo-root "$REPO_ROOT" \
-        --collection-name "$COLLECTION_NAME" \
-        -- "${changed_files[@]}" # Pass files as positional arguments after --
-    
-    echo "Post-commit indexing finished." >&2
+
+    echo "Files to index:"
+    echo "$FILES"
+
+    # Run the indexer using hatch (adjust log level as needed)
+    # Use the full path to the file list to avoid issues
+    # Convert FILES to an argument list
+    FILES_ARGS=$(echo "$FILES" | tr '\n' ' ')
+
+    # Run the client - use -vv for DEBUG level
+    hatch run python -m chroma_mcp_client.cli -vv index $FILES_ARGS
+
+    if [ $? -ne 0 ]; then
+      echo "Error running chroma-client indexer!"
+      exit 1
+    fi
+
+    echo "Post-commit indexing complete."
+    exit 0
     ```
 
 4. **Make the script executable:**

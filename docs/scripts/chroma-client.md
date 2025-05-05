@@ -33,7 +33,7 @@ chroma-client [OPTIONS] COMMAND [ARGS]...
 ### Global Options
 
 - `-h`, `--help`: Show the help message and exit.
-- `--log-level LEVEL`: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Overrides the `LOG_LEVEL` environment variable if set. Defaults to the value of the `LOG_LEVEL` environment variable, or `INFO` if the environment variable is not set or invalid.
+- `-v, --verbose`: Increase output verbosity. Use `-v` for INFO level, `-vv` for DEBUG level. Defaults to INFO.
 
 ### Commands
 
@@ -51,9 +51,9 @@ chroma-client index [OPTIONS] [PATHS...]
 
 **Options:**
 
-- `--repo-root PATH`: Repository root path. Used for determining relative paths for document IDs and metadata. Default: Current working directory.
-- `--all`: Index all files currently tracked by git in the specified `--repo-root`.
-- `--collection-name NAME`: Name of the ChromaDB collection to use. Default: `codebase_v1`.
+- `--repo-root PATH`: Path to the Git repository root (default: current directory). Used to determine relative file paths for document IDs.
+- `--all`: Index all files tracked by Git in the specified repository.
+- `--collection-name NAME`: Specify the ChromaDB collection name (default: `codebase_v1`).
 
 **Examples:**
 

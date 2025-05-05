@@ -12,15 +12,14 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Get our specific logger
+logger = logging.getLogger(__name__)
+
 # Removed sys.path manipulation logic
 # Imports should work directly when the package is installed
 from .connection import get_client_and_ef
 from .indexing import index_file, index_git_files
 from .analysis import analyze_chat_history  # Import the new function
-
-# Basic logging configuration (can be enhanced)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-logger = logging.getLogger(__name__)
 
 # --- Constants ---
 DEFAULT_COLLECTION_NAME = "codebase_v1"
@@ -37,15 +36,23 @@ if default_log_level_env not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
 
 def main():
     """Main entry point for the chroma-client CLI."""
+    # Configure logging EARLY inside main()
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    # Set a default level; will be adjusted based on verbosity later
+    logging.basicConfig(level=logging.WARNING, format=log_format)
+    # Re-get logger after basicConfig is potentially set
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description="ChromaDB Client CLI for indexing and querying.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--log-level",
-        default=default_log_level_env,
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set the logging level. Overrides LOG_LEVEL env var.",
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase output verbosity (e.g., -v for INFO, -vv for DEBUG)",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
@@ -155,12 +162,23 @@ def main():
 
     args = parser.parse_args()
 
-    # Set logging level based on the final value in args (priority: CLI arg > env var > INFO)
-    log_level_name = args.log_level  # Already incorporates the default logic
-    log_level = getattr(logging, log_level_name, logging.INFO)
-    logging.getLogger().setLevel(log_level)  # Set root logger level
-    # Use log_level_name in the message for clarity
-    logger.info(f"Log level set to {log_level_name}")
+    # --- Setup Logging Level based on verbosity ---
+    if args.verbose == 1:
+        log_level = logging.INFO
+    elif args.verbose >= 2:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO  # Default to INFO if not specified or 0
+
+    # Set the level for the root logger
+    # (This affects all loggers unless they have their own level set)
+    logging.getLogger().setLevel(log_level)
+    # Set the level specifically for our client loggers if desired
+    logging.getLogger("chroma_mcp_client").setLevel(log_level)
+    # Optionally set levels for other loggers if needed (e.g., sentence_transformers)
+    logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+
+    logger.info(f"Log level set to {logging.getLevelName(log_level)}")
 
     # Initialize client/EF early to catch connection errors
     try:

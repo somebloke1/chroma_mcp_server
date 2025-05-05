@@ -26,26 +26,23 @@ Navigate to the project root directory and run the script:
 ./scripts/analyze_chat_history.sh [OPTIONS]
 ```
 
-### Options
+### Script Parameters
 
-The script passes any arguments directly to the underlying `chroma-client analyze-chat-history` command. Refer to the `chroma-client` documentation for available options:
+The script accepts several command-line arguments:
 
-- `--collection-name NAME`: Name of the chat history collection (Default: `chat_history_v1`).
-- `--repo-path PATH`: Path to the Git repository (Default: Current directory).
-- `--status-filter STATUS`: Status of entries to analyze (Default: `captured`).
-- `--new-status STATUS`: Status to set after analysis (Default: `analyzed`).
-- `--days-limit N`: Number of days back to analyze (Default: `7`, 0 for no limit).
-- `--log-level LEVEL`: Logging level (DEBUG, INFO, etc.).
+- `--collection-name NAME`: Specify the ChromaDB collection (default: `chat_history_v1`).
+- `--repo-path PATH`: Path to the Git repository (default: current directory).
+- `--status-filter STATUS`: Filter entries by this metadata status (default: `captured`).
+- `--new-status STATUS`: Set entries to this status after analysis (default: `analyzed`).
+- `--days-limit DAYS`: How many days back to look for entries (default: 7).
+- `-v, --verbose`: Increase logging verbosity (`-v` for INFO, `-vv` for DEBUG). Default: INFO.
 
-### Examples
+### Example Usage
 
 ```bash
-# Analyze entries from the last 30 days using default settings
-./scripts/analyze_chat_history.sh --days-limit 30
+# Analyze entries from the last day with DEBUG logging
+./scripts/analyze_chat_history.sh -vv --days-limit 1
 
-# Analyze entries in a specific repo path
-./scripts/analyze_chat_history.sh --repo-path /path/to/your/repo
-
-# Analyze with DEBUG logging
-./scripts/analyze_chat_history.sh --log-level DEBUG --days-limit 1
+# Analyze entries with default settings
+./scripts/analyze_chat_history.sh
 ```
