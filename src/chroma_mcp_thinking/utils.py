@@ -1,6 +1,7 @@
 """
 Utility functions for working with thinking sessions.
 """
+
 from typing import Dict, List, Optional, Any
 
 from chroma_mcp_client import ChromaMcpClient

@@ -12,7 +12,7 @@
 - **Rebuild & Reinstall after Changes:** After modifying the `chroma-mcp-server` codebase (including client or thinking modules), you **must** rebuild and reinstall the package within the Hatch environment to ensure the changes take effect when using `hatch run` commands (like the test script or the VS Code task). Use the following command from the project root:
 
   ```bash
-  hatch build && hatch run pip uninstall chroma-mcp-server -y && hatch run pip install dist/*.whl
+  hatch build && hatch run pip uninstall chroma-mcp-server -y && hatch run pip install 'dist/chroma_mcp_server-<version>-py3-none-any.whl[full,dev]'
   ```
 
 - **Run Tests After Updates:** After making code changes and reinstalling, always run the unit tests to ensure nothing is broken. Use the provided test script:

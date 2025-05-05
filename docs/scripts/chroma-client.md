@@ -33,7 +33,7 @@ chroma-client [OPTIONS] COMMAND [ARGS]...
 ### Global Options
 
 - `-h`, `--help`: Show the help message and exit.
-- `--log-level LEVEL`: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Overrides the `LOG_LEVEL` environment variable if set. Defaults to the value of the `LOG_LEVEL` environment variable, or `INFO` if the environment variable is not set or invalid.
+- `-v, --verbose`: Increase output verbosity. Use `-v` for INFO level, `-vv` for DEBUG level. Defaults to INFO.
 
 ### Commands
 
@@ -51,9 +51,9 @@ chroma-client index [OPTIONS] [PATHS...]
 
 **Options:**
 
-- `--repo-root PATH`: Repository root path. Used for determining relative paths for document IDs and metadata. Default: Current working directory.
-- `--all`: Index all files currently tracked by git in the specified `--repo-root`.
-- `--collection-name NAME`: Name of the ChromaDB collection to use. Default: `codebase_v1`.
+- `--repo-root PATH`: Path to the Git repository root (default: current directory). Used to determine relative file paths for document IDs.
+- `--all`: Index all files tracked by Git in the specified repository.
+- `--collection-name NAME`: Specify the ChromaDB collection name (default: `codebase_v1`).
 
 **Examples:**
 
@@ -107,4 +107,70 @@ chroma-client query [OPTIONS] QUERY_TEXT
 
 ```bash
 chroma-client query "how to handle database connection errors" -n 3
+```
+
+#### `analyze-chat-history`
+
+Analyzes recent chat history entries (from a specified collection, typically `chat_history_v1`) to correlate recorded AI suggestions/responses with actual Git changes made to mentioned files within a specified repository.
+
+```bash
+chroma-client analyze-chat-history [OPTIONS]
+```
+
+**Options:**
+
+- `--collection-name NAME`: Name of the ChromaDB chat history collection. Default: `chat_history_v1`.
+- `--repo-path PATH`: Path to the Git repository to analyze for code changes. Default: Current working directory.
+- `--status-filter STATUS`: Metadata status value to filter entries for analysis. Default: `captured`.
+- `--new-status STATUS`: Metadata status value to set for entries after successful analysis. Default: `analyzed`.
+- `--days-limit N`: How many days back to look for entries to analyze (0 for no limit). Default: `7`.
+
+**Example:**
+
+```bash
+# Analyze entries from the last 30 days in the current repo
+chroma-client analyze-chat-history --days-limit 30
+
+# Analyze entries in a different repo using a custom status
+chroma-client analyze-chat-history --repo-path /path/to/other/repo --status-filter pending --new-status correlated
+```
+
+#### `update-collection-ef`
+
+Updates the embedding function name stored in a specific collection's metadata.
+
+**When to Use:**
+
+This command is necessary when you change the embedding function your client uses (e.g., by modifying the `CHROMA_EMBEDDING_FUNCTION` setting in your `.env` file or the equivalent configuration in `.cursor/mcp.json`) for a project with an **existing** ChromaDB collection.
+
+If the new client embedding function doesn't match the function name stored in the collection's metadata (from when it was created or last updated), ChromaDB will raise an `Embedding function name mismatch` error when you try to access the collection (e.g., via `query` or `analyze-chat-history`). Running this command syncs the collection's metadata record with your new client-side setting.
+
+```bash
+chroma-client update-collection-ef --collection-name NAME --ef-name EF_NAME
+```
+
+**Options:**
+
+- `--collection-name NAME`: (Required) Name of the ChromaDB collection to update.
+- `--ef-name EF_NAME`: (Required) The new embedding function name string to store in the collection's metadata (e.g., `sentence_transformer`, `onnx_mini_lm_l6_v2`). This name should typically match the class name or identifier used by ChromaDB for the embedding function specified in your *current* client configuration (`.env` or `mcp.json`).
+
+**Example:**
+
+```bash
+# You changed CHROMA_EMBEDDING_FUNCTION in .env to 'accurate' (which maps to sentence_transformer internally)
+# Now update the existing 'chat_history_v1' collection metadata to match:
+chroma-client update-collection-ef --collection-name chat_history_v1 --ef-name sentence_transformer
+```
+
+### Note on Usage with Hatch
+
+When running these commands within the `hatch` environment (e.g., `hatch run ...`), you might encounter issues where the `chroma-client` alias defined in `pyproject.toml` is not correctly resolved for subcommands like `analyze-chat-history`.
+
+If commands like `hatch run chroma-client analyze-chat-history ...` fail with "command not found" or similar errors, use the direct module execution syntax instead:
+
+```bash
+hatch run python -m chroma_mcp_client.cli <command> [OPTIONS] [ARGS]...
+
+# Example:
+hatch run python -m chroma_mcp_client.cli analyze-chat-history --days-limit 30
 ```

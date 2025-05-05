@@ -4,6 +4,7 @@ Command Line Interface for the Direct ChromaDB Client.
 Provides commands for indexing, querying, and managing the ChromaDB instance
 used for automation tasks like RAG context building.
 """
+
 import argparse
 import os
 import sys
@@ -11,14 +12,14 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Get our specific logger
+logger = logging.getLogger(__name__)
+
 # Removed sys.path manipulation logic
 # Imports should work directly when the package is installed
 from .connection import get_client_and_ef
 from .indexing import index_file, index_git_files
-
-# Basic logging configuration (can be enhanced)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-logger = logging.getLogger(__name__)
+from .analysis import analyze_chat_history  # Import the new function
 
 # --- Constants ---
 DEFAULT_COLLECTION_NAME = "codebase_v1"
@@ -35,15 +36,23 @@ if default_log_level_env not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
 
 def main():
     """Main entry point for the chroma-client CLI."""
+    # Configure logging EARLY inside main()
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    # Set a default level; will be adjusted based on verbosity later
+    logging.basicConfig(level=logging.WARNING, format=log_format)
+    # Re-get logger after basicConfig is potentially set
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description="ChromaDB Client CLI for indexing and querying.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--log-level",
-        default=default_log_level_env,
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set the logging level. Overrides LOG_LEVEL env var.",
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase output verbosity (e.g., -v for INFO, -vv for DEBUG)",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
@@ -100,14 +109,76 @@ def main():
         help="Number of results to return.",
     )
 
+    # --- Analyze Chat History Subparser ---
+    analyze_parser = subparsers.add_parser(
+        "analyze-chat-history",
+        help="Analyze recent chat history to correlate with Git changes.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    analyze_parser.add_argument(
+        "--collection-name",
+        default="chat_history_v1",
+        help="Name of the ChromaDB chat history collection.",
+    )
+    analyze_parser.add_argument(
+        "--repo-path",
+        type=Path,
+        default=Path(os.getcwd()),
+        help="Path to the Git repository to analyze.",
+    )
+    analyze_parser.add_argument(
+        "--status-filter",
+        default="captured",
+        help="Metadata status value to filter entries for analysis.",
+    )
+    analyze_parser.add_argument(
+        "--new-status",
+        default="analyzed",
+        help="Metadata status value to set after analysis.",
+    )
+    analyze_parser.add_argument(
+        "--days-limit",
+        type=int,
+        default=7,
+        help="How many days back to look for entries to analyze.",
+    )
+
+    # --- Update Collection EF Subparser ---
+    update_ef_parser = subparsers.add_parser(
+        "update-collection-ef",
+        help="Update the embedding function name stored in a collection's metadata.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    update_ef_parser.add_argument(
+        "--collection-name",
+        required=True,
+        help="Name of the ChromaDB collection to update.",
+    )
+    update_ef_parser.add_argument(
+        "--ef-name",
+        required=True,
+        help="The new embedding function name string to store (e.g., 'sentence_transformer').",
+    )
+
     args = parser.parse_args()
 
-    # Set logging level based on the final value in args (priority: CLI arg > env var > INFO)
-    log_level_name = args.log_level  # Already incorporates the default logic
-    log_level = getattr(logging, log_level_name, logging.INFO)
-    logging.getLogger().setLevel(log_level)  # Set root logger level
-    # Use log_level_name in the message for clarity
-    logger.info(f"Log level set to {log_level_name}")
+    # --- Setup Logging Level based on verbosity ---
+    if args.verbose == 1:
+        log_level = logging.INFO
+    elif args.verbose >= 2:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO  # Default to INFO if not specified or 0
+
+    # Set the level for the root logger
+    # (This affects all loggers unless they have their own level set)
+    logging.getLogger().setLevel(log_level)
+    # Set the level specifically for our client loggers if desired
+    logging.getLogger("chroma_mcp_client").setLevel(log_level)
+    # Optionally set levels for other loggers if needed (e.g., sentence_transformers)
+    logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+
+    logger.info(f"Log level set to {logging.getLevelName(log_level)}")
 
     # Initialize client/EF early to catch connection errors
     try:
@@ -208,6 +279,56 @@ def main():
         except Exception as e:
             logger.error(f"Failed to query collection '{collection_name}': {e}", exc_info=True)
             print(f"Error: Could not query collection '{collection_name}'. Does it exist?", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.command == "analyze-chat-history":
+        logger.info(f"Executing 'analyze-chat-history' command...")
+        # Note: The analysis function uses the client and ef initialized earlier
+        try:
+            processed, correlated = analyze_chat_history(
+                client=client,  # Pass the initialized client
+                embedding_function=ef,  # Pass the initialized EF
+                repo_path=str(args.repo_path.resolve()),  # Pass resolved absolute path
+                collection_name=args.collection_name,
+                days_limit=args.days_limit,
+                # Pass limit from args if needed, or keep default from analysis function
+                # limit=args.limit, # Assuming limit arg exists or is added
+                status_filter=args.status_filter,
+                new_status=args.new_status,
+            )
+            logger.info("'analyze-chat-history' command finished. Processed=%d, Correlated=%d", processed, correlated)
+            print("Chat history analysis finished.")  # Keep simple user output
+        except Exception as e:
+            logger.error(f"An error occurred during chat history analysis: {e}", exc_info=True)
+            print(f"Error during analysis: {e}")  # Inform user
+            sys.exit(1)  # Exit with non-zero code on error
+
+    elif args.command == "update-collection-ef":
+        collection_name = args.collection_name
+        new_ef_name = args.ef_name
+        logger.info(
+            f"Executing 'update-collection-ef' for collection '{collection_name}' with EF name '{new_ef_name}'..."
+        )
+        try:
+            # Get collection (requires client initialized earlier)
+            # We don't pass EF here, just getting the object
+            collection = client.get_collection(name=collection_name)
+
+            # Prepare metadata update payload
+            # IMPORTANT: Ensure this key 'hnsw:embedding_function' is correct for your Chroma version
+            metadata_update = {"hnsw:embedding_function": new_ef_name}
+
+            # Modify the collection's metadata
+            collection.modify(metadata=metadata_update)
+
+            logger.info(
+                f"Successfully updated metadata for collection '{collection_name}' to set embedding function name to '{new_ef_name}'."
+            )
+            print(f"Collection '{collection_name}' metadata updated successfully.")
+
+        except Exception as e:
+            logger.error(f"Failed to update collection '{collection_name}': {e}", exc_info=True)
+            print(f"Error: Could not update collection '{collection_name}'. Details: {e}", file=sys.stderr)
             sys.exit(1)
 
 

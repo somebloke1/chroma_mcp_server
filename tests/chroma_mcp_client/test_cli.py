@@ -60,13 +60,13 @@ def mock_git_ls_files(monkeypatch):
 
 @patch("argparse.ArgumentParser")
 @patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_cli_command_parses_and_calls_connect(mock_get_client_ef, mock_argparse):
+def test_cli_command_parses_and_calls_connect(mock_get_client_and_ef, mock_argparse):
     """Test that a valid command calls get_client_and_ef correctly (bypassing argparse)."""
     # Configure mock argparse to return specific args
     mock_parser_instance = mock_argparse.return_value
     mock_args = create_mock_args(
         command="count",
-        log_level="INFO",
+        verbose=0,
         collection_name=DEFAULT_COLLECTION_NAME,
     )
     mock_parser_instance.parse_args.return_value = mock_args
@@ -74,13 +74,13 @@ def test_cli_command_parses_and_calls_connect(mock_get_client_ef, mock_argparse)
     # Configure mock get_client_and_ef to return a tuple
     mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
     mock_ef_instance = DefaultEmbeddingFunction()
-    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+    mock_get_client_and_ef.return_value = (mock_client_instance, mock_ef_instance)
 
     # Args passed here don't matter since parse_args is mocked
     main()
 
     # Assert get_client_and_ef was called correctly
-    mock_get_client_ef.assert_called_once_with()  # Called with default env_path=None
+    mock_get_client_and_ef.assert_called_once_with()  # Called with default env_path=None
 
 
 @patch("argparse.ArgumentParser")
@@ -92,7 +92,7 @@ def test_cli_connect_failure_exits(mock_sys_exit, mock_get_client_ef, mock_argpa
     mock_parser_instance = mock_argparse.return_value
     mock_args = create_mock_args(
         command="count",
-        log_level="INFO",
+        verbose=0,
         collection_name=DEFAULT_COLLECTION_NAME,
     )
     mock_parser_instance.parse_args.return_value = mock_args
@@ -133,7 +133,7 @@ def test_index_single_file(mock_index_file, mock_get_client_ef, mock_argparse, t
     mock_parser_instance = mock_argparse.return_value
     mock_args = create_mock_args(
         command="index",
-        log_level="INFO",
+        verbose=0,
         paths=[file_to_index],  # Use the specific file path
         repo_root=test_dir,  # Use the test_dir Path object
         all=False,
@@ -167,7 +167,7 @@ def test_index_all_files(mock_index_git, mock_get_client_ef, mock_argparse, test
     mock_parser_instance = mock_argparse.return_value
     mock_args = create_mock_args(
         command="index",
-        log_level="INFO",
+        verbose=0,
         paths=[],
         repo_root=test_dir,  # Use the test_dir Path object
         all=True,
@@ -205,9 +205,7 @@ def test_count_command(mock_get_client_ef, mock_argparse, test_dir, capsys):
 
     # Mock argparse return value
     mock_parser_instance = mock_argparse.return_value
-    mock_args = create_mock_args(
-        command="count", log_level="INFO", collection_name=collection_name  # Use the string directly
-    )
+    mock_args = create_mock_args(command="count", verbose=0, collection_name=collection_name)  # Use the string directly
     mock_parser_instance.parse_args.return_value = mock_args
 
     # Run CLI
@@ -253,7 +251,7 @@ def test_query_command(mock_get_client_ef, mock_argparse, test_dir, capsys):
     mock_parser_instance = mock_argparse.return_value
     mock_args = create_mock_args(
         command="query",
-        log_level="INFO",
+        verbose=0,
         query_text=query_text,
         collection_name=collection_name,  # Use the string directly
         n_results=n_results,
@@ -275,187 +273,282 @@ def test_query_command(mock_get_client_ef, mock_argparse, test_dir, capsys):
     )
     # Check output
     captured = capsys.readouterr()  # Reads stdout/stderr captured during test
-    # Basic check for output presence
+    # Check output presence
     assert "Query Results for" in captured.out  # Check for the start of the output header
     assert "ID: id1" in captured.out
     assert "result doc 1" in captured.out
     assert "0.1000" in captured.out  # Check for distance formatting
 
 
-# --- Test Log Level Setting ---
+# =====================================================================
+# Tests for Analysis
+# =====================================================================
 
 
-# Use parametrize to test different scenarios
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")  # Mock connection
+@patch("chroma_mcp_client.cli.analyze_chat_history")  # Mock the actual analysis function
+@patch("sys.exit")  # Add patch for sys.exit
+def test_analyze_chat_history_command_called(mock_sys_exit, mock_analyze, mock_get_client_ef, mock_argparse, test_dir):
+    """Test that the analyze-chat-history command calls the correct function."""
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef_instance = DefaultEmbeddingFunction()  # Use a real one or a MagicMock
+    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+
+    # Configure mock_analyze to return the expected tuple
+    mock_analyze.return_value = (5, 2)  # Simulate 5 processed, 2 correlated
+
+    collection_name = "chat_test"
+    repo_path = test_dir
+    status_filter = "pending"
+    new_status = "reviewed"
+    days_limit = 14
+
+    # Mock argparse return value
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="analyze-chat-history",
+        verbose=2,
+        collection_name=collection_name,
+        repo_path=repo_path,
+        status_filter=status_filter,
+        new_status=new_status,
+        days_limit=days_limit,
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run CLI
+    main()
+
+    # Assertions
+    mock_get_client_ef.assert_called_once()
+    mock_analyze.assert_called_once_with(
+        client=mock_client_instance,
+        embedding_function=mock_ef_instance,
+        repo_path=str(repo_path.resolve()),  # Add repo_path check
+        collection_name=collection_name,
+        days_limit=days_limit,
+        # limit=, # Add check for limit if applicable/passed
+        status_filter=status_filter,
+        new_status=new_status,
+    )
+    # Check that sys.exit was NOT called on success
+    mock_sys_exit.assert_not_called()
+
+
+# =====================================================================
+# Tests for Index Command Errors
+# =====================================================================
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+@patch("chroma_mcp_client.cli.index_file")
+@patch("chroma_mcp_client.cli.index_git_files")
+@patch("logging.getLogger")  # Patch the source of the logger
+def test_index_no_paths_or_all(mock_getLogger, mock_index_git, mock_index_file, mock_get_client_ef, mock_argparse):
+    """Test index command logs warning if no paths given and --all is False."""
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_get_client_ef.return_value = (mock_client_instance, DefaultEmbeddingFunction())
+
+    # Mock argparse
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="index", verbose=0, paths=[], repo_root=Path("."), all=False, collection_name="test"
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+    # Configure mock getLogger to return a mock logger instance
+    mock_main_logger = MagicMock()
+    mock_getLogger.return_value = mock_main_logger  # Assume all calls return this for simplicity here
+
+    # Run CLI
+    main()
+
+    # Assertions
+    mock_index_file.assert_not_called()
+    mock_index_git.assert_not_called()
+    # Check the warning call on the logger instance that main() uses
+    mock_main_logger.warning.assert_called_once_with(
+        "Index command called without --all flag or specific paths. Nothing to index."
+    )
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+@patch("chroma_mcp_client.cli.index_file")
+@patch("logging.getLogger")
+def test_index_non_existent_path(mock_getLogger, mock_index_file, mock_get_client_ef, mock_argparse, tmp_path):
+    """Test index command logs warning for non-existent paths."""
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_get_client_ef.return_value = (mock_client_instance, DefaultEmbeddingFunction())
+
+    non_existent_file = tmp_path / "not_a_real_file.txt"
+
+    # Mock argparse
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="index",
+        verbose=0,
+        paths=[non_existent_file],
+        repo_root=tmp_path,
+        all=False,
+        collection_name="test",
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+    # Configure mock getLogger
+    mock_main_logger = MagicMock()
+    mock_getLogger.return_value = mock_main_logger
+
+    # Run CLI
+    main()
+
+    # Assertions
+    mock_index_file.assert_not_called()  # Should not be called for non-existent file
+    mock_main_logger.warning.assert_called_once_with(f"Skipping non-existent path: {non_existent_file}")
+
+
+# =====================================================================
+# Tests for Analysis Command Errors
+# =====================================================================
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+@patch("chroma_mcp_client.cli.analyze_chat_history")
+@patch("sys.exit")  # Restore patching sys.exit
+@patch("logging.getLogger")  # Patch the source of the logger
+def test_analyze_command_error(
+    mock_getLogger, mock_sys_exit, mock_analyze, mock_get_client_ef, mock_argparse, tmp_path
+):
+    """Test analyze command exits if the underlying function fails."""  # Restore description
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_get_client_ef.return_value = (mock_client_instance, DefaultEmbeddingFunction())
+    error_message = "Analysis failed spectacularly!"
+    mock_analyze.side_effect = Exception(error_message)
+    mock_sys_exit.side_effect = SystemExit(1)  # Restore setting side_effect
+
+    mock_main_logger = MagicMock()
+    mock_getLogger.return_value = mock_main_logger
+
+    # Mock argparse
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="analyze-chat-history",
+        verbose=0,
+        collection_name="chat",
+        repo_path=tmp_path,
+        status_filter="captured",
+        new_status="analyzed",
+        days_limit=7,
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run CLI within pytest.raises again
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    # Assertions
+    assert excinfo.value.code == 1  # Check exit code from pytest.raises
+    mock_analyze.assert_called_once()  # Check it was called
+    mock_sys_exit.assert_called_once_with(1)  # Check sys.exit was called
+    # Check that the error was logged correctly
+    mock_main_logger.error.assert_any_call(
+        f"An error occurred during chat history analysis: {error_message}", exc_info=True
+    )
+
+
+# --- New Verbosity Test ---
 @pytest.mark.parametrize(
-    "cli_args, env_vars, expected_level_name, expected_log_level",
+    "verbose_count, expected_root_level, expected_client_level, expected_st_level",
     [
-        # 1. Command line argument takes precedence (DEBUG)
-        (["--log-level", "DEBUG", "count"], {"LOG_LEVEL": "WARNING"}, "DEBUG", logging.DEBUG),
-        # 2. Command line argument takes precedence (WARNING)
-        (["--log-level", "WARNING", "count"], {}, "WARNING", logging.WARNING),
-        # 3. Environment variable used when no CLI arg (DEBUG)
-        (["count"], {"LOG_LEVEL": "DEBUG"}, "DEBUG", logging.DEBUG),
-        # 4. Environment variable used when no CLI arg (ERROR)
-        (["count"], {"LOG_LEVEL": "ERROR"}, "ERROR", logging.ERROR),
-        # 5. Default INFO used when no CLI arg and no env var
-        (["count"], {}, "INFO", logging.INFO),
-        # 6. Default INFO used when env var is invalid
-        (["count"], {"LOG_LEVEL": "INVALID"}, "INFO", logging.INFO),
-        # 7. CLI arg takes precedence even if env var is invalid
-        (["--log-level", "DEBUG", "count"], {"LOG_LEVEL": "INVALID"}, "DEBUG", logging.DEBUG),
+        (0, logging.INFO, logging.INFO, logging.WARNING),  # Default
+        (1, logging.INFO, logging.INFO, logging.WARNING),  # -v
+        (2, logging.DEBUG, logging.DEBUG, logging.WARNING),  # -vv
+        (3, logging.DEBUG, logging.DEBUG, logging.WARNING),  # -vvv (same as -vv)
     ],
 )
-@patch("chroma_mcp_client.cli.get_client_and_ef")  # Mock client connection
-@patch("logging.getLogger")  # Mock getLogger to check setLevel
-def test_log_level_precedence(
-    mock_getLogger, mock_get_client, monkeypatch, cli_args, env_vars, expected_level_name, expected_log_level
+@patch("argparse.ArgumentParser.parse_args")  # Patch parse_args directly
+@patch("logging.getLogger")  # Mock getLogger to check setLevel calls
+@patch("chroma_mcp_client.cli.get_client_and_ef")  # Prevent actual connection
+def test_logging_verbosity_levels(
+    mock_get_client,
+    mock_getLogger,
+    mock_parse_args,
+    verbose_count,
+    expected_root_level,
+    expected_client_level,
+    expected_st_level,
 ):
-    """Tests the log level setting precedence: CLI > Env Var > Default."""
-    # Setup environment variables for the test
-    monkeypatch.setattr(sys, "argv", ["prog_name"] + cli_args)
-    for key, value in env_vars.items():
-        monkeypatch.setenv(key, value)
-    # Ensure LOG_LEVEL is unset if not in env_vars for this test run
-    if "LOG_LEVEL" not in env_vars:
-        monkeypatch.delenv("LOG_LEVEL", raising=False)
-
-    # Mock the root logger instance returned by getLogger()
+    """Tests that logging levels are set correctly based on -v count."""
+    # --- Arrange ---
+    # Mock logger instances returned by getLogger
     mock_root_logger = MagicMock()
-    mock_getLogger.return_value = mock_root_logger
+    mock_client_logger = MagicMock()
+    mock_st_logger = MagicMock()
+    mock_cli_logger = MagicMock()  # Add mock for the cli logger
 
-    # Mock the client/collection methods called by the 'count' command to avoid errors
+    # Configure getLogger to return specific mocks based on name
+    def getLogger_side_effect(name=None):
+        if name == "chroma_mcp_client":
+            return mock_client_logger
+        elif name == "sentence_transformers":
+            return mock_st_logger
+        elif name == "chroma_mcp_client.cli":  # Handle specific cli logger name
+            return mock_cli_logger
+        # Handle both getLogger() and getLogger(None) for root
+        elif name is None or name == logging.getLogger().name:
+            return mock_root_logger
+        else:
+            # Return a default mock for any other logger
+            return MagicMock()
+
+    mock_getLogger.side_effect = getLogger_side_effect
+
+    # Configure the mock parse_args to return a Namespace with the verbose count
+    # Add a dummy command and other required args to prevent errors later in main()
+    mock_args = argparse.Namespace(
+        verbose=verbose_count,
+        command="count",  # Use a simple command that requires fewer mocks
+        collection_name="dummy_collection",  # Needed for the 'count' command path
+    )
+    mock_parse_args.return_value = mock_args
+
+    # Mock the client and collection calls needed for the 'count' command path
     mock_client_instance = MagicMock()
     mock_collection_instance = MagicMock()
-    mock_collection_instance.count.return_value = 5
+    mock_collection_instance.count.return_value = 0  # Return dummy count
     mock_client_instance.get_collection.return_value = mock_collection_instance
-    mock_get_client.return_value = (mock_client_instance, MagicMock())  # Return mock client and EF
+    mock_get_client.return_value = (mock_client_instance, MagicMock())  # Return mock client/ef
 
-    # Run the CLI main function (need to reload module to pick up env vars for default)
-    # Since default is calculated at import time, need a way to re-evaluate
-    # Option 1: Reload module (can be tricky)
-    # Option 2: Patch os.getenv within the test (simpler)
+    # --- Act ---
+    # Run the main function. Use try-except SystemExit(0) for graceful exit of 'count'
+    try:
+        cli.main()
+    except SystemExit as e:
+        assert e.code == 0 or e.code is None  # Allow successful exit
+    except Exception as e:
+        pytest.fail(f"cli.main() raised an unexpected exception: {e}")
 
-    # We need to simulate the ArgumentParser default value logic based on env
-    # This happens BEFORE parse_args is called. The default is set at module load time.
-    # A cleaner way might be to move the getenv default logic inside main(),
-    # but let's test the current structure first.
-    # Re-importing or complex patching is needed because default is set at module level.
+    # --- Assert ---
+    # Verify setLevel was called correctly on each relevant logger
+    mock_root_logger.setLevel.assert_called_once_with(expected_root_level)
+    mock_client_logger.setLevel.assert_called_once_with(expected_client_level)
+    mock_st_logger.setLevel.assert_called_once_with(expected_st_level)
 
-    # Let's try patching the default directly on the parser object *after* it's created
-    # This is a bit intrusive but avoids reloading modules.
-    with patch("argparse.ArgumentParser") as mock_ArgumentParser:
-        # Instance that ArgumentParser() returns
-        mock_parser_instance = MagicMock()
+    # Check the initial basicConfig level (should be WARNING before adjustment)
+    # Get the call_args_list for basicConfig
+    # basicConfig_calls = [call for call in mock_getLogger.call_args_list if call[0] == ()]
+    # TODO: This assertion is tricky because basicConfig is called before getLogger is patched
+    # for the individual loggers. We might need a different approach to verify basicConfig,
+    # perhaps by patching logging.basicConfig itself. For now, focus on setLevel calls.
 
-        # Simulate the behavior of add_argument and parse_args
-        def add_argument_side_effect(*args, **kwargs):
-            # Capture the default value logic when --log-level is added
-            if kwargs.get("dest") == "log_level":
-                # Re-calculate default based on current env for this test run
-                # Use os.getenv here as well
-                env_level = os.getenv("LOG_LEVEL", "INFO").upper()
-                if env_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-                    env_level = "INFO"
-                kwargs["default"] = env_level
-            # Store args/kwargs or simulate behavior if needed
-            pass  # Simplified: just capture default
-
-        mock_parser_instance.add_argument = MagicMock(side_effect=add_argument_side_effect)
-        # Make parse_args return the test args
-        mock_parse_result = MagicMock()
-        # Simulate parsed args based on cli_args and the *correct* default
-        parsed_args_dict = {"command": cli_args[-1]}  # Assuming command is last
-        # Calculate the expected default for this specific run
-        # Use os.getenv here
-        current_env_default = os.getenv("LOG_LEVEL", "INFO").upper()
-        if current_env_default not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-            current_env_default = "INFO"
-
-        if "--log-level" in cli_args:
-            log_level_index = cli_args.index("--log-level")
-            parsed_args_dict["log_level"] = cli_args[log_level_index + 1]
-        else:
-            parsed_args_dict["log_level"] = current_env_default  # Use env or INFO default
-
-        # Add other necessary args for the 'count' command
-        parsed_args_dict["collection_name"] = cli.DEFAULT_COLLECTION_NAME
-
-        # Set attributes on the mock result object
-        for key, value in parsed_args_dict.items():
-            setattr(mock_parse_result, key, value)
-
-        mock_parser_instance.parse_args.return_value = mock_parse_result
-        mock_ArgumentParser.return_value = mock_parser_instance
-
-        # Now run the main function
-        try:
-            cli.main()
-        except SystemExit as e:
-            # Allow sys.exit(0) for successful commands like count
-            assert e.code == 0 or e.code is None, f"CLI exited with unexpected code {e.code}"
-        except Exception as e:
-            pytest.fail(f"cli.main() raised an unexpected exception: {e}")
-
-    # Assert that the root logger's setLevel was called with the correct level
-    mock_root_logger.setLevel.assert_called_once_with(expected_log_level)
-
-    # Optionally, check the log message content if needed using call_args
-    # log_call_args = mock_root_logger.info.call_args
-    # assert f"Log level set to {expected_level_name}" in log_call_args[0][0]
+    # Verify the info log message about the level being set
+    # This log comes from logger = logging.getLogger(__name__) within main()
+    # which is logging.getLogger("chroma_mcp_client.cli")
+    mock_cli_logger.info.assert_any_call(f"Log level set to {logging.getLevelName(expected_root_level)}")
 
 
-# --- Mock Client Fixture ---
-@pytest.fixture
-def mock_chromadb_client():
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
-
-
-# --- Index Command Tests ---
-@patch("chroma_mcp_client.cli.index_git_files")
-@patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_index_all(mock_get_client, mock_index_git, monkeypatch, tmp_path):
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
-
-
-@patch("chroma_mcp_client.cli.index_file")
-@patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_index_specific_files(mock_get_client, mock_index_file, monkeypatch, tmp_path):
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
-
-
-# --- Count Command Tests ---
-@patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_count_command_success(mock_get_client, monkeypatch, capsys):
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
-
-
-@patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_count_command_collection_not_found(mock_get_client, monkeypatch, capsys):
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
-
-
-# --- Query Command Tests ---
-@patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_query_command_success(mock_get_client, monkeypatch, capsys):
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
-
-
-@patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_query_command_no_results(mock_get_client, monkeypatch, capsys):
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
-
-
-@patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_query_command_collection_not_found(mock_get_client, monkeypatch, capsys):
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
-
-
-# Add other tests as needed for error handling, edge cases etc.
+if __name__ == "__main__":
+    main()

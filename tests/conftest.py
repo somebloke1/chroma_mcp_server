@@ -498,7 +498,7 @@ def initialized_chroma_client():
         tenant=None,
         database=None,
         api_key=None,
-        embedding_function_name="default"
+        embedding_function_name="default",
         # Add other args _initialize_chroma_client might access, even via getattr
         # Though getattr should handle missing ones
     )

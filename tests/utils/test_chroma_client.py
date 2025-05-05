@@ -134,9 +134,10 @@ def mock_ef_dependencies():
         "ef.OllamaEmbeddingFunction": mocks["ef.OllamaEmbeddingFunction"],
     }
 
-    with patch.multiple(
-        "src.chroma_mcp.utils.chroma_client", **availability_patches, **class_patches, create=True
-    ), patch.dict("src.chroma_mcp.utils.chroma_client.KNOWN_EMBEDDING_FUNCTIONS", mock_lambdas, clear=True):
+    with (
+        patch.multiple("src.chroma_mcp.utils.chroma_client", **availability_patches, **class_patches, create=True),
+        patch.dict("src.chroma_mcp.utils.chroma_client.KNOWN_EMBEDDING_FUNCTIONS", mock_lambdas, clear=True),
+    ):
         yield mocks  # Yield the original class mocks for assertion checks
 
 
@@ -199,9 +200,12 @@ def test_get_embedding_function_success(name, expected_type_mock_key, mock_ef_de
 
     # Mock API key retrieval to pass the pre-emptive check in get_embedding_function
     # Also mock Ollama URL getter for the 'ollama' case
-    with patch("src.chroma_mcp.utils.chroma_client.get_api_key", return_value="dummy_key") as mock_get_key, patch(
-        "src.chroma_mcp.utils.chroma_client.get_ollama_base_url", return_value="http://mock-ollama:11434"
-    ) as mock_get_ollama:
+    with (
+        patch("src.chroma_mcp.utils.chroma_client.get_api_key", return_value="dummy_key") as mock_get_key,
+        patch(
+            "src.chroma_mcp.utils.chroma_client.get_ollama_base_url", return_value="http://mock-ollama:11434"
+        ) as mock_get_ollama,
+    ):
         embedding_function = get_embedding_function(name)
 
         # Assert the pre-emptive key check was called (or ollama url getter)
@@ -258,9 +262,11 @@ def test_get_embedding_function_instantiation_error_api_key(mock_logger):
     mock_registry = {"openai": MagicMock(name="MockOpenAIInstantiator")}
 
     # Ensure the availability flag is True, so the check proceeds
-    with patch.object(chroma_client, "OPENAI_AVAILABLE", True), patch.object(
-        chroma_client, "KNOWN_EMBEDDING_FUNCTIONS", mock_registry
-    ), patch.object(chroma_client, "get_api_key", return_value=None) as mock_get_key:
+    with (
+        patch.object(chroma_client, "OPENAI_AVAILABLE", True),
+        patch.object(chroma_client, "KNOWN_EMBEDDING_FUNCTIONS", mock_registry),
+        patch.object(chroma_client, "get_api_key", return_value=None) as mock_get_key,
+    ):
         with pytest.raises(McpError) as excinfo:
             get_embedding_function(ef_name)
 
@@ -347,9 +353,11 @@ def test_get_embedding_function_onnx_gpu_available(mock_logger):
     """Test ONNX EF uses providers list when onnxruntime reports GPU."""
     mock_logger.reset_mock()
     # Patch the necessary components manually
-    with patch("src.chroma_mcp.utils.chroma_client.ef.ONNXMiniLM_L6_V2") as mock_onnx_class, patch(
-        "src.chroma_mcp.utils.chroma_client.onnxruntime"
-    ) as mock_rt, patch("src.chroma_mcp.utils.chroma_client.ONNXRUNTIME_AVAILABLE", True):
+    with (
+        patch("src.chroma_mcp.utils.chroma_client.ef.ONNXMiniLM_L6_V2") as mock_onnx_class,
+        patch("src.chroma_mcp.utils.chroma_client.onnxruntime") as mock_rt,
+        patch("src.chroma_mcp.utils.chroma_client.ONNXRUNTIME_AVAILABLE", True),
+    ):
         # Skip test if real onnxruntime is not installed (mock_rt will be None in patch)
         # This check might be redundant if ONNXRUNTIME_AVAILABLE is correctly False when not installed
         if mock_rt is None:
@@ -374,9 +382,11 @@ def test_get_embedding_function_onnx_cpu_only(mock_logger):
     """Test ONNX EF uses CPU provider when onnxruntime reports only CPU."""
     mock_logger.reset_mock()
     # Patch the necessary components manually
-    with patch("src.chroma_mcp.utils.chroma_client.ef.ONNXMiniLM_L6_V2") as mock_onnx_class, patch(
-        "src.chroma_mcp.utils.chroma_client.onnxruntime"
-    ) as mock_rt, patch("src.chroma_mcp.utils.chroma_client.ONNXRUNTIME_AVAILABLE", True):
+    with (
+        patch("src.chroma_mcp.utils.chroma_client.ef.ONNXMiniLM_L6_V2") as mock_onnx_class,
+        patch("src.chroma_mcp.utils.chroma_client.onnxruntime") as mock_rt,
+        patch("src.chroma_mcp.utils.chroma_client.ONNXRUNTIME_AVAILABLE", True),
+    ):
         if mock_rt is None:
             pytest.skip("onnxruntime could not be patched, likely not installed")
 

@@ -1,6 +1,7 @@
 """
 ThinkingSession module for managing sequential thoughts through MCP.
 """
+
 import uuid
 from typing import Dict, List, Optional, Union, Any
 

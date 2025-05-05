@@ -137,11 +137,11 @@ def assert_raises_mcp_error(expected_message: str):
 @pytest.fixture
 def mock_chroma_client_document():
     """Fixture to mock Chroma client, collection, and helpers for document tests."""
-    with patch("src.chroma_mcp.tools.document_tools.get_chroma_client") as mock_get_client, patch(
-        "src.chroma_mcp.tools.document_tools.get_embedding_function"
-    ) as mock_get_embedding_function, patch(
-        "src.chroma_mcp.tools.document_tools.validate_collection_name"
-    ) as mock_validate_name:
+    with (
+        patch("src.chroma_mcp.tools.document_tools.get_chroma_client") as mock_get_client,
+        patch("src.chroma_mcp.tools.document_tools.get_embedding_function") as mock_get_embedding_function,
+        patch("src.chroma_mcp.tools.document_tools.validate_collection_name") as mock_validate_name,
+    ):
         # Use AsyncMock for the client and collection methods if they are awaited
         # But the underlying Chroma client is synchronous, so MagicMock is appropriate
         mock_client_instance = MagicMock()

@@ -1,6 +1,7 @@
 """
 Tests for the thinking CLI.
 """
+
 import argparse
 import json
 import pytest

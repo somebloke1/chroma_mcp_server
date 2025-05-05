@@ -215,13 +215,18 @@ class TestCollectionTools:
         mock_ef_instance = MockEmbeddingFunction(name="default")
 
         # --- Patching --- #
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance
-        ) as mock_get_client, patch(
-            "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance
-        ) as mock_get_ef, patch(
-            "src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings
-        ) as mock_get_settings:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance
+            ) as mock_get_client,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance
+            ) as mock_get_ef,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings
+            ) as mock_get_settings,
+        ):
             # --- Act --- #
             input_data = CreateCollectionInput(collection_name=collection_name)
             result = await _create_collection_impl(input_data)
@@ -264,13 +269,18 @@ class TestCollectionTools:
         mock_ef_instance = MockEmbeddingFunction(name="default")
 
         # --- Patching --- #
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance
-        ) as mock_get_client, patch(
-            "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance
-        ) as mock_get_ef, patch(
-            "src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings
-        ) as mock_get_settings:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance
+            ) as mock_get_client,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance
+            ) as mock_get_ef,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings
+            ) as mock_get_settings,
+        ):
             # --- Act --- #
             input_data = CreateCollectionInput(collection_name=collection_name)
             await _create_collection_impl(input_data)
@@ -311,13 +321,18 @@ class TestCollectionTools:
         mock_ef_instance = MockEmbeddingFunction(name="default")
 
         # --- Patching --- #
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance
-        ) as mock_get_client, patch(
-            "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance
-        ) as mock_get_ef, patch(
-            "src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings
-        ) as mock_get_settings:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=mock_client_instance
+            ) as mock_get_client,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=mock_ef_instance
+            ) as mock_get_ef,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_collection_settings", return_value=default_settings
+            ) as mock_get_settings,
+        ):
             # --- Act --- #
             input_model = CreateCollectionInput(collection_name=collection_name)
             result_list = await _create_collection_impl(input_model)
@@ -353,9 +368,12 @@ class TestCollectionTools:
         error_msg = "Invalid collection name"
 
         # Patch validator and client method (to check not called)
-        with patch(
-            "src.chroma_mcp.tools.collection_tools.validate_collection_name", side_effect=ValidationError(error_msg)
-        ) as mock_validate_name, patch("chromadb.api.client.Client.create_collection") as mock_create_collection:
+        with (
+            patch(
+                "src.chroma_mcp.tools.collection_tools.validate_collection_name", side_effect=ValidationError(error_msg)
+            ) as mock_validate_name,
+            patch("chromadb.api.client.Client.create_collection") as mock_create_collection,
+        ):
             # --- Act & Assert ---
             input_model = CreateCollectionInput(collection_name=invalid_name)
             with assert_raises_mcp_error(f"Validation Error: {error_msg}"):
@@ -385,9 +403,12 @@ class TestCollectionTools:
         local_mock_client.get_collection.return_value = local_mock_collection
 
         # Patch locally
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as mock_get_client,
+        ):
             input_model = PeekCollectionInput(collection_name=collection_name, limit=limit)
             result = await _peek_collection_impl(input_model)
 
@@ -412,9 +433,12 @@ class TestCollectionTools:
         local_mock_client.get_collection.return_value = local_mock_collection
 
         # Patch locally
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as mock_get_client,
+        ):
             input_model = PeekCollectionInput(collection_name=collection_name)  # Use default limit
             result = await _peek_collection_impl(input_model)
 
@@ -433,9 +457,12 @@ class TestCollectionTools:
         error_msg = "Bad name for peek"
 
         # Patch locally (only validator needed, client shouldn't be called)
-        with patch(
-            "src.chroma_mcp.tools.collection_tools.validate_collection_name", side_effect=ValidationError(error_msg)
-        ) as mock_validate, patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client:
+        with (
+            patch(
+                "src.chroma_mcp.tools.collection_tools.validate_collection_name", side_effect=ValidationError(error_msg)
+            ) as mock_validate,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client,
+        ):
             input_model = PeekCollectionInput(collection_name=invalid_name)
             # Expect ValidationError message format
             with assert_raises_mcp_error(f"Validation Error: {error_msg}"):
@@ -457,9 +484,12 @@ class TestCollectionTools:
         local_mock_client.get_collection.side_effect = ValueError(error_msg)
 
         # Patch locally
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as mock_get_client,
+        ):
             input_model = PeekCollectionInput(collection_name=collection_name)
             # Expect the specific 'not found' message from the ValueError handler
             with assert_raises_mcp_error(f"Tool Error: Collection '{collection_name}' not found."):
@@ -482,9 +512,12 @@ class TestCollectionTools:
         local_mock_client.get_collection.side_effect = ValueError(error_msg)
 
         # Patch locally
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as mock_get_client,
+        ):
             input_model = PeekCollectionInput(collection_name=collection_name)
             # Expect the specific 'Problem accessing collection' message from the ValueError handler
             with assert_raises_mcp_error(
@@ -511,9 +544,12 @@ class TestCollectionTools:
         local_mock_client.get_collection.return_value = local_mock_collection
 
         # Patch Locally
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as mock_get_client,
+        ):
             input_model = PeekCollectionInput(collection_name=collection_name)
             # Expect the generic exception handler's message format
             expected_error_msg = (
@@ -565,13 +601,18 @@ class TestCollectionTools:
         input_model = CreateCollectionWithMetadataInput(collection_name=collection_name, metadata=custom_metadata_json)
 
         # --- Patch all dependencies locally ---
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as local_mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=local_mock_ef_instance
-        ) as local_mock_get_ef, patch(
-            "src.chroma_mcp.tools.collection_tools.get_logger", return_value=local_mock_logger_instance
-        ) as mock_get_logger_call, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as local_mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as local_mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_embedding_function", return_value=local_mock_ef_instance
+            ) as local_mock_get_ef,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_logger", return_value=local_mock_logger_instance
+            ) as mock_get_logger_call,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as local_mock_get_client,
+        ):
             # Note: We still rely on get_server_config implicitly inside the code for the default EF name
 
             # --- Act --- (Call the implementation)
@@ -648,9 +689,10 @@ class TestCollectionTools:
         valid_metadata_json = '{"key": "value"}'
 
         # Patch validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client,
+        ):
             # Configure the mock client returned by get_chroma_client
             mock_client_instance = MagicMock()
             # Set the side effect directly on the mock client's method
@@ -676,9 +718,10 @@ class TestCollectionTools:
         valid_metadata_json = '{"key": "value"}'
 
         # Patch validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client,
+        ):
             # Configure the mock client returned by get_chroma_client
             mock_client_instance = MagicMock()
             # Set the side effect directly on the mock client's method
@@ -830,9 +873,12 @@ class TestCollectionTools:
         local_mock_client.get_collection.return_value = local_mock_collection
 
         # Patch locally
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as mock_get_client,
+        ):
             input_model = GetCollectionInput(collection_name=collection_name)
             result = await _get_collection_impl(input_model)
 
@@ -863,9 +909,12 @@ class TestCollectionTools:
         local_mock_client.get_collection.side_effect = ValueError(error_message)
 
         # Patch locally
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as mock_get_client,
+        ):
             input_model = GetCollectionInput(collection_name=collection_name)
             # Expect the specific error message from the ValueError handler
             with assert_raises_mcp_error(f"Tool Error: Collection '{collection_name}' not found."):
@@ -889,9 +938,12 @@ class TestCollectionTools:
         local_mock_client.get_collection.side_effect = Exception(error_msg)
 
         # Patch locally
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as mock_get_client,
+        ):
             input_model = GetCollectionInput(collection_name=collection_name)
             # Expect the generic error message from the final except block
             expected_error = f"Tool Error: An unexpected error occurred while getting collection '{collection_name}'. Details: {error_msg}"
@@ -911,9 +963,12 @@ class TestCollectionTools:
         error_msg = "Invalid name format"
 
         # Patch locally (validator raises, client getter shouldn't be called)
-        with patch(
-            "src.chroma_mcp.tools.collection_tools.validate_collection_name", side_effect=ValidationError(error_msg)
-        ) as mock_validate, patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client:
+        with (
+            patch(
+                "src.chroma_mcp.tools.collection_tools.validate_collection_name", side_effect=ValidationError(error_msg)
+            ) as mock_validate,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client,
+        ):
             input_model = GetCollectionInput(collection_name=collection_name)
             # Expect the specific Validation Error message
             with assert_raises_mcp_error(f"Validation Error: {error_msg}"):
@@ -936,9 +991,12 @@ class TestCollectionTools:
         local_mock_client.get_collection.side_effect = ValueError(error_msg)
 
         # Patch locally
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as mock_get_client,
+        ):
             input_model = GetCollectionInput(collection_name=collection_name)
             # Expect the specific 'Invalid parameter' message from the ValueError handler
             expected_error = f"Tool Error: Invalid parameter getting collection. Details: {error_msg}"
@@ -974,9 +1032,12 @@ class TestCollectionTools:
         local_mock_client.get_collection.return_value = local_mock_collection
 
         # Patch locally
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=local_mock_client
+            ) as mock_get_client,
+        ):
             input_model = GetCollectionInput(collection_name=collection_name)
             result_list = await _get_collection_impl(input_model)
 
@@ -1008,9 +1069,10 @@ class TestCollectionTools:
         new_name = "renamed_successfully"
 
         # Patch validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client,
+        ):
             # Configure mock client and the collection it returns
             mock_client_instance = MagicMock()
             mock_collection_instance = MagicMock()
@@ -1043,9 +1105,10 @@ class TestCollectionTools:
         new_name = "new_name_irrelevant"
 
         # Patch validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
-        ) as mock_get_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_client,
+        ):
             # Configure the mock client's get_collection method to raise the error
             mock_client_instance = MagicMock()
             mock_client_instance.get_collection.side_effect = ValueError(f"Collection {original_name} does not exist.")
@@ -1070,14 +1133,17 @@ class TestCollectionTools:
         new_name = "new_name_exists"
 
         # Patch validator, client.get_collection, and collection.modify
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
-            "chromadb.api.client.Client.get_collection"
-        ) as mock_get_collection_method, patch(
-            "chromadb.api.models.Collection.Collection.modify",  # Patch the real modify
-            side_effect=ValueError(f"Collection {new_name} already exists."),
-        ) as mock_modify_method, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=MagicMock()
-        ) as mock_get_client:  # Add this patch
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name,
+            patch("chromadb.api.client.Client.get_collection") as mock_get_collection_method,
+            patch(
+                "chromadb.api.models.Collection.Collection.modify",  # Patch the real modify
+                side_effect=ValueError(f"Collection {new_name} already exists."),
+            ) as mock_modify_method,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=MagicMock()
+            ) as mock_get_client,
+        ):  # Add this patch
             # Configure the mock collection returned by get_collection
             mock_collection_instance = MagicMock()
 
@@ -1091,14 +1157,17 @@ class TestCollectionTools:
         error_msg = "Rename blew up"
 
         # Patch validator, client.get_collection, and collection.modify
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
-            "chromadb.api.client.Client.get_collection"
-        ) as mock_get_collection_method, patch(
-            "chromadb.api.models.Collection.Collection.modify",  # Patch the real modify
-            side_effect=Exception(error_msg),
-        ) as mock_modify_method, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=MagicMock()
-        ) as mock_get_client:  # Add this patch
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name,
+            patch("chromadb.api.client.Client.get_collection") as mock_get_collection_method,
+            patch(
+                "chromadb.api.models.Collection.Collection.modify",  # Patch the real modify
+                side_effect=Exception(error_msg),
+            ) as mock_modify_method,
+            patch(
+                "src.chroma_mcp.tools.collection_tools.get_chroma_client", return_value=MagicMock()
+            ) as mock_get_client,
+        ):  # Add this patch
             # Configure the mock collection returned by get_collection
             mock_collection_instance = MagicMock()
 
@@ -1112,9 +1181,10 @@ class TestCollectionTools:
         error_msg = "Some other value issue"
 
         # Patch validator AND get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
-        ) as mock_get_chroma_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate_name,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client,
+        ):
             # Configure mock client and the collection it returns
             mock_client_instance = MagicMock()
             mock_collection_instance = MagicMock()
@@ -1147,9 +1217,10 @@ class TestCollectionTools:
         collection_name = "delete_me"
 
         # Use nested patches for validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
-        ) as mock_get_chroma_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client,
+        ):
             # Configure mock client and its delete method
             mock_client_instance = MagicMock()
             mock_client_instance.delete_collection.return_value = None  # Successful delete
@@ -1181,9 +1252,10 @@ class TestCollectionTools:
         error_message = f"Collection {collection_name} does not exist."
 
         # Use nested patches for validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
-        ) as mock_get_chroma_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client,
+        ):
             # Configure mock client to raise ValueError on delete
             mock_client_instance = MagicMock()
             mock_client_instance.delete_collection.side_effect = ValueError(error_message)
@@ -1208,9 +1280,10 @@ class TestCollectionTools:
         error_msg = "Delete failed unexpectedly"
 
         # Use nested patches for validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
-        ) as mock_get_chroma_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client,
+        ):
             # Configure mock client to raise generic Exception on delete
             mock_client_instance = MagicMock()
             mock_client_instance.delete_collection.side_effect = Exception(error_msg)
@@ -1237,9 +1310,12 @@ class TestCollectionTools:
         error_msg = "Invalid collection name format"
 
         # Patch only the validator to raise error
-        with patch(
-            "src.chroma_mcp.tools.collection_tools.validate_collection_name", side_effect=ValidationError(error_msg)
-        ) as mock_validate, patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client:
+        with (
+            patch(
+                "src.chroma_mcp.tools.collection_tools.validate_collection_name", side_effect=ValidationError(error_msg)
+            ) as mock_validate,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client,
+        ):
             input_model = DeleteCollectionInput(collection_name=collection_name)
             with assert_raises_mcp_error(f"Validation Error: {error_msg}"):
                 await _delete_collection_impl(input_model)
@@ -1257,9 +1333,10 @@ class TestCollectionTools:
         error_msg = "Another delete value error"
 
         # Use nested patches for validator and get_chroma_client
-        with patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate, patch(
-            "src.chroma_mcp.tools.collection_tools.get_chroma_client"
-        ) as mock_get_chroma_client:
+        with (
+            patch("src.chroma_mcp.tools.collection_tools.validate_collection_name") as mock_validate,
+            patch("src.chroma_mcp.tools.collection_tools.get_chroma_client") as mock_get_chroma_client,
+        ):
             # Configure mock client to raise specific ValueError (not 'not found')
             mock_client_instance = MagicMock()
             mock_client_instance.delete_collection.side_effect = ValueError(error_msg)

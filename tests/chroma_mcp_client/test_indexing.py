@@ -1,6 +1,7 @@
 """
 Tests for the chroma_mcp_client.indexing module.
 """
+
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open

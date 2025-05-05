@@ -1,6 +1,7 @@
 """
 Tests for the thinking utility functions.
 """
+
 import pytest
 from unittest.mock import MagicMock, patch
 

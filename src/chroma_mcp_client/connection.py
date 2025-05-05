@@ -2,6 +2,7 @@
 Handles direct connection to ChromaDB based on .env configuration.
 Reuses configuration loading and client creation logic from the server's utils.
 """
+
 import sys
 import os
 import chromadb
