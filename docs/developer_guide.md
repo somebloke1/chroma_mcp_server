@@ -90,7 +90,14 @@ The project includes several utility scripts in the `scripts/` directory to stre
 
 1. **Activate Environment:** Run `./scripts/develop.sh` or `hatch shell`.
 2. **Make Code Changes:** Edit the source code in the `src/` directory.
-3. **Run Tests:** Execute `./scripts/test.sh` to run the test suite. Add `--coverage` for a coverage report or `--clean` to force a rebuild of the test environment.
+3. **Rebuild & Reinstall (Crucial!):** After making changes, especially to the server logic, CLI commands, or dependencies, you *must* rebuild and reinstall the package within the Hatch environment for the changes to take effect when using `hatch run` commands or potentially the development server script. Use:
+
+    ```bash
+    # Replace <version> with the actual version built
+    hatch build && hatch run pip uninstall chroma-mcp-server -y && hatch run pip install 'dist/chroma_mcp_server-<version>-py3-none-any.whl[full,dev]'
+    ```
+
+4. **Run Tests:** Execute `./scripts/test.sh` to run the test suite. Add `--coverage` for a coverage report or `--clean` to force a rebuild of the test environment.
 
     ```bash
     # Using the script (recommended for matrix testing & coverage)
@@ -100,8 +107,8 @@ The project includes several utility scripts in the `scripts/` directory to stre
     hatch run test
     ```
 
-4. **Build (Optional):** Run `./scripts/build.sh` to create a package wheel locally.
-5. **Test Local Install (Optional):** Run `./scripts/test_uvx_install.sh` to verify the locally built wheel installs correctly via `uv pip install`.
+5. **Build (Optional):** Run `./scripts/build.sh` to create a package wheel locally.
+6. **Test Local Install (Optional):** Run `./scripts/test_uvx_install.sh` to verify the locally built wheel installs correctly via `uv pip install`.
 
 ## Running the Server Locally
 
@@ -322,36 +329,25 @@ See `pyproject.toml` for specific version constraints.
 * **UVX Cache Issues:** If `uvx` seems stuck on an old version after a release or install, try refreshing its cache: `uvx --refresh chroma-mcp-server --version`
 * **Dependency Conflicts:** Ensure your Hatch environment is clean (`hatch env remove default && hatch env create`) or run tests with `./scripts/test.sh --clean`.
 * **Release Script Errors:** Ensure `curl` and `jq` are installed. Check PyPI/TestPyPI credentials if publishing fails.
+* **Embedding Function Mismatch Errors:** If you change the embedding function (via `.env` or `--embedding-function` argument) for a project with existing ChromaDB collections, subsequent operations (like queries or using the analysis client) might fail with an `Embedding function name mismatch` error. This means the embedding function your client is *currently* configured to use doesn't match the function name stored in the collection's metadata. To fix this, use the `chroma-client update-collection-ef` command to update the collection's metadata to match your current client setting. See the [chroma-client documentation](scripts/chroma-client.md#update-collection-ef) for usage.
 
 ## CLI Arguments
 
-* `--embedding-function TEXT`: Specifies the embedding function to use. Choices include `default`, `fast`, `accurate`, `openai`, `cohere`, `huggingface`, `voyageai`, `google`, `bedrock`, `ollama`. [Default: `default`]
-* `--cpu-execution-provider [auto|true|false]`: Configures ONNX execution provider usage (for `default`/`fast` embedding functions). [Default: `auto`]
+These arguments apply when running the server directly (e.g., `chroma-mcp-server` or `python -m chroma_mcp.cli`).
+
+* `--mode [stdio|http]`: Server communication mode. Default: `http`.
+* `--client-type [ephemeral|persistent|http|cloud]`: ChromaDB backend connection type. Default: `ephemeral`.
+* `--data-dir PATH`: Path for persistent data storage (used with `--client-type persistent`).
+* `--log-dir PATH`: Directory for log files.
+* `--host TEXT`: Host address for `--client-type http`.
+* `--port INTEGER`: Port number for `--client-type http`.
+* `--ssl / --no-ssl`: Use SSL for `--client-type http`. Default: `--no-ssl`.
+* `--tenant TEXT`: Tenant ID for `--client-type cloud`.
+* `--database TEXT`: Database name for `--client-type cloud`.
+* `--api-key TEXT`: API key for `--client-type cloud`.
+* `--cpu-execution-provider [auto|true|false]`: Configures ONNX execution provider usage (for `default`/`fast` embedding functions). Default: `auto`.
+* `--embedding-function TEXT`: Specifies the embedding function to use. Choices include `default`, `fast`, `accurate`, `openai`, `cohere`, `huggingface`, `voyageai`, `google`, `bedrock`, `ollama`. Default: `default`.
 * `--version`: Show version and exit.
+* `-h`, `--help`: Show help message and exit.
 
-## Environment Variables
-
-* `ONNX_CPU_PROVIDER`: Sets `--cpu-execution-provider` (true/false).
-* `OPENAI_API_KEY`: Required for `--embedding-function openai`.
-* `COHERE_API_KEY`: Required for `--embedding-function cohere`.
-* `HUGGINGFACE_API_KEY`: Optional API key for `--embedding-function huggingface` (needed for private/gated models).
-* `VOYAGEAI_API_KEY`: Required for `--embedding-function voyageai`.
-* `GOOGLE_API_KEY`: Required for `--embedding-function google`.
-* `OLLAMA_HOST`: Specifies the base URL for the Ollama server (e.g., `http://localhost:11434`) when using `--embedding-function ollama`. Defaults to `http://localhost:11434`.
-* AWS Credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_PROFILE`): Used by `boto3` when `--embedding-function bedrock` is selected. Configure these as you normally would for AWS access.
-
-### Optional Dependencies
-
-To use certain embedding functions or features, you need to install extra dependencies. These are defined in the `[project.optional-dependencies]` section of `pyproject.toml`.
-
-* `[full]`: Installs all optional dependencies, including those for `sentence-transformers` (used by `accurate`, `huggingface`), `openai`, `cohere`, `voyageai`, `google-generativeai` (`google`), `boto3` (`bedrock`), and `ollama`.
-* `[dev]`: Includes development tools like `pytest`, `black`, `isort`, `mypy`, `pylint`, etc.
-
-Install with extras like this:
-
-```bash
-pip install "chroma-mcp-server[full]"
-
-# Or for development (includes full + dev dependencies):
-pip install "chroma-mcp-server[full,dev]"
-```
+Environment variables often override these defaults. See the `.env.template` file for corresponding variable names.

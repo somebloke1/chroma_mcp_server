@@ -9,6 +9,7 @@ Crucially, it imports the tool modules (`.tools.collection_tools`, etc.) AFTER
 the `mcp` instance is created. This allows the `@mcp.tool` decorators within
 those modules to automatically register themselves with the shared `mcp` instance.
 """
+
 import importlib.metadata
 from typing import Dict
 import sys

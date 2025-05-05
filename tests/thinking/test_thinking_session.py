@@ -1,6 +1,7 @@
 """
 Tests for the ThinkingSession class.
 """
+
 import pytest
 from mcp import ClientSession
 from unittest.mock import MagicMock, patch

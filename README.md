@@ -145,6 +145,7 @@ chroma-mcp-server
 - `--api-key`: API key for Cloud client. Also configurable via `CHROMA_API_KEY`.
 - `--cpu-execution-provider`: Force CPU execution provider for local embedding functions (`auto`, `true`, `false`). Also configurable via `CHROMA_CPU_EXECUTION_PROVIDER`.
 - `--embedding-function`: Name of the embedding function to use. Choices: 'default'/'fast' (Local CPU, balanced), 'accurate' (Local CPU/GPU via sentence-transformers, higher accuracy), 'openai' (API, general purpose), 'cohere' (API, retrieval/multilingual focus), 'huggingface' (API, flexible model choice), 'jina' (API, long context focus), 'voyageai' (API, retrieval focus), 'gemini' (API, general purpose). API-based functions require corresponding API keys set as environment variables (e.g., OPENAI_API_KEY). Also configurable via `CHROMA_EMBEDDING_FUNCTION`.
+  - **Important:** If you change this setting for a project with an existing ChromaDB collection, you might encounter an `Embedding function name mismatch` error. Use the `chroma-client update-collection-ef` command to update the collection's metadata. See the [chroma-client documentation](docs/scripts/chroma-client.md) for details.
 
 See [Getting Started](docs/getting_started.md) for more setup details.
 
@@ -215,6 +216,13 @@ See [Cursor Integration](docs/cursor_integration.md) for more details.
 For instructions on how to set up the development environment, run tests, build the package, and contribute, please see the **[Developer Guide](docs/developer_guide.md)**.
 
 Running the server during development is typically done using the `scripts/run_chroma_mcp_server_dev.sh` wrapper script, which leverages Hatch. See the Developer Guide for specifics.
+
+**Important:** After modifying the code (server, client, etc.), you must rebuild and reinstall the package within the Hatch environment for changes to take effect:
+
+```bash
+# Replace <version> with the actual version built
+hatch build && hatch run pip uninstall chroma-mcp-server -y && hatch run pip install 'dist/chroma_mcp_server-<version>-py3-none-any.whl[full,dev]'
+```
 
 ## Working Memory and Thinking Tools
 

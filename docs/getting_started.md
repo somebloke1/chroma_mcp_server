@@ -123,6 +123,8 @@ The server primarily uses environment variables for configuration. A `.env` file
   - `CHROMA_HEADERS`: Optional HTTP headers (JSON string) for `http` mode.
   - `CHROMA_TENANT`, `CHROMA_DATABASE`, `CHROMA_API_KEY`: Required for `cloud` mode.
 
+**Note on Changing Embedding Functions:** If you modify the `CHROMA_EMBEDDING_FUNCTION` (or the corresponding `--embedding-function` CLI argument) after collections have already been created, you may encounter `Embedding function name mismatch` errors when trying to access those existing collections. To resolve this, use the `chroma-client update-collection-ef` command to update the metadata of the affected collection(s). See the [chroma-client script documentation](scripts/chroma-client.md) for details.
+
 Cursor uses `.cursor/mcp.json` to configure server launch commands:
 
 ```json

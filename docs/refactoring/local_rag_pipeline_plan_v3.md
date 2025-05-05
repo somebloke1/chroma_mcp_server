@@ -13,7 +13,7 @@
 - **Rebuild & Reinstall after Changes:** After modifying the `chroma-mcp-server` codebase (including client or thinking modules), you **must** rebuild and reinstall the package within the Hatch environment to ensure the changes take effect when using `hatch run` commands (like the test script or the VS Code task). Use the following command from the project root:
 
   ```bash
-  hatch build && hatch run pip uninstall chroma-mcp-server -y && hatch run pip install dist/*.whl
+  hatch build && hatch run pip uninstall chroma-mcp-server -y && hatch run pip install 'dist/chroma_mcp_server-<version>-py3-none-any.whl[full,dev]'
   ```
 
 - **Run Tests After Updates:** After making code changes and reinstalling, always run the unit tests to ensure nothing is broken. Use the provided test script:
@@ -155,7 +155,7 @@
     - `status`: e.g., `captured`, `analyzed`, `learning_extracted`.
     - (Optional) `raw_prompt_hash`, `raw_response_hash`: Hashes for linking to potential raw logs.
 
-- [~] **4.2 Implement Automated Chat Capture & Summarization:**
+- [X] **4.2 Implement Automated Chat Capture & Summarization:**
   - [X] **Mechanism:** Define an IDE rule (e.g., `.cursor/rules/auto_log_chat.mdc` and copy in `docs/rules/auto_log_chat.md` for other IDEs) instructing the AI assistant to:
     1. After generating a response, summarize the preceding prompt and the generated response, focusing on the "Why, How, What".
     2. Call an MCP tool (e.g., `mcp_chroma_dev_chroma_add_document_with_metadata`) to store these summaries and associated metadata in the `chat_history_v1` collection.
@@ -173,13 +173,14 @@
 
   - [X] **Feasibility Confirmed:** ~~Investigate the reliability of enforcing such actions via IDE rules. Develop fallback or complementary mechanisms if needed.~~ **Confirmed:** Initial tests show the mechanism of using an IDE rule to trigger automated logging via MCP calls is feasible. **Note:** Continued monitoring for reliability across diverse interactions is recommended, as rule refinements were needed during initial testing.
 
-- [ ] **4.3 Develop Analysis Engine (e.g., `scripts/analyze_chat_history.py`):**
-  - [ ] Create a script or tool that:
+- [X] **4.3 Develop Analysis Engine (e.g., script wrapper in `scripts/analyze_chat_history.sh` and CLI subcommand in `src/chroma_mcp_client/cli.py` as well as pyproject.toml [project.scripts] entry):**
+  - [X] Included a `analyze-chat-history` subcommand that:
     1. Fetches recent entries from `chat_history_v1` (e.g., status=`captured`).
     2. For each entry, identifies the `involved_entities` (files).
     3. Retrieves corresponding file versions/diffs from `codebase_v1` or Git history occurring *after* the chat timestamp.
     4. Compares the `response_summary` (How) with the actual code changes (What) to determine if the suggestion was implemented (correlation).
     5. Updates the status of analyzed chat entries (e.g., to `analyzed`).
+  - [X] **Resolved:** Addressed significant challenges including embedding function mismatches by updating collection metadata and adjusting client usage, alongside extensive test debugging.
 
 - [ ] **4.4 Define Learning Extraction and Storage:**
   - [ ] **Extraction:** Based on correlated entries, extract structured learnings (e.g., "Applying pattern X to file Y solved problem Z described in prompt P").

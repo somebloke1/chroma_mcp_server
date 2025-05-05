@@ -433,29 +433,331 @@ def test_count_command_success(mock_get_client, monkeypatch, capsys):
     pass  # Add pass to fix indentation error
 
 
+@patch("argparse.ArgumentParser")
 @patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_count_command_collection_not_found(mock_get_client, monkeypatch, capsys):
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
+@patch("sys.exit")
+def test_count_command_collection_not_found(mock_sys_exit, mock_get_client_ef, mock_argparse, capsys):
+    """Test count command exits if collection is not found."""
+    collection_name = "non_existent_collection"
+
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    # Simulate get_collection raising an error (more realistic than returning None)
+    mock_client_instance.get_collection.side_effect = Exception("Collection not found")
+    mock_get_client_ef.return_value = (mock_client_instance, DefaultEmbeddingFunction())
+    mock_sys_exit.side_effect = SystemExit(1)  # Make mock exit behave like real exit
+
+    # Mock argparse return value
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(command="count", log_level="ERROR", collection_name=collection_name)
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run CLI within pytest.raises to catch the expected SystemExit
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    # Assertions
+    assert excinfo.value.code == 1  # Check exit code
+    mock_client_instance.get_collection.assert_called_once_with(name=collection_name)
+    mock_sys_exit.assert_called_once_with(1)
+    captured = capsys.readouterr()
+    assert f"Error: Could not retrieve collection '{collection_name}'" in captured.err
 
 
 # --- Query Command Tests ---
+@patch("argparse.ArgumentParser")
 @patch("chroma_mcp_client.cli.get_client_and_ef")
 def test_query_command_success(mock_get_client, monkeypatch, capsys):
     # ... existing code ...
     pass  # Add pass to fix indentation error
 
 
+@patch("argparse.ArgumentParser")
 @patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_query_command_no_results(mock_get_client, monkeypatch, capsys):
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
+@patch("sys.exit")
+def test_query_command_collection_not_found(mock_sys_exit, mock_get_client_ef, mock_argparse, capsys):
+    """Test query command exits if collection is not found."""
+    collection_name = "non_existent_collection"
+    query_text = "test"
+
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef_instance = DefaultEmbeddingFunction()
+    mock_client_instance.get_collection.side_effect = Exception("Collection does not exist")
+    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+    mock_sys_exit.side_effect = SystemExit(1)
+
+    # Mock argparse
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="query", log_level="ERROR", collection_name=collection_name, query_text=query_text, n_results=1
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run CLI within pytest.raises
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    # Assertions
+    assert excinfo.value.code == 1
+    mock_client_instance.get_collection.assert_called_once_with(
+        name=collection_name, embedding_function=mock_ef_instance
+    )
+    mock_sys_exit.assert_called_once_with(1)
+    captured = capsys.readouterr()
+    assert f"Error: Could not query collection '{collection_name}'. Does it exist?" in captured.err
 
 
+@patch("argparse.ArgumentParser")
 @patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_query_command_collection_not_found(mock_get_client, monkeypatch, capsys):
-    # ... existing code ...
-    pass  # Add pass to fix indentation error
+@patch("sys.exit")
+def test_query_command_query_error(mock_sys_exit, mock_get_client_ef, mock_argparse, capsys):
+    """Test query command exits if the query itself fails."""
+    collection_name = "error_collection"
+    query_text = "test"
+
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_collection = MagicMock(spec=Collection)
+    mock_ef_instance = DefaultEmbeddingFunction()
+    mock_collection.query.side_effect = Exception("Query execution failed")
+    mock_client_instance.get_collection.return_value = mock_collection
+    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+    mock_sys_exit.side_effect = SystemExit(1)
+
+    # Mock argparse
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="query", log_level="ERROR", collection_name=collection_name, query_text=query_text, n_results=1
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run CLI within pytest.raises
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    # Assertions
+    assert excinfo.value.code == 1
+    mock_collection.query.assert_called_once()
+    mock_sys_exit.assert_called_once_with(1)
+    captured = capsys.readouterr()
+    assert f"Error: Could not query collection '{collection_name}'. Does it exist?" in captured.err
 
 
-# Add other tests as needed for error handling, edge cases etc.
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_query_command_no_results(mock_get_client_ef, mock_argparse, capsys):
+    """Test query command when no results are found."""
+    collection_name = "empty_collection"
+    query_text = "nothing here"
+    mock_query_results = {
+        "ids": [[]],  # Empty list within the list
+        "documents": [[]],
+        "metadatas": [[]],
+        "distances": [[]],
+    }
+
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_collection = MagicMock(spec=Collection)
+    mock_ef_instance = DefaultEmbeddingFunction()
+    mock_collection.query.return_value = mock_query_results
+    mock_client_instance.get_collection.return_value = mock_collection
+    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+
+    # Mock argparse
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="query", log_level="INFO", collection_name=collection_name, query_text=query_text, n_results=5
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run CLI
+    main()
+
+    # Assertions
+    mock_collection.query.assert_called_once()
+    captured = capsys.readouterr()
+    assert "No results found." in captured.out
+
+
+# =====================================================================
+# Tests for Analysis
+# =====================================================================
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")  # Mock connection
+@patch("chroma_mcp_client.cli.analyze_chat_history")  # Mock the actual analysis function
+@patch("sys.exit")  # Add patch for sys.exit
+def test_analyze_chat_history_command_called(mock_sys_exit, mock_analyze, mock_get_client_ef, mock_argparse, test_dir):
+    """Test that the analyze-chat-history command calls the correct function."""
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef_instance = DefaultEmbeddingFunction()  # Use a real one or a MagicMock
+    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+
+    # Configure mock_analyze to return the expected tuple
+    mock_analyze.return_value = (5, 2)  # Simulate 5 processed, 2 correlated
+
+    collection_name = "chat_test"
+    repo_path = test_dir
+    status_filter = "pending"
+    new_status = "reviewed"
+    days_limit = 14
+
+    # Mock argparse return value
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="analyze-chat-history",
+        log_level="DEBUG",
+        collection_name=collection_name,
+        repo_path=repo_path,
+        status_filter=status_filter,
+        new_status=new_status,
+        days_limit=days_limit,
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run CLI
+    main()
+
+    # Assertions
+    mock_get_client_ef.assert_called_once()
+    mock_analyze.assert_called_once_with(
+        client=mock_client_instance,
+        embedding_function=mock_ef_instance,
+        repo_path=str(repo_path.resolve()),  # Add repo_path check
+        collection_name=collection_name,
+        days_limit=days_limit,
+        # limit=, # Add check for limit if applicable/passed
+        status_filter=status_filter,
+        new_status=new_status,
+    )
+    # Check that sys.exit was NOT called on success
+    mock_sys_exit.assert_not_called()
+
+
+# =====================================================================
+# Tests for Index Command Errors
+# =====================================================================
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+@patch("chroma_mcp_client.cli.index_file")
+@patch("chroma_mcp_client.cli.index_git_files")
+@patch("chroma_mcp_client.cli.logger")  # Mock the logger used in cli.py
+def test_index_no_paths_or_all(mock_logger, mock_index_git, mock_index_file, mock_get_client_ef, mock_argparse):
+    """Test index command logs warning if no paths given and --all is False."""
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_get_client_ef.return_value = (mock_client_instance, DefaultEmbeddingFunction())
+
+    # Mock argparse
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="index", log_level="INFO", paths=[], repo_root=Path("."), all=False, collection_name="test"
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run CLI
+    main()
+
+    # Assertions
+    mock_index_file.assert_not_called()
+    mock_index_git.assert_not_called()
+    mock_logger.warning.assert_called_once_with(
+        "Index command called without --all flag or specific paths. Nothing to index."
+    )
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+@patch("chroma_mcp_client.cli.index_file")
+@patch("chroma_mcp_client.cli.logger")
+def test_index_non_existent_path(mock_logger, mock_index_file, mock_get_client_ef, mock_argparse, tmp_path):
+    """Test index command logs warning for non-existent paths."""
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_get_client_ef.return_value = (mock_client_instance, DefaultEmbeddingFunction())
+
+    non_existent_file = tmp_path / "not_a_real_file.txt"
+
+    # Mock argparse
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="index",
+        log_level="INFO",
+        paths=[non_existent_file],
+        repo_root=tmp_path,
+        all=False,
+        collection_name="test",
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run CLI
+    main()
+
+    # Assertions
+    mock_index_file.assert_not_called()  # Should not be called for non-existent file
+    mock_logger.warning.assert_called_once_with(f"Skipping non-existent path: {non_existent_file}")
+
+
+# =====================================================================
+# Tests for Analysis Command Errors
+# =====================================================================
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+@patch("chroma_mcp_client.cli.analyze_chat_history")
+@patch("sys.exit")  # Restore patching sys.exit
+@patch("chroma_mcp_client.cli.logger")
+def test_analyze_command_error(
+    mock_logger, mock_sys_exit, mock_analyze, mock_get_client_ef, mock_argparse, tmp_path  # Restore mock_sys_exit
+):
+    """Test analyze command exits if the underlying function fails."""  # Restore description
+    # Configure mocks
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_get_client_ef.return_value = (mock_client_instance, DefaultEmbeddingFunction())
+    error_message = "Analysis failed spectacularly!"
+    mock_analyze.side_effect = Exception(error_message)
+    mock_sys_exit.side_effect = SystemExit(1)  # Restore setting side_effect
+
+    # Mock argparse
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="analyze-chat-history",
+        log_level="ERROR",
+        collection_name="chat",
+        repo_path=tmp_path,
+        status_filter="captured",
+        new_status="analyzed",
+        days_limit=7,
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run CLI within pytest.raises again
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    # REMOVE: try:
+    # REMOVE:     main()
+    # REMOVE: except Exception as e:
+    # REMOVE:     pytest.fail(f"main() raised an unexpected exception: {e}")
+
+    # Assertions
+    assert excinfo.value.code == 1  # Check exit code from pytest.raises
+    mock_analyze.assert_called_once()  # Check it was called
+    mock_sys_exit.assert_called_once_with(1)  # Check sys.exit was called
+    # Check that the error was logged correctly
+    error_log_call = None
+    for call_args in mock_logger.error.call_args_list:
+        if "An error occurred during chat history analysis" in call_args[0][0]:
+            error_log_call = call_args
+            break
+    assert error_log_call is not None, "Error message was not logged as expected"
+    assert error_message in error_log_call[0][0], "Specific exception message not in log"
+    assert error_log_call[1].get("exc_info") is True, "exc_info=True not used in logging call"
+
+
+if __name__ == "__main__":
+    main()

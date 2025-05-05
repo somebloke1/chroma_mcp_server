@@ -338,7 +338,7 @@ def get_chroma_client(
                 ssl=config.ssl,
                 tenant=config.tenant,
                 database=config.database,
-                settings=chroma_settings
+                settings=chroma_settings,
                 # Note: API key might be handled separately or via headers
             )
             logger.info(f"HTTP client initialized (Host: {config.host}, Port: {config.port}, SSL: {config.ssl})")

@@ -110,7 +110,8 @@ def index_file(
         # Get or create the collection
         # Mimic server logic: Try get, then create if not found
         try:
-            collection = client.get_collection(name=collection_name, embedding_function=embedding_func)
+            # Use get_collection *without* embedding_function
+            collection = client.get_collection(name=collection_name)
             logger.debug(f"Using existing collection: {collection_name}")
         except ValueError as e:
             # Check if the error message indicates the collection doesn't exist

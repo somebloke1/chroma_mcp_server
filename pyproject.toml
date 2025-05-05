@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.114"
+version = "0.1.115"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -32,7 +32,9 @@ dependencies = [
     "uvicorn>=0.34.1",
     "chromadb>=1.0.4",
     "mcp>=1.6.0",
-    "numpy>=2.2.4",
+    # Fallback for torch 2.2.2 (version loaded by sentence-transformers) dependents on numpy<2.0.0
+    # "numpy>=2.2.4",
+    "numpy<2.0.0",
     # For default cpu-based embeddings generation
     "onnxruntime>=1.21.0",
 ]
@@ -83,13 +85,15 @@ Repository = "https://github.com/djm81/chroma_mcp_server.git"
 Documentation = "https://github.com/djm81/chroma_mcp_server#readme"
 
 [tool.hatch.envs.default]
-features = ["server"]
+# Ensure 'full' features are enabled if client needs accurate embeddings
+features = ["server", "full"]
 dependencies = [
 ]
 
 [tool.hatch.envs.default.scripts]
 chroma-mcp-server-dev = "python -m chroma_mcp.cli"
 print-cwd = "python -c 'import os; print(os.getcwd())'"
+analyze-chat = "./scripts/analyze_chat_history.sh {args}"
 
 [tool.hatch.envs.test]
 dependencies = [
@@ -102,15 +106,9 @@ dependencies = [
   "GitPython>=3.1.44", # Needed for git ls-files in index --all test
   "pytest-timeout>=2.3.1", # Add pytest-timeout plugin
 ]
+
 # Add dev-mode setting
 dev-mode = true
-# Specify optional features from the project to include
-features = ["full"]
-
-# Add env-vars to specify CPU-only PyTorch index for installation
-# This affects transitive dependencies like torch pulled in by sentence-transformers
-[tool.hatch.envs.test.env-vars]
-PIP_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cpu"
 
 [tool.hatch.envs.test.scripts]
 run = "pytest {args:tests}"
@@ -185,6 +183,7 @@ CHROMA_DATA_DIR = "/Users/dominikus/git/nold-ai/chroma_mcp_server/data"
 CHROMA_LOG_DIR = "/Users/dominikus/git/nold-ai/chroma_mcp_server/logs"
 LOG_LEVEL = "DEBUG"
 MCP_LOG_LEVEL = "DEBUG"
+PIP_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cpu"
 
 [tool.black]
 line-length = 120
