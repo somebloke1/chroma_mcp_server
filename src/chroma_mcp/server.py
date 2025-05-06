@@ -231,11 +231,11 @@ def _initialize_chroma_client(args: argparse.Namespace) -> None:
                 tenant=tenant,
                 database=database,
                 settings=Settings(anonymized_telemetry=False),
-                embedding_function=embedding_function,  # Keep EF for cloud client init
             )
         else:  # ephemeral
             logger.info("Initializing ephemeral ChromaDB client (in-memory)")
-            # Ephemeral client (chromadb.Client) might not take EF in constructor
+            # Ephemeral client (chromadb.Client) does not take EF in constructor directly.
+            # It will use its own internal default or EF specified at collection creation.
             _chroma_client_instance = chromadb.Client(settings=Settings(anonymized_telemetry=False))
 
         # Set embedding function ONLY for persistent and http (non-cloud)

@@ -15,7 +15,7 @@ cd "${PROJECT_ROOT}"
 
 # Execute the chroma-client analyze-chat-history subcommand using hatch
 # Pass all arguments received by this script to the subcommand
-hatch run chroma-client analyze-chat-history "$@"
+TOKENIZERS_PARALLELISM=false hatch run chroma-client analyze-chat-history "$@"
 
 exit_code=$?
 if [ $exit_code -ne 0 ]; then

@@ -24,12 +24,13 @@ from ..utils import (
     get_chroma_client,
     get_embedding_function,
     ValidationError,
+    get_server_config,
 )
 
 # Constants
 THOUGHTS_COLLECTION = "sequential_thoughts_v1"
 SESSIONS_COLLECTION = "thinking_sessions"
-DEFAULT_SIMILARITY_THRESHOLD = 0.75
+DEFAULT_SIMILARITY_THRESHOLD = 0.6
 
 
 @dataclass
@@ -195,16 +196,15 @@ async def _base_sequential_thinking_impl(
         client = get_chroma_client()
         logging.info("--- Chroma client obtained. ---")
 
+        # Get the server's default embedding function
+        server_ef_name = get_server_config().embedding_function_name
+        default_ef = get_embedding_function(server_ef_name)
+        logger.debug(f"Using embedding function '{server_ef_name}' for thinking collections.")
+
         # Ensure the collection exists before proceeding
         logging.info("--- Getting/Creating collection... ---")
         try:
-            collection = client.get_or_create_collection(
-                name=THOUGHTS_COLLECTION
-                # Add metadata if needed for default EF for this collection
-                # metadata={"hnsw:space": "cosine"} # Example if defaults are needed
-                # Specify EF explicitly if needed
-                # embedding_function=get_embedding_function(get_server_config().embedding_function_name)
-            )
+            collection = client.get_or_create_collection(name=THOUGHTS_COLLECTION, embedding_function=default_ef)
             logging.info(f"--- Collection '{collection.name}' obtained/created. ---")
         except Exception as e:
             logging.error(f"--- FAILED to get/create collection: {e} ---", exc_info=True)  # Root log error
@@ -406,9 +406,14 @@ async def _find_similar_thoughts_impl(input_data: FindSimilarThoughtsInput) -> L
 
         client = get_chroma_client()
 
+        # Get the server's default embedding function
+        server_ef_name = get_server_config().embedding_function_name
+        default_ef = get_embedding_function(server_ef_name)
+        logger.debug(f"Using embedding function '{server_ef_name}' for {THOUGHTS_COLLECTION}.")
+
         # Get collection, handle not found specifically
         try:
-            collection = client.get_collection(THOUGHTS_COLLECTION)
+            collection = client.get_collection(name=THOUGHTS_COLLECTION, embedding_function=default_ef)
         except ValueError as e:
             if f"Collection {THOUGHTS_COLLECTION} does not exist." in str(e):
                 logger.warning(f"Cannot find similar thoughts: Collection '{THOUGHTS_COLLECTION}' not found.")
@@ -539,10 +544,15 @@ async def _get_session_summary_impl(input_data: GetSessionSummaryInput) -> List[
 
         client = get_chroma_client()
 
+        # Get the server's default embedding function
+        server_ef_name = get_server_config().embedding_function_name
+        default_ef = get_embedding_function(server_ef_name)
+        logger.debug(f"Using embedding function '{server_ef_name}' for {THOUGHTS_COLLECTION}.")
+
         # Ensure the collection exists before proceeding
         logger.debug(f"Ensuring collection '{THOUGHTS_COLLECTION}' exists for summary...")
         try:
-            collection = client.get_or_create_collection(name=THOUGHTS_COLLECTION)
+            collection = client.get_or_create_collection(name=THOUGHTS_COLLECTION, embedding_function=default_ef)
             logger.debug(f"Collection '{THOUGHTS_COLLECTION}' obtained or created for summary.")
         except Exception as e:
             logger.error(f"Failed to get or create collection '{THOUGHTS_COLLECTION}' for summary: {e}", exc_info=True)
@@ -663,11 +673,16 @@ async def _find_similar_sessions_impl(input_data: FindSimilarSessionsInput) -> L
 
         client = get_chroma_client()
 
+        # Get the server's default embedding function
+        server_ef_name = get_server_config().embedding_function_name
+        default_ef = get_embedding_function(server_ef_name)
+        logger.debug(f"Using embedding function '{server_ef_name}' for thinking collections.")
+
         # --- Step 1: Get all unique session IDs from the thoughts collection ---
         thoughts_collection = None
         all_session_ids = set()
         try:
-            thoughts_collection = client.get_collection(THOUGHTS_COLLECTION)
+            thoughts_collection = client.get_collection(name=THOUGHTS_COLLECTION, embedding_function=default_ef)
             # Efficiently get all unique session_ids from metadata
             # This might be slow for very large collections, consider optimization if needed
             all_metadata = thoughts_collection.get(include=["metadatas"])
@@ -711,7 +726,9 @@ async def _find_similar_sessions_impl(input_data: FindSimilarSessionsInput) -> L
         sessions_collection = None
         try:
             # Try getting the sessions collection
-            sessions_collection = client.get_collection(SESSIONS_COLLECTION)
+            sessions_collection = client.get_or_create_collection(
+                name=SESSIONS_COLLECTION, embedding_function=default_ef
+            )
         except ValueError as e:
             # Handle case where SESSIONS_COLLECTION specifically does not exist
             if f"Collection {SESSIONS_COLLECTION} does not exist." in str(e):

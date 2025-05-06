@@ -576,7 +576,6 @@ async def _get_documents_with_where_filter_impl(
             where=where_filter,
             limit=effective_limit,
             offset=effective_offset,
-            include=[],  # Use ChromaDB defaults
         )
         logger.debug(f"ChromaDB get result: {get_result}")
 
@@ -647,10 +646,7 @@ async def _get_documents_with_document_filter_impl(
         effective_offset = offset if offset > 0 else None
 
         get_result: GetResult = collection.get(
-            where_document=where_document_filter,
-            limit=effective_limit,
-            offset=effective_offset,
-            include=[],  # Use ChromaDB defaults
+            where_document=where_document_filter, limit=effective_limit, offset=effective_offset
         )
         logger.debug(f"ChromaDB get result: {get_result}")
 
@@ -708,8 +704,8 @@ async def _get_all_documents_impl(input_data: GetAllDocumentsInput) -> List[type
         effective_offset = offset if offset > 0 else None
 
         get_result: GetResult = collection.get(
-            limit=effective_limit, offset=effective_offset, include=[]
-        )  # Use ChromaDB defaults
+            limit=effective_limit, offset=effective_offset
+        )  # Use ChromaDB defaults (was include=[])
         logger.debug(f"ChromaDB get result: {get_result}")
 
         result_json = json.dumps(get_result, cls=NumpyEncoder)
@@ -1048,7 +1044,6 @@ async def _query_documents_with_document_filter_impl(
             query_texts=query_texts,
             where_document=where_document_filter,
             n_results=n_results,
-            include=[],  # Default include (empty list passes validation)
         )
         logger.debug(f"ChromaDB query result: {query_result}")
 

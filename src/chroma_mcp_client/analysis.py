@@ -55,8 +55,24 @@ def fetch_recent_chat_entries(
             timestamp_str = metadata.get("timestamp")
             if timestamp_str:
                 try:
-                    entry_timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-                    entry_tuples.append((entry_timestamp, entry_id, metadata))
+                    # Handle 'Z' for UTC explicitly by replacing it for fromisoformat
+                    # and ensure it becomes an offset-aware datetime.
+                    # For other ISO formats, parse directly.
+                    if timestamp_str.endswith("Z"):
+                        # Replace Z with +00:00 which fromisoformat understands
+                        dt_obj = datetime.fromisoformat(timestamp_str[:-1] + "+00:00")
+                    else:
+                        dt_obj = datetime.fromisoformat(timestamp_str)
+
+                    # Standardize to UTC:
+                    # If naive after parsing, assume it represents UTC and make it aware.
+                    if dt_obj.tzinfo is None or dt_obj.tzinfo.utcoffset(dt_obj) is None:
+                        dt_obj = dt_obj.replace(tzinfo=timezone.utc)
+                    # If already aware, convert to UTC to ensure all are in the same timezone for comparison.
+                    else:
+                        dt_obj = dt_obj.astimezone(timezone.utc)
+
+                    entry_tuples.append((dt_obj, entry_id, metadata))
                 except ValueError:
                     logger.warning(f"Could not parse timestamp '{timestamp_str}' for entry {entry_id} during sorting.")
             else:

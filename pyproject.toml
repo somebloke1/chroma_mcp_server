@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.116"
+version = "0.1.119"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -32,18 +32,14 @@ dependencies = [
     "uvicorn>=0.34.1",
     "chromadb>=1.0.4",
     "mcp>=1.6.0",
-    # Fallback for torch 2.2.2 (version loaded by sentence-transformers) dependents on numpy<2.0.0
-    # "numpy>=2.2.4",
-    "numpy<2.0.0",
-    # For default cpu-based embeddings generation
-    "onnxruntime>=1.21.0",
+    "numpy<2.0.0", # Fallback for torch 2.2.2 (version loaded by sentence-transformers) dependents on numpy<2.0.0
+    "onnxruntime>=1.21.0", # For default cpu-based embeddings generation
+    "sentence-transformers>=4.1.0", # Only needed with accurate cpu-based embeddings
 ]
 
 [project.optional-dependencies]
-# Optional dependencies for extended functionality
-full = [
-    # Only needed with accurate embeddings
-    "sentence-transformers>=4.1.0",
+# Optional dependencies for extended functionality using AI models
+aimodels = [
     # Only needed with specific embeddings by provider api
     "google-generativeai>=0.8.4",
     "openai>=1.74.0",
@@ -52,8 +48,6 @@ full = [
     "voyageai>=0.3.2",
     "boto3>=1.37.34",
     "ollama>=0.4.7",
-    # Only needed if using HTTP client
-    "httpx>=0.28.1",
 ]
 
 # Development dependencies
@@ -63,12 +57,22 @@ dev = [
     "isort>=6.0.1",
     "mypy>=1.15.0",
     "pylint>=3.3.6",
-    # Only needed type stubs
-    "types-PyYAML>=6.0.12.20250402",
+    "types-PyYAML>=6.0.12.20250402", # Only needed type stubs
 ]
 
-server = []
-client = []
+server = [
+    "httpx>=0.28.1", # Only needed if using HTTP client
+]
+
+client = [
+    "GitPython>=3.1.44", # For enhanced git interactions in client/thinking tools
+]
+
+full = [
+    "chroma-mcp-server[aimodels]",
+    "chroma-mcp-server[server]",
+    "chroma-mcp-server[client]",
+]
 
 [project.scripts]
 chroma-mcp-server = "chroma_mcp.cli:main"
@@ -85,8 +89,8 @@ Repository = "https://github.com/djm81/chroma_mcp_server.git"
 Documentation = "https://github.com/djm81/chroma_mcp_server#readme"
 
 [tool.hatch.envs.default]
-# Ensure 'full' features are enabled if client needs accurate embeddings
-features = ["server", "full"]
+# Ensure server and client dependencies are available by default
+features = ["server", "client"]
 dependencies = [
 ]
 

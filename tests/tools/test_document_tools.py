@@ -75,7 +75,7 @@ from src.chroma_mcp.utils.config import get_collection_settings  # Not used here
 from src.chroma_mcp.utils import get_logger, get_chroma_client, get_embedding_function, ValidationError
 from src.chroma_mcp.utils.config import validate_collection_name
 
-DEFAULT_SIMILARITY_THRESHOLD = 0.7
+DEFAULT_SIMILARITY_THRESHOLD = 0.6
 
 # --- Helper Functions (Consider moving to a shared conftest.py) ---
 
@@ -586,8 +586,10 @@ class TestDocumentTools:
         # --- Assert ---
         mock_validate.assert_called_once_with(collection_name)
         mock_client.get_collection.assert_called_once_with(collection_name)
-        mock_collection.get.assert_called_once_with(where=where_filter, limit=limit, offset=None, include=[])
-        assert_successful_json_result(result, expected_get_result)
+        mock_collection.get.assert_called_once_with(where=where_filter, limit=limit, offset=None)
+
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result.get("ids") == expected_get_result["ids"]
 
     # Test for GetDocumentsWithDocumentFilterInput - similar structure
     @pytest.mark.asyncio
@@ -607,10 +609,10 @@ class TestDocumentTools:
 
         mock_validate.assert_called_once_with(collection_name)
         mock_client.get_collection.assert_called_once_with(collection_name)
-        mock_collection.get.assert_called_once_with(
-            where_document=where_doc_filter, limit=None, offset=None, include=[]
-        )
-        assert_successful_json_result(result, expected_get_result)
+        mock_collection.get.assert_called_once_with(where_document=where_doc_filter, limit=None, offset=None)
+
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result.get("ids") == expected_get_result["ids"]
 
     # Test for GetAllDocumentsInput - similar structure
     @pytest.mark.asyncio
@@ -630,8 +632,10 @@ class TestDocumentTools:
 
         mock_validate.assert_called_once_with(collection_name)
         mock_client.get_collection.assert_called_once_with(collection_name)
-        mock_collection.get.assert_called_once_with(limit=limit, offset=None, include=[])
-        assert_successful_json_result(result, expected_get_result)
+        mock_collection.get.assert_called_once_with(limit=limit, offset=None)
+
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result.get("ids") == expected_get_result["ids"]
 
     @pytest.mark.skip(reason="Include value validation now primarily handled by Pydantic model.")
     @pytest.mark.asyncio

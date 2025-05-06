@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock, call
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import datetime as real_datetime, timezone, timedelta
 import subprocess
 import json
 import numpy as np  # Make sure numpy is imported
@@ -45,35 +45,56 @@ def mock_chroma_collection(mock_chroma_client):
 # =====================================================================
 
 
-@patch("chroma_mcp_client.analysis.datetime")  # Mock datetime to control 'now'
+@patch("chroma_mcp_client.analysis.datetime")  # Mock datetime module used in analysis.py
 @patch("chroma_mcp_client.analysis.logger")  # Mock logger instead of log
 def test_fetch_recent_chat_entries_filters_correctly(
     mock_logger,  # Updated parameter name
-    mock_datetime,
+    mock_datetime,  # This is the mock for the 'datetime' module in analysis.py
     mock_chroma_client,  # Keep client fixture to ensure collection is mocked
     mock_chroma_collection,  # Use the collection fixture directly
 ):
     """Test that entries are filtered correctly by status and timestamp using client methods."""
     # Setup mock 'now'
-    mock_now = datetime(2024, 7, 26, 12, 0, 0, tzinfo=timezone.utc)
-    mock_datetime.now.return_value = mock_now
-    mock_datetime.fromisoformat.side_effect = lambda s: datetime.fromisoformat(
-        s.replace("Z", "+00:00")
-    )  # Keep real parsing, handle Z
+    # Use real_datetime (the class) and the real timezone (the class/object) for creating test data
+    mock_now = real_datetime(2024, 7, 26, 12, 0, 0, tzinfo=timezone.utc)
+    mock_datetime.now.return_value = mock_now  # analysis.datetime.now() will use this
 
-    # Mock the collection.get() result
+    # Ensure that calls to fromisoformat within the analysis module use the real parser
+    mock_datetime.fromisoformat.side_effect = lambda s: real_datetime.fromisoformat(s)
+
+    # Ensure that when analysis.py uses 'timezone.utc' (from 'from datetime import timezone'),
+    # it gets the real timezone object. mock_datetime replaces the 'datetime' module.
+    mock_datetime.timezone = timezone  # Assign the real timezone object (imported above) to the mock module
+
+    # Mock the collection.get() result with diverse timestamp formats
     mock_results = {
-        "ids": ["id1", "id2", "id3", "id4", "id5", "id6"],
+        "ids": ["id1", "id2", "id3", "id4", "id5", "id6", "id7", "id8"],
         "metadatas": [
-            {"timestamp": (mock_now - timedelta(days=1)).isoformat(), "status": "captured"},  # Keep (within 7 days)
-            {"timestamp": (mock_now - timedelta(days=8)).isoformat(), "status": "captured"},  # Filter out (too old)
+            # Kept, different formats, all effectively within 7 days and 'captured'
+            # Sorted order expected: id8 (1 hr ago), id1 (1 day ago), id4 (2 days ago), id7 (3 days ago)
             {
-                "timestamp": (mock_now - timedelta(days=3)).isoformat(),
+                "timestamp": (mock_now - timedelta(days=1)).isoformat().replace("+00:00", "Z"),
+                "status": "captured",
+            },  # id1: Zulu format
+            {
+                "timestamp": (mock_now - timedelta(days=8)).isoformat(),
+                "status": "captured",
+            },  # id2: Filter out (too old)
+            {
+                "timestamp": (mock_now - timedelta(days=4)).isoformat(),
                 "status": "analyzed",
-            },  # Filter out (wrong status - initially fetched, but filtered locally)
-            {"timestamp": (mock_now - timedelta(days=6)).isoformat(), "status": "captured"},  # Keep (within 7 days)
-            {"timestamp": "invalid-timestamp", "status": "captured"},  # Filter out (bad timestamp)
-            {"status": "captured"},  # Filter out (missing timestamp)
+            },  # id3: Filter out (wrong status)
+            {"timestamp": (mock_now - timedelta(days=2)).isoformat(), "status": "captured"},  # id4: With +00:00 offset
+            {"timestamp": "invalid-timestamp", "status": "captured"},  # id5: Filter out (bad timestamp)
+            {"status": "captured"},  # id6: Filter out (missing timestamp)
+            {
+                "timestamp": (mock_now - timedelta(days=3)).replace(tzinfo=None).isoformat(),
+                "status": "captured",
+            },  # id7: Naive (becomes UTC)
+            {
+                "timestamp": (mock_now - timedelta(hours=1)).astimezone(timezone(timedelta(hours=2))).isoformat(),
+                "status": "captured",
+            },  # id8: Explicit non-UTC offset (+02:00), should be converted to UTC
         ],
     }
     mock_chroma_collection.get.return_value = mock_results
@@ -83,23 +104,21 @@ def test_fetch_recent_chat_entries_filters_correctly(
     filtered = analysis.fetch_recent_chat_entries(mock_chroma_collection, "captured", 7, 200)
 
     # --- Assertions ---
-    # Check collection.get was called (no client call needed)
-    # mock_chroma_client.get_collection.assert_called_once_with(name="chat_test") # REMOVE THIS CHECK
     expected_where = {"status": "captured"}
     mock_chroma_collection.get.assert_called_once_with(where=expected_where, include=["metadatas"])
 
-    # Check the filtered results (should match the logic inside the function)
-    # id3 has wrong status, but might be fetched initially if where filter includes it
-    # The *local* filtering should remove it.
-    assert len(filtered) == 2
+    assert len(filtered) == 4  # id8, id1, id4, id7
     # Result should be sorted by timestamp desc before returning
-    assert filtered[0]["id"] == "id1"  # Most recent kept
-    assert filtered[1]["id"] == "id4"  # Older kept
-    assert filtered[0]["metadata"]["status"] == "captured"
-    assert filtered[1]["metadata"]["status"] == "captured"
+    assert filtered[0]["id"] == "id8"  # Most recent: 1 hour ago
+    assert filtered[1]["id"] == "id1"  # Next: 1 day ago
+    assert filtered[2]["id"] == "id4"  # Next: 2 days ago
+    assert filtered[3]["id"] == "id7"  # Oldest kept: 3 days ago
+
+    for entry in filtered:
+        assert entry["metadata"]["status"] == "captured"
 
     # Check warnings for bad/missing timestamps during sorting/filtering
-    assert mock_logger.warning.call_count >= 2
+    assert mock_logger.warning.call_count >= 2  # For id5 and id6
     mock_logger.warning.assert_any_call("Could not parse timestamp 'invalid-timestamp' for entry id5 during sorting.")
     mock_logger.warning.assert_any_call("Missing timestamp for entry id6 during sorting.")
 

@@ -27,6 +27,9 @@ def set_server_config(config: ChromaClientConfig):
     """Set the globally accessible server configuration."""
     global _global_client_config
     _global_client_config = config
+    # Log that the config has been set
+    logger = get_logger("utils.set_server_config")
+    logger.info(f"Global server config set: {_global_client_config}")
 
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
@@ -61,7 +64,11 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
 
 def get_server_config() -> ChromaClientConfig:
     """Return the globally stored server configuration."""
+    # Log the current state of _global_client_config when this function is called
+    logger = get_logger("utils.get_server_config")
+    logger.debug(f"get_server_config called. Current _global_client_config: {_global_client_config}")
     if _global_client_config is None:
+        logger.error("_global_client_config is None when get_server_config was called.")
         raise McpError(ErrorData(code=INTERNAL_ERROR, message="Server configuration not initialized"))
     return _global_client_config
 

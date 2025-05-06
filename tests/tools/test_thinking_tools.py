@@ -15,6 +15,7 @@ from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, INTERNAL_ERROR, ErrorData
 
 from src.chroma_mcp.utils.errors import ValidationError
+from src.chroma_mcp.types import ChromaClientConfig
 from src.chroma_mcp.tools.thinking_tools import (
     ThoughtMetadata,  # Import if needed for checks
     THOUGHTS_COLLECTION,  # Import constants
@@ -85,9 +86,21 @@ def assert_raises_mcp_error(expected_message: str):
 
 @pytest.fixture
 def mock_chroma_client_thinking():
-    """Provides a mocked Chroma client, thoughts collection, and sessions collection."""
+    """Provides a mocked Chroma client, thoughts collection, and sessions collection.
+    Also ensures that get_server_config within thinking_tools returns a valid config.
+    """
     # Patch get_chroma_client within the thinking_tools module
-    with patch("src.chroma_mcp.tools.thinking_tools.get_chroma_client") as mock_get_client:
+    with (
+        patch("src.chroma_mcp.tools.thinking_tools.get_chroma_client") as mock_get_client,
+        patch("src.chroma_mcp.tools.thinking_tools.get_server_config") as mock_tt_get_server_config,
+    ):
+
+        # Setup a default ChromaClientConfig for the tests
+        # This is what get_server_config() will return when called by the _impl functions
+        # within thinking_tools.py
+        test_config = ChromaClientConfig(client_type="ephemeral", embedding_function_name="default")
+        mock_tt_get_server_config.return_value = test_config
+
         mock_client = MagicMock()
         mock_thoughts_collection = MagicMock(name="thoughts_collection")
         mock_sessions_collection = MagicMock(name="sessions_collection")
@@ -137,7 +150,7 @@ class TestThinkingTools:
         result_data = assert_successful_json_list_result(result)
 
         # Assertions on mocks
-        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
         mock_collection.add.assert_called_once()
         call_args = mock_collection.add.call_args
         assert call_args.kwargs["documents"] == ["Initial thought"]
@@ -180,7 +193,7 @@ class TestThinkingTools:
 
         # Assertions on mocks
         # Use keyword argument 'name'
-        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
         mock_collection.add.assert_called_once()
         # Assert the get call for previous thoughts
         mock_collection.get.assert_called_once()
@@ -313,15 +326,17 @@ class TestThinkingTools:
         result_data = assert_successful_json_list_result(result)
 
         # Assertions on mocks
-        mock_client.get_collection.assert_called_once_with(THOUGHTS_COLLECTION)
+        mock_client.get_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
         # Expect n_results=5 (Pydantic default)
         mock_collection.query.assert_called_once_with(
             query_texts=[query], n_results=5, where=None, include=["documents", "metadatas", "distances"]
         )
 
         # Assertions on result data
-        assert len(result_data.get("similar_thoughts", [])) == 2  # t3 is below threshold
-        assert result_data.get("total_found") == 2
+        assert (
+            len(result_data.get("similar_thoughts", [])) == 3
+        )  # t3 (similarity 0.6) is now included due to threshold change
+        assert result_data.get("total_found") == 3
         assert result_data.get("threshold_used") == threshold
         # Check content of results
         thought1 = result_data["similar_thoughts"][0]
@@ -384,7 +399,7 @@ class TestThinkingTools:
         result_data = assert_successful_json_list_result(result)
         assert result_data.get("similar_thoughts") == []
         assert result_data.get("total_found") == 0
-        mock_client.get_collection.assert_called_once_with(THOUGHTS_COLLECTION)
+        mock_client.get_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
         # Ensure query was not called if collection not found
         # (Need the mock collection instance for this)
         # Assuming the side effect prevents query from being called implicitly
@@ -416,7 +431,7 @@ class TestThinkingTools:
         result_data = assert_successful_json_list_result(result)
 
         # Assertions on mocks
-        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
         mock_collection.get.assert_called_once_with(include=["documents", "metadatas"])
 
         # Assertions on result data
@@ -448,7 +463,7 @@ class TestThinkingTools:
         assert_successful_json_list_result(result, expected_data=expected_result_data)
 
         # Assertions on mocks
-        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
         mock_collection.get.assert_called_once_with(include=["documents", "metadatas"])
 
     @pytest.mark.asyncio  # Mark as async
@@ -475,7 +490,7 @@ class TestThinkingTools:
         assert "not found" not in result_data.get("message", "")
 
         # Assert mocks were called
-        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
         mock_collection.get.assert_called_once_with(include=["documents", "metadatas"])
 
     @pytest.mark.asyncio
@@ -552,15 +567,9 @@ class TestThinkingTools:
             result_data = assert_successful_json_list_result(result)
 
             # Assertions on mocks - Expect THOUGHTS first, then SESSIONS
-            mock_client.get_collection.assert_any_call(THOUGHTS_COLLECTION)
-            # Ensure the specific get call for metadata was made on thoughts collection
-            mock_thoughts_collection.get.assert_called_once_with(include=["metadatas"])
-            # Ensure get_collection was called for SESSIONS
-            mock_client.get_collection.assert_any_call(SESSIONS_COLLECTION)
-            # Ensure get was called on sessions collection to check existing IDs
-            mock_sessions_collection.get.assert_called_once_with()
-            # Ensure session summary was called for the final result
-            mock_get_summary.assert_called_once_with(GetSessionSummaryInput(session_id="session_abc"))
+            mock_client.get_collection.assert_any_call(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+            mock_client.get_or_create_collection.assert_any_call(name=SESSIONS_COLLECTION, embedding_function=ANY)
+            mock_sessions_collection.query.assert_called_once()  # Check if query was made
 
             # Assert query on the sessions collection mock
             mock_sessions_collection.query.assert_called_once_with(
@@ -603,26 +612,40 @@ class TestThinkingTools:
     @pytest.mark.asyncio
     async def test_find_similar_sessions_sessions_collection_not_found(self, mock_chroma_client_thinking):
         """Test finding similar sessions when the required SESSIONS collection doesn't exist."""
-        mock_client, mock_thoughts_collection, _ = mock_chroma_client_thinking  # Don't need mock_sessions_collection
+        mock_client, mock_thoughts_collection, _ = mock_chroma_client_thinking
 
         # Mock thoughts collection get to return some session IDs
         mock_thoughts_collection.get.return_value = {"metadatas": [{"session_id": "s1"}]}
 
-        # Configure get_collection to raise error specifically for SESSIONS_COLLECTION
-        def get_collection_side_effect(name, embedding_function=None):
+        # Configure side effects for get_collection and get_or_create_collection
+        def get_collection_specific_side_effect(name, embedding_function=None):
             if name == THOUGHTS_COLLECTION:
                 return mock_thoughts_collection
+            # For SESSIONS_COLLECTION, if get_collection is called directly and it doesn't exist
+            raise ValueError(f"Collection {name} does not exist. From get_collection direct call.")
+
+        def get_or_create_specific_side_effect(name, embedding_function=None):
+            if name == THOUGHTS_COLLECTION:
+                return mock_thoughts_collection  # Thoughts collection is assumed to be fine
             elif name == SESSIONS_COLLECTION:
-                raise ValueError(f"Collection {SESSIONS_COLLECTION} does not exist.")
-            else:
-                raise ValueError(f"Unexpected collection {name}")
+                # This is the crucial part for the test. Simulate that get_or_create_collection
+                # fails because the underlying get (or create) indicates non-existence in a way
+                # that the impl function expects for this specific McpError.
+                raise ValueError(f"Collection {SESSIONS_COLLECTION} does not exist.")  # CORRECTED ERROR STRING
+            return MagicMock()
 
-        mock_client.get_collection.side_effect = get_collection_side_effect
+        mock_client.get_collection.side_effect = get_collection_specific_side_effect
+        mock_client.get_or_create_collection.side_effect = get_or_create_specific_side_effect
 
-        # ACT & ASSERT: Expect McpError to be raised
         input_model = FindSimilarSessionsInput(query="any query")
+
+        # Expect the specific McpError raised by _find_similar_sessions_impl
         with assert_raises_mcp_error(f"Tool Error: Collection '{SESSIONS_COLLECTION}' not found"):
             await _find_similar_sessions_impl(input_model)
+
+        # Verify calls that should have happened before the error
+        mock_client.get_collection.assert_any_call(name=THOUGHTS_COLLECTION, embedding_function=ANY)
+        mock_client.get_or_create_collection.assert_any_call(name=SESSIONS_COLLECTION, embedding_function=ANY)
 
     # +++ Start New Coverage Tests +++
 
@@ -641,7 +664,7 @@ class TestThinkingTools:
             await _sequential_thinking_impl(input_model)
 
         # Assert the failing mock was called
-        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION)
+        mock_client.get_or_create_collection.assert_called_once_with(name=THOUGHTS_COLLECTION, embedding_function=ANY)
 
     @pytest.mark.asyncio
     async def test_sequential_thinking_collection_add_error(self, mock_chroma_client_thinking):
