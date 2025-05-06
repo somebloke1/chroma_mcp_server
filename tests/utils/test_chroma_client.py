@@ -350,7 +350,7 @@ def test_get_embedding_function_accurate_specifics(mock_ef_dependencies):
 # REMOVED @pytest.mark.usefixtures("mock_ef_dependencies")
 # Manually patch dependencies within the test
 def test_get_embedding_function_onnx_gpu_available(mock_logger):
-    """Test ONNX EF uses providers list when onnxruntime reports GPU."""
+    """Test ONNX EF uses CPU provider for 'default'/'fast' even if GPU is reported by onnxruntime."""
     mock_logger.reset_mock()
     # Patch the necessary components manually
     with (
@@ -367,13 +367,16 @@ def test_get_embedding_function_onnx_gpu_available(mock_logger):
         gpu_providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
         mock_rt.get_available_providers.return_value = gpu_providers
 
+        # Test for "default"
         # Call the function - the lambda inside KNOWN_EMBEDDING_FUNCTIONS will execute
-        get_embedding_function("fast")  # or "default"
-
+        get_embedding_function("default")
         # Assert the mocked CLASS was called with the correct providers by the lambda
-        mock_onnx_class.assert_called_once_with(preferred_providers=gpu_providers)
-        mock_logger.info.assert_any_call(f"Instantiating embedding function: 'fast'")
-        mock_logger.info.assert_any_call(f"Successfully instantiated embedding function: 'fast'")
+        mock_onnx_class.assert_called_once_with(preferred_providers=["CPUExecutionProvider"])
+        mock_onnx_class.reset_mock()  # Reset for next call
+
+        # Test for "fast"
+        get_embedding_function("fast")
+        mock_onnx_class.assert_called_once_with(preferred_providers=["CPUExecutionProvider"])
 
 
 # REMOVED @pytest.mark.usefixtures("mock_ef_dependencies")

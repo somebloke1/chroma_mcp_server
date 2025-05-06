@@ -2,11 +2,12 @@
 
 This document outlines a sequence of Model Context Protocol (MCP) tool calls to simulate a basic workflow and test the functionality of the `chroma-mcp-server`. This is useful for verifying that the server and its tools are operating correctly after setup or changes.
 
+**Important Note on Tool Naming:** The tool call examples in this document use generic base tool names (e.g., `chroma_create_collection`, `chroma_get_server_version`). When executing these tests, you will need to **prepend the correct prefix for your specific Chroma MCP server instance** as defined in your MCP client configuration (e.g., if your server is named `my_chroma` in `.cursor/mcp.json`, a tool call would look like `default_api.my_chroma_chroma_create_collection(...)`).
+
 **Assumptions:**
 
 - The `chroma-mcp-server` is running and accessible via the MCP client (e.g., through Cursor's `chroma_test` or `chroma` configuration).
 - **Embedding Function:** The server uses an embedding function (configured via `--embedding-function` CLI arg or `CHROMA_EMBEDDING_FUNCTION` env var, defaulting to `all-MiniLM-L6-v2`). The specific function used can slightly affect the results of semantic searches (query/find_similar operations).
-- We are using the `mcp_chroma_test_` prefix for the tools as exposed in this environment.
 - **Recent Refactoring:** Document `add`, `update`, and `delete` tools now operate on **single documents** to improve compatibility with certain clients/models. Query and Get operations still support multiple items/results.
 
 **Error Handling Note:**
@@ -33,7 +34,7 @@ This document outlines a sequence of Model Context Protocol (MCP) tool calls to 
 Verify the server is responding and get its version.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_get_server_version(random_string="check"))
+print(default_api.chroma_get_server_version(random_string="check"))
 ```
 
 *Expected Outcome:* A JSON response containing the package name and installed version.
@@ -43,7 +44,7 @@ print(default_api.mcp_chroma_test_chroma_get_server_version(random_string="check
 Let's create a collection to store test data using the basic tool.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_create_collection(collection_name="mcp_flow_test_coll"))
+print(default_api.chroma_create_collection(collection_name="mcp_flow_test_coll"))
 ```
 
 *Expected Outcome:* Confirmation of creation with collection name, ID, and default metadata/settings. If the collection already exists, an `McpError` indicating this will be raised.
@@ -53,9 +54,9 @@ print(default_api.mcp_chroma_test_chroma_create_collection(collection_name="mcp_
 Create a second collection, this time specifying metadata upfront.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_create_collection_with_metadata(
+print(default_api.chroma_create_collection_with_metadata(
     collection_name="mcp_flow_test_coll_meta",
-    metadata='{"description": "Collection for metadata tests", "topic": "testing"}'
+    metadata='{\"description\": \"Collection for metadata tests\", \"topic\": \"testing\"}'
 ))
 ```
 
@@ -66,7 +67,7 @@ print(default_api.mcp_chroma_test_chroma_create_collection_with_metadata(
 Rename the second collection.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_rename_collection(
+print(default_api.chroma_rename_collection(
     collection_name="mcp_flow_test_coll_meta",
     new_name="mcp_flow_test_coll_renamed"
 ))
@@ -79,7 +80,7 @@ print(default_api.mcp_chroma_test_chroma_rename_collection(
 Verify the new collection appears in the list.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_list_collections())
+print(default_api.chroma_list_collections())
 ```
 
 **Note:** Due to potential client limitations with optional parameters, `name_contains` is omitted. Verify manually if needed.
@@ -91,7 +92,7 @@ print(default_api.mcp_chroma_test_chroma_list_collections())
 Retrieve information about the newly created collection.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_get_collection(collection_name="mcp_flow_test_coll"))
+print(default_api.chroma_get_collection(collection_name="mcp_flow_test_coll"))
 ```
 
 *Expected Outcome:* Details including name, ID, metadata, count (should be 0 initially), and sample entries (should be empty initially).
@@ -101,11 +102,11 @@ print(default_api.mcp_chroma_test_chroma_get_collection(collection_name="mcp_flo
 Add a sample document using the single-item tool that expects metadata as a JSON string.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_add_document_with_metadata(
+print(default_api.chroma_add_document_with_metadata(
     collection_name="mcp_flow_test_coll",
     document="This is the first test document.",
-    metadata='{"source": "test_flow", "topic": "general"}' # Single JSON string
-    # increment_index is optional, defaults to False for single items
+    metadata='{\"source\": \"test_flow\", \"topic\": \"general\"}' # Single JSON string
+    # increment_index is optional, defaults to True as per server implementation (omitted here to rely on default)
 ))
 ```
 
@@ -116,7 +117,7 @@ print(default_api.mcp_chroma_test_chroma_add_document_with_metadata(
 Add another document, this time specifying an ID.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_add_document_with_id(
+print(default_api.chroma_add_document_with_id(
     collection_name="mcp_flow_test_coll",
     document="Here is another document for testing purposes.",
     id="test-doc-2" # Parameter remains singular 'id' as per schema
@@ -130,11 +131,11 @@ print(default_api.mcp_chroma_test_chroma_add_document_with_id(
 Add a third document with both ID and metadata.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_add_document_with_id_and_metadata(
+print(default_api.chroma_add_document_with_id_and_metadata(
     collection_name="mcp_flow_test_coll",
     document="The quick brown fox jumps over the lazy dog.",
     id="test-doc-pangram",
-    metadata='{"source": "test_flow", "topic": "pangram"}'
+    metadata='{\"source\": \"test_flow\", \"topic\": \"pangram\"}'
 ))
 ```
 
@@ -145,7 +146,7 @@ print(default_api.mcp_chroma_test_chroma_add_document_with_id_and_metadata(
 Add a basic document without specifying ID or metadata to the first collection.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_add_document(
+print(default_api.chroma_add_document(
     collection_name="mcp_flow_test_coll",
     document="This is a basic document with no extra info."
 ))
@@ -158,7 +159,7 @@ print(default_api.mcp_chroma_test_chroma_add_document(
 Check the first few entries.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_peek_collection(collection_name="mcp_flow_test_coll"))
+print(default_api.chroma_peek_collection(collection_name="mcp_flow_test_coll"))
 ```
 
 **Note:** `limit` is omitted due to potential client issues.
@@ -170,7 +171,7 @@ print(default_api.mcp_chroma_test_chroma_peek_collection(collection_name="mcp_fl
 Retrieve all documents from the first collection (respecting potential default limits).
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_get_all_documents(collection_name="mcp_flow_test_coll"))
+print(default_api.chroma_get_all_documents(collection_name="mcp_flow_test_coll"))
 ```
 
 *Expected Outcome:* A list containing all documents currently in `mcp_flow_test_coll`.
@@ -182,7 +183,7 @@ Perform a semantic search. We'll use the basic query tool.
 **Note:** The quality and specific ranking of results depend on the chosen embedding function.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_query_documents(
+print(default_api.chroma_query_documents(
     collection_name="mcp_flow_test_coll",
     query_texts=["Tell me about test documents"], # Required list, should work
     # n_results is optional (defaults to 10), include is optional
@@ -198,10 +199,10 @@ print(default_api.mcp_chroma_test_chroma_query_documents(
 Perform a query filtering by metadata.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_query_documents_with_where_filter(
+print(default_api.chroma_query_documents_with_where_filter(
     collection_name="mcp_flow_test_coll",
     query_texts=["Tell me about pangrams"],
-    where='{"topic": "pangram"}' # Filter for topic as JSON string
+    where='{\"topic\": \"pangram\"}' # Filter for topic as JSON string
 ))
 ```
 
@@ -212,10 +213,10 @@ print(default_api.mcp_chroma_test_chroma_query_documents_with_where_filter(
 Perform a query filtering by document content.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_query_documents_with_document_filter(
+print(default_api.chroma_query_documents_with_document_filter(
     collection_name="mcp_flow_test_coll",
     query_texts=["Tell me about general test documents"],
-    where_document='{"$contains": "first test"}' # Filter for content as JSON string
+    where_document='{\"$contains\": \"first test\"}' # Filter for content as JSON string
 ))
 ```
 
@@ -227,10 +228,10 @@ Retrieve documents using their known IDs. Use the specific `_by_ids` variant. **
 
 ```tool_code
 # Use the IDs we specified earlier.
-print(default_api.mcp_chroma_test_chroma_get_documents_by_ids(
+print(default_api.chroma_get_documents_by_ids(
     collection_name="mcp_flow_test_coll",
     ids=["test-doc-2", "test-doc-pangram"] # Required list
-    # include is optional
+    # Optional parameters like 'include' are omitted as per client limitations note / Pydantic models
 ))
 ```
 
@@ -242,9 +243,10 @@ print(default_api.mcp_chroma_test_chroma_get_documents_by_ids(
 Retrieve documents filtering by metadata.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_get_documents_with_where_filter(
+print(default_api.chroma_get_documents_with_where_filter(
     collection_name="mcp_flow_test_coll",
-    where='{"source": "test_flow"}' # Filter for source as JSON string
+    where='{\"source\": \"test_flow\"}' # Filter for source as JSON string
+    # Optional parameters like 'limit', 'offset', 'include' are omitted
 ))
 ```
 
@@ -255,13 +257,29 @@ print(default_api.mcp_chroma_test_chroma_get_documents_with_where_filter(
 Retrieve documents filtering by content.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_get_documents_with_document_filter(
+print(default_api.chroma_get_documents_with_document_filter(
     collection_name="mcp_flow_test_coll",
-    where_document='{"$contains": "basic document"}' # Filter for content as JSON string
+    where_document='{\"$contains\": \"basic document\"}' # Filter for content as JSON string
+    # Optional parameters like 'limit', 'offset', 'include' are omitted
 ))
 ```
 
 *Expected Outcome:* Documents containing "basic document".
+
+### 8d. Get Specific Documents by ID (Embeddings Only)
+
+Retrieve document embeddings only using their known IDs. **This step might fail with affected clients due to list handling.**
+
+```tool_code
+# Use the IDs we specified earlier.
+print(default_api.chroma_get_documents_by_ids_embeddings(
+    collection_name="mcp_flow_test_coll",
+    ids=["test-doc-2", "test-doc-pangram"] # Required list
+))
+```
+
+*Expected Outcome (in affected clients):* Likely failure due to client list handling.
+*Expected Outcome (if successful):* JSON containing `ids` and `embeddings` for the requested documents.
 
 ### 9. Update Document Content
 
@@ -269,14 +287,14 @@ Modify a document's content using its ID. Use the single-item update tool.
 
 ```tool_code
 # Use one of the known IDs.
-print(default_api.mcp_chroma_test_chroma_update_document_content(
+print(default_api.chroma_update_document_content(
     collection_name="mcp_flow_test_coll",
     id="test-doc-2", # Single ID
     document="This document content has been updated." # Single document content
 ))
 ```
 
-**Note:** To update metadata, use `mcp_chroma_test_chroma_update_document_metadata` (takes single `id` and `metadata` dict/JSON string).
+**Note:** To update metadata, use `default_api.chroma_update_document_metadata` (takes single `id` and `metadata` dict/JSON string).
 
 *Expected Outcome:* Confirmation of update request for 1 document.
 
@@ -285,10 +303,10 @@ print(default_api.mcp_chroma_test_chroma_update_document_content(
 Update the metadata of a document.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_update_document_metadata(
+print(default_api.chroma_update_document_metadata(
     collection_name="mcp_flow_test_coll",
     id="test-doc-pangram",
-    metadata='{"source": "test_flow_updated", "topic": "pangram", "status": "updated"}' # New metadata as JSON string
+    metadata='{\"source\": \"test_flow_updated\", \"topic\": \"pangram\", \"status\": \"updated\"}' # New metadata as JSON string
 ))
 ```
 
@@ -300,7 +318,7 @@ Retrieve the updated documents using their IDs and the "all" variant tool to see
 
 ```tool_code
 # Use the same IDs used in Step 9/9b.
-print(default_api.mcp_chroma_test_chroma_get_documents_by_ids_all(
+print(default_api.chroma_get_documents_by_ids_all(
     collection_name="mcp_flow_test_coll",
     ids=["test-doc-2", "test-doc-pangram"] # Required list
 ))
@@ -315,7 +333,7 @@ Remove a specific document using its ID. Use the single-item delete tool.
 
 ```tool_code
 # Use one of the known IDs.
-print(default_api.mcp_chroma_test_chroma_delete_document_by_id(
+print(default_api.chroma_delete_document_by_id(
     collection_name="mcp_flow_test_coll",
     id="test-doc-2" # Single ID
 ))
@@ -331,7 +349,7 @@ Attempt to retrieve the deleted document. **This step might fail with affected c
 
 ```tool_code
 # Use the same ID used in Step 11.
-print(default_api.mcp_chroma_test_chroma_get_documents_by_ids(
+print(default_api.chroma_get_documents_by_ids(
     collection_name="mcp_flow_test_coll",
     ids=["test-doc-2"] # Required list
 ))
@@ -345,7 +363,7 @@ print(default_api.mcp_chroma_test_chroma_get_documents_by_ids(
 Attempt to retrieve a document ID that never existed. **This step might fail with affected clients due to list handling.**
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_get_documents_by_ids(
+print(default_api.chroma_get_documents_by_ids(
     collection_name="mcp_flow_test_coll",
     ids=["this-id-never-existed"] # Required list
 ))
@@ -360,7 +378,7 @@ Delete the other known documents from the first collection.
 
 ```tool_code
 # First, delete the pangram doc
-print(default_api.mcp_chroma_test_chroma_delete_document_by_id(
+print(default_api.chroma_delete_document_by_id(
     collection_name="mcp_flow_test_coll",
     id="test-doc-pangram" # Single ID
 ))
@@ -368,11 +386,11 @@ print(default_api.mcp_chroma_test_chroma_delete_document_by_id(
 # Need to retrieve IDs of auto-generated docs to delete them
 # For this example, we'll assume we know one from a peek/get_all result
 # Replace 'generated-doc-id-1' with an actual ID obtained from Step 6b
-# print(default_api.mcp_chroma_test_chroma_delete_document_by_id(
+# print(default_api.chroma_delete_document_by_id(
 #     collection_name="mcp_flow_test_coll",
 #     id="generated-doc-id-1"
 # ))
-# print(default_api.mcp_chroma_test_chroma_delete_document_by_id(
+# print(default_api.chroma_delete_document_by_id(
 #     collection_name="mcp_flow_test_coll",
 #     id="generated-doc-id-2"
 # ))
@@ -385,7 +403,7 @@ print(default_api.mcp_chroma_test_chroma_delete_document_by_id(
 Clean up by deleting the first test collection.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_delete_collection(collection_name="mcp_flow_test_coll"))
+print(default_api.chroma_delete_collection(collection_name="mcp_flow_test_coll"))
 ```
 
 *Expected Outcome:* Confirmation of deletion. If it doesn't exist, an `McpError` is raised.
@@ -395,7 +413,7 @@ print(default_api.mcp_chroma_test_chroma_delete_collection(collection_name="mcp_
 Clean up by deleting the second (renamed) test collection.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_delete_collection(collection_name="mcp_flow_test_coll_renamed"))
+print(default_api.chroma_delete_collection(collection_name="mcp_flow_test_coll_renamed"))
 ```
 
 *Expected Outcome:* Confirmation of deletion.
@@ -405,7 +423,7 @@ print(default_api.mcp_chroma_test_chroma_delete_collection(collection_name="mcp_
 Attempt to list collections (should be empty or only contain non-test collections).
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_list_collections())
+print(default_api.chroma_list_collections())
 ```
 
 **Note:** `name_contains` omitted. Verify manually.
@@ -425,7 +443,7 @@ This section demonstrates a more realistic workflow using the sequential thinkin
 Record the first thought in a new session about a login issue.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_sequential_thinking(
+print(default_api.chroma_sequential_thinking(
     thought="User reports login fails frequently after recent deployment. Need to check server logs for errors.",
     thought_number=1,
     total_thoughts=3
@@ -441,7 +459,7 @@ Record the second thought, using `session_id_1`.
 
 ```tool_code
 # Replace 'session_id_1' with the actual ID from T1's output
-print(default_api.mcp_chroma_test_chroma_sequential_thinking(
+print(default_api.chroma_sequential_thinking(
     session_id="session_id_1",
     thought="Logs show intermittent 'InvalidCredentialsError'. Suspect password hashing or comparison logic in auth_utils.py.",
     thought_number=2,
@@ -457,7 +475,7 @@ Record the final thought for the debugging session.
 
 ```tool_code
 # Replace 'session_id_1' with the actual ID from T1's output
-print(default_api.mcp_chroma_test_chroma_sequential_thinking(
+print(default_api.chroma_sequential_thinking(
     session_id="session_id_1",
     thought="Found the bug! Salt generation during registration used a non-deterministic source. Fixing auth_utils.py.",
     thought_number=3,
@@ -467,12 +485,26 @@ print(default_api.mcp_chroma_test_chroma_sequential_thinking(
 
 *Expected Outcome:* Confirmation.
 
+### T3a. Get Session 1 Summary
+
+Retrieve the summary of the first thinking session.
+
+```tool_code
+# Replace 'session_id_1' with the actual ID from T1's output
+print(default_api.chroma_get_session_summary(
+    session_id="session_id_1" # Use actual session_id_1
+    # include_branches defaults to True, omit for test simplicity due to client limitations
+))
+```
+
+*Expected Outcome:* A JSON object containing thoughts from `session_id_1`.
+
 ### T4. Start Session 2: Planning MFA
 
 Start a new session for planning a new feature.
 
 ```tool_code
-print(default_api.mcp_chroma_test_chroma_sequential_thinking(
+print(default_api.chroma_sequential_thinking(
     thought="Product requirement: Add multi-factor authentication (MFA) for enhanced security.",
     thought_number=1,
     total_thoughts=3
@@ -488,7 +520,7 @@ Record the second thought for the MFA planning.
 
 ```tool_code
 # Replace 'session_id_2' with the actual ID from T4's output
-print(default_api.mcp_chroma_test_chroma_sequential_thinking(
+print(default_api.chroma_sequential_thinking(
     session_id="session_id_2",
     thought="Researching MFA options. TOTP (like Google Authenticator) seems the best balance of security and user experience vs SMS/Email codes. Will investigate the 'pyotp' library.",
     thought_number=2,
@@ -504,7 +536,7 @@ Record the final thought outlining the implementation plan.
 
 ```tool_code
 # Replace 'session_id_2' with the actual ID from T4's output
-print(default_api.mcp_chroma_test_chroma_sequential_thinking(
+print(default_api.chroma_sequential_thinking(
     session_id="session_id_2",
     thought="MFA Implementation Plan: 1. Update User model (add TOTP secret field). 2. Integrate 'pyotp' library. 3. Create QR code setup flow in user profile page. 4. Modify login view/API to check for TOTP code after password validation.",
     thought_number=3,
@@ -514,13 +546,42 @@ print(default_api.mcp_chroma_test_chroma_sequential_thinking(
 
 *Expected Outcome:* Confirmation.
 
-### T5b. Ensure Sessions Collection Exists
+### T5b. Get Session 2 Summary
+
+Retrieve the summary of the second thinking session.
+
+```tool_code
+# Replace 'session_id_2' with the actual ID from T4's output
+print(default_api.chroma_get_session_summary(
+    session_id="session_id_2" # Use actual session_id_2
+))
+```
+
+*Expected Outcome:* A JSON object containing thoughts from `session_id_2`.
+
+### T5c. Find Similar Thoughts
+
+Search for thoughts related to a specific topic across sessions.
+
+```tool_code
+# Example query
+print(default_api.chroma_find_similar_thoughts(
+    query="password hashing issue",
+    # session_id, n_results, threshold, include_branches are optional.
+    # Omitting them here to rely on defaults and due to client limitations.
+    # Defaults: n_results=5, threshold=-1.0 (uses server default, e.g. 0.75), include_branches=True
+))
+```
+
+*Expected Outcome:* A list of thoughts semantically similar to "password hashing issue". Should likely find the second thought from `session_id_1`.
+
+### T5d. Ensure Sessions Collection Exists
 
 Ensure the internal collection used by `find_similar_sessions` exists. This might normally be handled by server initialization, but we include it here for test robustness.
 
 ```tool_code
 # This command remains the same
-print(default_api.mcp_chroma_test_chroma_create_collection(collection_name="thinking_sessions"))
+print(default_api.chroma_create_collection(collection_name="thinking_sessions"))
 ```
 
 *Expected Outcome:* Confirmation of creation or an McpError indicating it already exists (which is also acceptable for the test).
@@ -533,7 +594,7 @@ Search for entire sessions similar to a query related to the new examples. We wi
 
 ```tool_code
 # Query relevant to both Session 1 (login issue) and Session 2 (MFA involves auth)
-print(default_api.mcp_chroma_test_chroma_find_similar_sessions(
+print(default_api.chroma_find_similar_sessions(
     query="frequent login failures after deployment",
     # We will vary the threshold in the actual test runs (e.g., 0.5, 0.75)
     threshold=0.5 # Placeholder value, will be changed in execution

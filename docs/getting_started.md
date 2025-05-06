@@ -14,15 +14,46 @@ Choose your preferred installation method:
 
 ### Option 1: Simple Installation (pip/uvx)
 
+The base `chroma-mcp-server` package provides core functionality. You can enhance it by installing optional dependencies for specific features.
+
+**Base Installation:**
+
 ```bash
 # Install the base package from PyPI using pip
 pip install chroma-mcp-server
 
 # Or using uv
 uv pip install chroma-mcp-server
+```
 
-# For full functionality including optional embedding models
-pip install "chroma-mcp-server[full]"
+**Optional Features (Extras):**
+
+The server offers several "extras" to install sets of optional dependencies:
+
+- `[aimodels]`: Installs support for a wide range of embedding models from providers like OpenAI, Google, Cohere, HuggingFace, VoyageAI, AWS Bedrock, and Ollama. This is recommended if you plan to use embedding functions beyond the default CPU-based ones.
+- `[server]`: Includes `httpx`, which might be needed if the server itself needs to make outbound HTTP requests (e.g., for webhooks or fetching external resources).
+- `[client]`: Includes `GitPython`, useful for more robust Git interactions if you are using client-side scripts that analyze or index Git repositories.
+
+You can install one or more extras:
+
+```bash
+# Install with AI model support
+pip install "chroma-mcp-server[aimodels]"
+uv pip install "chroma-mcp-server[aimodels]"
+
+# Install with AI model and server HTTP client support
+pip install "chroma-mcp-server[aimodels,server]"
+uv pip install "chroma-mcp-server[aimodels,server]"
+```
+
+**Full Installation (Recommended for most users wanting all features):**
+
+To install the server with all common optional features (including all AI models, server utilities, and client utilities), you can use a combined set of extras.
+A convenience `[full]` extra is defined in `pyproject.toml` to include `aimodels`, `server`, and `client`:
+
+```bash
+# For full functionality including all optional embedding models and utilities
+pip install "chroma-mcp-server[full]" 
 # Or using uv
 uv pip install "chroma-mcp-server[full]"
 ```

@@ -138,16 +138,22 @@ KNOWN_EMBEDDING_FUNCTIONS: Dict[str, Callable[[], EmbeddingFunction]] = {
     # --- Local CPU/ONNX Options ---
     "default": lambda: ef.ONNXMiniLM_L6_V2(
         preferred_providers=(
-            onnxruntime.get_available_providers()
-            if ONNXRUNTIME_AVAILABLE and onnxruntime.get_available_providers()
-            else ["CPUExecutionProvider"]
+            # Force CPUExecutionProvider to avoid CoreML issues on not supported GPU systems
+            ["CPUExecutionProvider"]
+            # Original logic:
+            # onnxruntime.get_available_providers()
+            # if ONNXRUNTIME_AVAILABLE and onnxruntime.get_available_providers()
+            # else ["CPUExecutionProvider"]
         )
     ),
     "fast": lambda: ef.ONNXMiniLM_L6_V2(  # Alias for default
         preferred_providers=(
-            onnxruntime.get_available_providers()
-            if ONNXRUNTIME_AVAILABLE and onnxruntime.get_available_providers()
-            else ["CPUExecutionProvider"]
+            # Force CPUExecutionProvider to avoid CoreML issues on not supported GPU systems
+            ["CPUExecutionProvider"]
+            # Original logic:
+            # onnxruntime.get_available_providers()
+            # if ONNXRUNTIME_AVAILABLE and onnxruntime.get_available_providers()
+            # else ["CPUExecutionProvider"]
         )
     ),
     # --- Local SentenceTransformer Option ---
