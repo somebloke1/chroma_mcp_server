@@ -143,23 +143,37 @@ The traditional development workflow forces developers to be digital archaeologi
 1. **Automated Contextual Foundation (Solves Fragmentation & Staleness - Phase 1 onwards):**
     * **Traditional Pain:** Manually searching through Git logs, code comments, separate doc files, and endless chat histories. AI suggestions are generic or based on incomplete snippets you feed it.
     * **Chroma MCP Solution & WHY it's better:**
-        * **Code (`codebase_v1`):** The Git hook **automatically indexes every change on commit.** Your codebase context is *always fresh* without a single manual indexing command. **HOW:** `chroma-client index --changed` runs silently in the background.
-        * **Dialogues (`chat_history_v1`):** The `auto_log_chat` rule **automatically captures the essence of every AI interaction.** No more "Where did we discuss that bug?" – it's logged and searchable. **HOW:** AI summarizes prompt/response and calls an MCP tool.
-        * **This automation alone is a massive productivity boost over manual methods.**
+        * **Code (`codebase_v1`):** The Git hook **automatically indexes every change on commit.** Your codebase context is *always fresh* without a single manual indexing command.
+
+          **HOW:** `chroma-client index --changed` runs silently in the background.
+        * **Dialogues (`chat_history_v1`):** The `auto_log_chat` rule **automatically captures the essence of every AI interaction.** No more "Where did we discuss that bug?" – it's logged and searchable.
+
+          **HOW:** AI summarizes prompt/response and calls an MCP tool.
+        * This automation alone is a massive productivity boost over manual methods.
 
 2. **Unified & Semantically Searchable Knowledge Hub (Solves Scattered Information - Phase 1 onwards):**
     * **Traditional Pain:** Information silos. Code is in the repo, design docs elsewhere, quick fixes in chat, error solutions in commit messages. Finding related pieces is a nightmare.
-    * **Chroma MCP Solution & WHY it's better:** `codebase_v1`, `chat_history_v1`, `derived_learnings_v1`, and `thinking_sessions_v1` all reside in ChromaDB, accessible via the same semantic search capabilities. You can ask "Show me code related to X AND discussions where we fixed Y using X." **HOW:** MCP tools query across these collections, providing multifaceted context.
+    * **Chroma MCP Solution & WHY it's better:** `codebase_v1`, `chat_history_v1`, `derived_learnings_v1`, and `thinking_sessions_v1` all reside in ChromaDB, accessible via the same semantic search capabilities. You can ask "Show me code related to X AND discussions where we fixed Y using X."
+
+      **HOW:** MCP tools query across these collections, providing multifaceted context.
 
 3. **Explicit Knowledge Curation & Refinement (Empowers Precision - Phase 1 onwards):**
     * **Traditional Pain:** Tacit knowledge is lost. Useful snippets from chats or temporary solutions are forgotten. No easy way to flag "this is a golden solution."
-    * **Chroma MCP Solution & WHY it's better:** The `derived_learnings_v1` collection allows developers to **explicitly promote and structure validated solutions and best practices.** This curated knowledge becomes a high-signal resource for both humans and AI, significantly boosting RAG quality. **HOW:** `promote-learning` CLI (or manual process) creates structured entries in `derived_learnings_v1`.
+    * **Chroma MCP Solution & WHY it's better:** The `derived_learnings_v1` collection allows developers to **explicitly promote and structure validated solutions and best practices.** This curated knowledge becomes a high-signal resource for both humans and AI, significantly boosting RAG quality.
+
+      **HOW:** `promote-learning` CLI (or manual process) creates structured entries in `derived_learnings_v1`.
 
 4. **Evolutionary Learning & Adaptation (Transforms AI from Tool to Partner - Phases 2 & 3):**
     * **Traditional Pain:** AI assistants are static tools. They don't learn from your project's specific nuances, coding style, or past corrections beyond the immediate conversation.
     * **Chroma MCP Solution & WHY it's better:**
-        * **Phase 2 (Optional LoRA):** Developers can **manually fine-tune LoRA adapters** using high-quality data from `chat_history_v1` / `derived_learnings_v1`. This allows AI to be *specialized* for specific, recurring project tasks. **HOW:** Export reward data, train LoRA, use on-demand in IDE.
-        * **Phase 3 (Automated RL):** The system **automatically analyzes interactions, generates training data, and retrains LoRA models.** The "Second Brain" doesn't just store information; it *learns and adapts*, continuously improving its understanding and the relevance of its suggestions. **HOW:** Scheduled scripts automate the analysis, training, and deployment cycle.
+        * **Phase 2 (Optional LoRA):** Developers can **manually fine-tune LoRA adapters** using high-quality data from `chat_history_v1` / `derived_learnings_v1`. This allows AI to be *specialized* for specific, recurring project tasks.
+
+          **HOW:** Export reward data, train LoRA, use on-demand in IDE.
+
+        * **Phase 3 (Automated RL):** The system **automatically analyzes interactions, generates training data, and retrains LoRA models.** The "Second Brain" doesn't just store information; it *learns and adapts*, continuously improving its understanding and the relevance of its suggestions.
+
+          **HOW:** Scheduled scripts automate the analysis, training, and deployment cycle.
+
         * **This makes the AI a continuously improving partner that understands your project's evolving context deeply.**
 
 5. **Seamless Workflow Integration (Reduces Friction - All Phases):**
