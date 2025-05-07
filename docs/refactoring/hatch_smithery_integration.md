@@ -16,7 +16,7 @@ Smithery is a package management system and registry designed specifically for M
 
 ## Prerequisites
 
-- Completed Hatch migration (see `hatch_migration_plan.md`)
+- Completed Hatch migration
 - A working, Hatch-packaged Chroma MCP Server (runnable via `chroma-mcp-server` script)
 - Published package (or ready-to-publish) on PyPI
 

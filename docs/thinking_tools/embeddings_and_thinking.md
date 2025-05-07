@@ -77,18 +77,18 @@ If both are set, the command-line argument takes precedence.
 ```mermaid
 graph LR
     A[User/AI Interaction] --> B(Record Thought via MCP);
-    B -* Thought Content --> C{Embedding Function};
-    C -* Embedding Vector --> D[ChromaDB Collection: sequential_thoughts_v1];
-    B -* Metadata (session_id, thought#, etc.) --> D;
+    B --> C{Embedding Function};
+    C --> D[ChromaDB Collection: sequential_thoughts_v1];
+    B --> D;
 
     E[AI Needs Context] --> F[Query via MCP for relevant past info];
-    F -* Query Text --> C;
-    F -* Search Parameters (session_id?) --> G[Query ChromaDB];
-    C -* Query Embedding --> G;
-    G -* Semantic Search --> D;
-    D -* Similar Thought Embeddings --> G;
-    G -* Relevant Thoughts (Content + Metadata) --> F;
-    F -* Formatted Context --> E;
+    F --> C;
+    F --> G[Query ChromaDB];
+    C --> G;
+    G --> D;
+    D --> G;
+    G --> F;
+    F --> E;
 ```
 
 ## The Thinking Tools (`thinking_tools.py`)

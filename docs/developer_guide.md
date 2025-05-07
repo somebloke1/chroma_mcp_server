@@ -2,6 +2,8 @@
 
 This guide provides instructions for developers working on the `chroma-mcp-server` codebase, including setup, testing, building, and releasing.
 
+**Note on Ongoing Development:** This project is actively implementing the features outlined in the `docs/refactoring/local_rag_pipeline_plan_v4.md` roadmap, particularly focusing on the foundational Phase 1 capabilities (automated indexing, chat logging, working memory). Contributions towards the later phases (automated training, deployment) are welcome, but please coordinate with the project maintainers.
+
 ## Development Environment Setup
 
 This project uses [Hatch](https://hatch.pypa.io/) for development and package management.

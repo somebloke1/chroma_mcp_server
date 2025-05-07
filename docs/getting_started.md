@@ -2,6 +2,8 @@
 
 This guide will help you set up and start using the Chroma MCP Server.
 
+**Note on Ongoing Development:** The Chroma MCP Server is actively being developed to implement the full vision outlined in the `docs/refactoring/local_rag_pipeline_plan_v4.md` roadmap, which includes advanced features like automated learning pipelines (Phases 2 and 3). While the core setup and foundational features (like automated indexing via Git hooks and automated chat logging via IDE rules - Phase 1) are functional, some of the more sophisticated capabilities described in related documents are still under active development.
+
 ## Prerequisites
 
 - Python 3.10 or higher
