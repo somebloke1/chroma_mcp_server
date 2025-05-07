@@ -4,7 +4,7 @@ This document explains how to configure and utilize the `auto_log_chat` rule to 
 
 ## Purpose
 
-The goal is to create a persistent log of chat interactions (prompts, responses, actions taken) within ChromaDB. This history can then be analyzed to derive learnings, understand development patterns, or provide richer context for future AI interactions, fulfilling Phase 4 of the [Local RAG Pipeline Plan](../refactoring/local_rag_pipeline_plan_v3.md).
+The goal is to create a persistent log of chat interactions (prompts, responses, actions taken) within ChromaDB. This history can then be analyzed to derive learnings, understand development patterns, or provide richer context for future AI interactions, fulfilling Phase 4 of the [Local RAG Pipeline Plan](../refactoring/local_rag_pipeline_plan_v4.md).
 
 ## Rule Overview
 

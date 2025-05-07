@@ -28,6 +28,8 @@ The Chroma MCP Server allows you to connect AI applications with Chroma through 
 - **Automated Chat Logging:** IDE rules (like `auto_log_chat` for Cursor) facilitate automatic summarization and logging of AI chat interactions into a separate Chroma collection.
 - **Working Memory Tools:** Specialized MCP commands for capturing and retrieving structured thoughts and development context.
 
+**Note on Ongoing Development:** The advanced features discussed in the "Second Brain" concept, particularly the later phases involving automated reinforcement learning and model fine-tuning (`Phase 2` and `Phase 3` of the `docs/refactoring/local_rag_pipeline_plan_v4.md`), are currently under active implementation. The foundational `Phase 1` features (automated indexing, chat logging, working memory) are largely complete and ready for use.
+
 This enables AI models to:
 
 - Store and retrieve embeddings

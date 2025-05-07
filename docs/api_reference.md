@@ -1,8 +1,8 @@
 # Chroma MCP Server API Reference
 
-This document provides detailed information about the tools available in the Chroma MCP Server.
+This document provides a detailed reference for the tools and endpoints exposed by the Chroma MCP Server.
 
-> **Note**: The Chroma MCP Server has been optimized with minimal dependencies. For full functionality including embedding models, install with `pip install chroma-mcp-server[full]`.
+**Note on Ongoing Development:** The features and tools listed here are part of an evolving system based on the `docs/refactoring/local_rag_pipeline_plan_v4.md` roadmap. Some tools may be related to features currently under active implementation (Phases 2 and 3).
 
 ## Tool Categories
 
@@ -857,7 +857,7 @@ Tools for adding, updating, retrieving, and deleting individual documents within
 
 These tools facilitate creating a persistent, searchable "working memory" for AI development workflows by managing sequences of thoughts within sessions.
 
-See the [Embeddings and Thinking Tools Guide](embeddings_and_thinking.md) for concepts and use cases.
+See the [Embeddings and Thinking Tools Guide](thinking_tools/embeddings_and_thinking.md) for concepts and use cases.
 
 ### `mcp_chroma_test_chroma_sequential_thinking`
 

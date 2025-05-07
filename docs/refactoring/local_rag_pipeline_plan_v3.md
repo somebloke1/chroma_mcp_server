@@ -95,11 +95,11 @@
   - [X] Run tests: `hatch run test` (All tests passing).
   - [X] **Remember:** Run `./scripts/test.sh -c -v` after code changes to verify tests pass.
 
-- [X] **1.11 Document Client Usage (`docs/usage/client_commands.md`):**
+- [X] **1.11 Document Client Usage (`../usage/client_commands.md`):**
   - [X] Documented Python library usage.
   - [X] Documented module-based CLI usage.
-  - [X] Created documentation explaining installation and usage of **installed console scripts** (`chroma-client`, `record-thought`) in `docs/scripts/`.
-  - [X] Updated documentation (`README.md`, `getting_started.md`, `developer_guide.md`, `ide_integration.md`) to reflect CLI changes and stdio usage.
+  - [X] Created documentation explaining installation and usage of **installed console scripts** (`chroma-client`, `record-thought`) in `../scripts/`.
+  - [X] Updated documentation (`../../README.md`, `../getting_started.md`, `../developer_guide.md`, `../integration/ide_integration.md`) to reflect CLI changes and stdio usage.
   - [~] **Needs Review:** Ensure documentation clarifies console scripts as primary interface and fully documents all options.
 
 ---
@@ -169,11 +169,11 @@
         ---
         ```
 
-    See [Automated Chat History Logging](docs/integration/automated_chat_logging.md) for details on setting up this rule.
+    See [Automated Chat History Logging](../integration/automated_chat_logging.md) for details on setting up this rule.
 
   - [X] **Feasibility Confirmed:** ~~Investigate the reliability of enforcing such actions via IDE rules. Develop fallback or complementary mechanisms if needed.~~ **Confirmed:** Initial tests show the mechanism of using an IDE rule to trigger automated logging via MCP calls is feasible. **Note:** Continued monitoring for reliability across diverse interactions is recommended, as rule refinements were needed during initial testing.
 
-- [X] **4.3 Develop Analysis Engine (e.g., script wrapper in `scripts/analyze_chat_history.sh` and CLI subcommand in `src/chroma_mcp_client/cli.py` as well as pyproject.toml [project.scripts] entry):**
+- [X] **4.3 Develop Analysis Engine (e.g., script wrapper in `../../scripts/analyze_chat_history.sh` and CLI subcommand in `src/chroma_mcp_client/cli.py` as well as pyproject.toml [project.scripts] entry):**
   - [X] Included a `analyze-chat-history` subcommand that:
     1. Fetches recent entries from `chat_history_v1` (e.g., status=`captured`).
     2. For each entry, identifies the `involved_entities` (files).
@@ -193,7 +193,7 @@
 - [ ] **4.6 Refine Interactive Retrieval using Derived Learnings:**
   - [ ] Modify prompts/rules for interactive RAG (`chroma_query_documents`) to also query the `derived_learnings_v1` collection, potentially giving higher weight to these validated insights.
 
-- [ ] **4.7 Document Implicit Learning Mechanism (`docs/usage/implicit_learning.md`):**
+- [ ] **4.7 Document Implicit Learning Mechanism (`../usage/implicit_learning.md`):**
   - [ ] Explain the automated capture, summarization, analysis, and learning extraction process.
   - [ ] Document the `chat_history_v1` and `derived_learnings_v1` schemas.
   - [ ] Provide examples of how to run the analysis script.
@@ -220,7 +220,7 @@
   - [X] Made executable.
 
 - [X] **5.4 Integrate with Development Workflow:**
-  - [X] IDE integration (`docs/integration/ide_integration.md`) documented using `record-thought` via hatch.
+  - [X] IDE integration (`../integration/ide_integration.md`) documented using `record-thought` via hatch.
   - [X] IDE integration (VS Code task) tested and working.
   - [~] **Needs Definition:** Define specific workflow checkpoints/usage patterns.
 
@@ -236,10 +236,10 @@
   - [X] Aim for >= 80% coverage. (Current: thinking modules mostly covered).
   - [X] Fixed all test failures (`tests/thinking/test_thinking_cli.py`).
 
-- [X] **5.8 Document Working Memory (`docs/usage/client_commands.md`):**
-  - [X] Explained concept and benefits in `docs/thinking_tools/`.
-  - [X] Documented **installed console script** (`record-thought`) usage in `docs/scripts/record-thought.md`.
-  - [X] Updated IDE integration docs (`docs/integration/ide_integration.md`).
+- [X] **5.8 Document Working Memory (`../usage/client_commands.md`):**
+  - [X] Explained concept and benefits in `../thinking_tools/README-thinking.md`.
+  - [X] Documented **installed console script** (`record-thought`) usage in `../scripts/record-thought.md`.
+  - [X] Updated IDE integration docs (`../integration/ide_integration.md`).
   - [~] **Needs Review:** Consolidate examples and ensure clarity.
 
 ---
@@ -291,7 +291,7 @@
 - [ ] **7.9 Latency Benchmark:** Measure interactive MCP query latency, including potential overhead from auto-logging.
 - [ ] **7.10 Index Size & Storage Check:** Monitor data dir sizes, especially `chat_history_v1`.
 - [ ] **7.11 Restore-from-Backup Test:** Verify backup/restore for all relevant collections.
-- [~] **7.12 Documentation Review:** Review all updated docs (`README`, `developer_guide`, `record-thought`, `ide_integration`, `implicit_learning.md`). Ensure clarity and completeness.
+- [~] **7.12 Documentation Review:** Review all updated docs (`../../README.md`, `../developer_guide.md`, `../scripts/record-thought.md`, `../integration/ide_integration.md`, `../usage/implicit_learning.md`). Ensure clarity and completeness.
 
 ---
 
