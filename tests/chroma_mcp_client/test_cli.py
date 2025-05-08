@@ -12,12 +12,12 @@ import subprocess
 from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 import argparse
 import logging
+import uuid
 
 # Module to test
 from chroma_mcp_client import cli
 from chroma_mcp_client.cli import main, DEFAULT_COLLECTION_NAME
 from chromadb.api.models.Collection import Collection
-from chromadb.config import Settings
 
 
 # Helper to create mock args namespace
@@ -485,9 +485,10 @@ def test_logging_verbosity_levels(
     # --- Arrange ---
     # Mock logger instances returned by getLogger
     mock_root_logger = MagicMock()
-    mock_client_logger = MagicMock()
-    mock_st_logger = MagicMock()
-    mock_cli_logger = MagicMock()  # Add mock for the cli logger
+    mock_client_logger = MagicMock()  # for 'chroma_mcp_client'
+    mock_st_logger = MagicMock()  # for 'sentence_transformers'
+    mock_utils_cli_setup_logger = MagicMock()  # for 'chromamcp.cli_setup'
+    mock_base_chromamcp_logger = MagicMock()  # for UTILS_BASE_LOGGER_NAME which is 'chromamcp'
 
     # Configure getLogger to return specific mocks based on name
     def getLogger_side_effect(name=None):
@@ -495,60 +496,523 @@ def test_logging_verbosity_levels(
             return mock_client_logger
         elif name == "sentence_transformers":
             return mock_st_logger
-        elif name == "chroma_mcp_client.cli":  # Handle specific cli logger name
-            return mock_cli_logger
-        # Handle both getLogger() and getLogger(None) for root
-        elif name is None or name == logging.getLogger().name:
+        # The cli.py now logs the "level set" message using a child of UTILS_BASE_LOGGER_NAME
+        elif name == f"{cli.UTILS_BASE_LOGGER_NAME}.cli_setup":  # Corrected logger name
+            return mock_utils_cli_setup_logger
+        elif name == cli.UTILS_BASE_LOGGER_NAME:  # Mock the base 'chromamcp' logger
+            return mock_base_chromamcp_logger
+        elif name is None or name == logging.getLogger().name:  # Root logger
             return mock_root_logger
         else:
-            # Return a default mock for any other logger
+            # For any other logger (like chroma_mcp_client.cli if it were still used for this message)
             return MagicMock()
 
     mock_getLogger.side_effect = getLogger_side_effect
 
     # Configure the mock parse_args to return a Namespace with the verbose count
-    # Add a dummy command and other required args to prevent errors later in main()
     mock_args = argparse.Namespace(
         verbose=verbose_count,
-        command="count",  # Use a simple command that requires fewer mocks
-        collection_name="dummy_collection",  # Needed for the 'count' command path
+        command="count",
+        collection_name="dummy_collection",
     )
     mock_parse_args.return_value = mock_args
 
     # Mock the client and collection calls needed for the 'count' command path
     mock_client_instance = MagicMock()
     mock_collection_instance = MagicMock()
-    mock_collection_instance.count.return_value = 0  # Return dummy count
+    mock_collection_instance.count.return_value = 0
     mock_client_instance.get_collection.return_value = mock_collection_instance
-    mock_get_client.return_value = (mock_client_instance, MagicMock())  # Return mock client/ef
+    mock_get_client.return_value = (mock_client_instance, MagicMock())
 
     # --- Act ---
-    # Run the main function. Use try-except SystemExit(0) for graceful exit of 'count'
     try:
         cli.main()
     except SystemExit as e:
-        assert e.code == 0 or e.code is None  # Allow successful exit
+        assert e.code == 0 or e.code is None
     except Exception as e:
         pytest.fail(f"cli.main() raised an unexpected exception: {e}")
 
     # --- Assert ---
-    # Verify setLevel was called correctly on each relevant logger
     mock_root_logger.setLevel.assert_called_once_with(expected_root_level)
     mock_client_logger.setLevel.assert_called_once_with(expected_client_level)
     mock_st_logger.setLevel.assert_called_once_with(expected_st_level)
+    # Assert that the base 'chromamcp' logger was also set to the expected_root_level (which is log_level in cli.py)
+    mock_base_chromamcp_logger.setLevel.assert_called_once_with(expected_root_level)
 
-    # Check the initial basicConfig level (should be WARNING before adjustment)
-    # Get the call_args_list for basicConfig
-    # basicConfig_calls = [call for call in mock_getLogger.call_args_list if call[0] == ()]
-    # TODO: This assertion is tricky because basicConfig is called before getLogger is patched
-    # for the individual loggers. We might need a different approach to verify basicConfig,
-    # perhaps by patching logging.basicConfig itself. For now, focus on setLevel calls.
-
-    # Verify the info log message about the level being set
-    # This log comes from logger = logging.getLogger(__name__) within main()
-    # which is logging.getLogger("chroma_mcp_client.cli")
-    mock_cli_logger.info.assert_any_call(f"Log level set to {logging.getLevelName(expected_root_level)}")
+    # Verify the new info log message on the new logger
+    expected_log_message = (
+        f"Client CLI log level set to {logging.getLevelName(expected_root_level)} "
+        f"for base '{cli.UTILS_BASE_LOGGER_NAME}' and 'chroma_mcp_client'"
+    )
+    mock_utils_cli_setup_logger.info.assert_any_call(expected_log_message)
 
 
-if __name__ == "__main__":
+# =====================================================================
+# Tests for Setup Collections
+# =====================================================================
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_setup_collections_command_creates_all(mock_get_client_ef, mock_argparse, capsys, caplog):
+    """Test that setup-collections command attempts to create all required collections."""
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef_instance = MagicMock(spec=DefaultEmbeddingFunction)  # Use a mock for EF as well
+    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+
+    # Simulate collections not existing initially, so get_collection raises an error
+    # and then get_or_create_collection is called.
+    mock_client_instance.get_collection.side_effect = Exception("Collection not found")
+
+    # Mock argparse return value for 'setup-collections' command
+    mock_parser_instance = mock_argparse.return_value
+    # Ensure verbose=0 so that INFO logs are expected as per cli.py logic
+    mock_args = create_mock_args(command="setup-collections", verbose=0)
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    cli.main()  # Use cli.main() to be consistent with other tests
+
+    required_collections = [
+        "codebase_v1",
+        "chat_history_v1",
+        "derived_learnings_v1",
+        "thinking_sessions_v1",
+    ]
+
+    # Assert get_collection was called for each (to check existence)
+    get_collection_calls = [call(name=name) for name in required_collections]
+    mock_client_instance.get_collection.assert_has_calls(get_collection_calls, any_order=True)
+    assert mock_client_instance.get_collection.call_count == len(required_collections)
+
+    # Assert get_or_create_collection was called for each because get_collection failed
+    get_or_create_calls = [call(name=name, embedding_function=mock_ef_instance) for name in required_collections]
+    mock_client_instance.get_or_create_collection.assert_has_calls(get_or_create_calls, any_order=True)
+    assert mock_client_instance.get_or_create_collection.call_count == len(required_collections)
+
+    captured_stdout = capsys.readouterr().out  # For print statements
+    assert f"Collections setup finished. Created: {len(required_collections)}, Already Existed: 0." in captured_stdout
+
+    # Assert log messages using caplog
+    for name in required_collections:
+        assert f"Collection '{name}' not found, creating..." in caplog.text
+        assert f"Collection '{name}' created successfully." in caplog.text
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_setup_collections_command_all_exist(mock_get_client_ef, mock_argparse, capsys, caplog):
+    """Test setup-collections command when all collections already exist."""
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef_instance = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+
+    # Simulate collections existing: get_collection returns a mock collection
+    mock_collection_instance = MagicMock(spec=Collection)
+    mock_client_instance.get_collection.return_value = mock_collection_instance
+
+    # Mock argparse
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(command="setup-collections", verbose=0)
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    cli.main()
+
+    required_collections = [
+        "codebase_v1",
+        "chat_history_v1",
+        "derived_learnings_v1",
+        "thinking_sessions_v1",
+    ]
+
+    get_collection_calls = [call(name=name) for name in required_collections]
+    mock_client_instance.get_collection.assert_has_calls(get_collection_calls, any_order=True)
+    assert mock_client_instance.get_collection.call_count == len(required_collections)
+
+    # get_or_create_collection should not be called if get_collection succeeds
+    mock_client_instance.get_or_create_collection.assert_not_called()
+
+    captured_stdout = capsys.readouterr().out  # For print statements
+    assert f"Collections setup finished. Created: 0, Already Existed: {len(required_collections)}." in captured_stdout
+
+    # Assert log messages using caplog
+    for name in required_collections:
+        assert f"Collection '{name}' already exists." in caplog.text
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_setup_collections_command_mixed_existence(mock_get_client_ef, mock_argparse, capsys, caplog):
+    """Test setup-collections command with a mix of existing and non-existing collections."""
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef_instance = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+
+    required_collections = [
+        "codebase_v1",  # Exists
+        "chat_history_v1",  # Does not exist
+        "derived_learnings_v1",  # Exists
+        "thinking_sessions_v1",  # Does not exist
+    ]
+    existing_collections = [required_collections[0], required_collections[2]]
+    non_existing_collections = [required_collections[1], required_collections[3]]
+
+    def get_collection_side_effect(name):
+        if name in existing_collections:
+            return MagicMock(spec=Collection)
+        raise Exception("Collection not found")
+
+    mock_client_instance.get_collection.side_effect = get_collection_side_effect
+
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(command="setup-collections", verbose=0)
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    cli.main()
+
+    # Check calls to get_collection
+    get_collection_calls = [call(name=name) for name in required_collections]
+    mock_client_instance.get_collection.assert_has_calls(get_collection_calls, any_order=True)
+    assert mock_client_instance.get_collection.call_count == len(required_collections)
+
+    # Check calls to get_or_create_collection (only for non-existing ones)
+    get_or_create_calls = [call(name=name, embedding_function=mock_ef_instance) for name in non_existing_collections]
+    mock_client_instance.get_or_create_collection.assert_has_calls(get_or_create_calls, any_order=True)
+    assert mock_client_instance.get_or_create_collection.call_count == len(non_existing_collections)
+
+    captured_stdout = capsys.readouterr().out  # For print statements
+    assert (
+        f"Collections setup finished. Created: {len(non_existing_collections)}, Already Existed: {len(existing_collections)}."
+        in captured_stdout
+    )
+
+    # Assert log messages using caplog
+    for name in existing_collections:
+        assert f"Collection '{name}' already exists." in caplog.text
+    for name in non_existing_collections:
+        assert f"Collection '{name}' not found, creating..." in caplog.text
+        assert f"Collection '{name}' created successfully." in caplog.text
+
+
+# =====================================================================
+# Tests for Promote Learning
+# =====================================================================
+
+
+@patch("uuid.uuid4")
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_promote_learning_success_no_source(mock_get_client_ef, mock_argparse, mock_uuid, capsys, caplog):
+    """Test promote-learning successfully adds learning, no source chat ID."""
+    # Mocks
+    mock_client = MagicMock(spec=chromadb.ClientAPI)
+    mock_learning_collection = MagicMock(spec=Collection)
+    mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client, mock_ef)
+    mock_client.get_collection.return_value = mock_learning_collection
+    mock_uuid.return_value = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    learning_id = "12345678-1234-5678-1234-567812345678"
+
+    # Command Args
+    args_dict = {
+        "command": "promote-learning",
+        "verbose": 1,  # To check INFO logs
+        "description": "Use context managers for files.",
+        "pattern": "with open(...) as f:",
+        "code_ref": "src/utils.py:abc123def:0",
+        "tags": "python,best-practice,file-io",
+        "confidence": 0.95,
+        "source_chat_id": None,
+        "collection_name": "derived_learnings_v1",
+        "chat_collection_name": "chat_history_v1",
+    }
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(**args_dict)
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run command
+    cli.main()
+
+    # Assertions
+    mock_client.get_collection.assert_called_once_with(name=args_dict["collection_name"], embedding_function=mock_ef)
+
+    # Check add call
+    mock_learning_collection.add.assert_called_once()
+    add_args = mock_learning_collection.add.call_args.kwargs
+    assert add_args["ids"] == [learning_id]
+    assert add_args["documents"] == [args_dict["description"]]
+    assert len(add_args["metadatas"]) == 1
+    meta = add_args["metadatas"][0]
+    assert meta["learning_id"] == learning_id
+    assert meta["source_chat_id"] == "manual"
+    assert meta["pattern"] == args_dict["pattern"]
+    assert meta["example_code_reference"] == args_dict["code_ref"]
+    assert meta["tags"] == args_dict["tags"]
+    assert meta["confidence"] == args_dict["confidence"]
+    assert "promotion_timestamp_utc" in meta
+
+    # Check output/logs
+    captured = capsys.readouterr()
+    assert f"Learning promoted with ID: {learning_id}" in captured.out
+    assert f"Successfully added learning {learning_id}" in caplog.text
+    assert "Attempting to update status for source chat ID" not in caplog.text  # No source ID provided
+
+
+@patch("uuid.uuid4")
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_promote_learning_success_with_source_update(mock_get_client_ef, mock_argparse, mock_uuid, capsys, caplog):
+    """Test promote-learning adds learning AND updates source chat status."""
+    # Mocks
+    mock_client = MagicMock(spec=chromadb.ClientAPI)
+    mock_learning_collection = MagicMock(spec=Collection)
+    mock_chat_collection = MagicMock(spec=Collection)
+    mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client, mock_ef)
+
+    # Mock get_collection to return the correct collection based on name
+    def get_collection_side_effect(name, embedding_function=None):
+        if name == "derived_learnings_v1":
+            return mock_learning_collection
+        elif name == "chat_history_v1":
+            return mock_chat_collection
+        raise ValueError(f"Unexpected collection name: {name}")
+
+    mock_client.get_collection.side_effect = get_collection_side_effect
+
+    mock_uuid.return_value = uuid.UUID("abcdefab-cdef-abcd-efab-cdefabcdefab")
+    learning_id = "abcdefab-cdef-abcd-efab-cdefabcdefab"
+    source_chat_id_to_update = "chat_id_123"
+
+    # Mock chat history get() response
+    original_chat_metadata = {"status": "analyzed", "other": "data"}
+    mock_chat_collection.get.return_value = {"ids": [source_chat_id_to_update], "metadatas": [original_chat_metadata]}
+
+    # Command Args
+    args_dict = {
+        "command": "promote-learning",
+        "verbose": 1,
+        "description": "Another learning.",
+        "pattern": "def function():",
+        "code_ref": "src/code.py:sha123:5",
+        "tags": "python",
+        "confidence": 0.8,
+        "source_chat_id": source_chat_id_to_update,
+        "collection_name": "derived_learnings_v1",
+        "chat_collection_name": "chat_history_v1",
+    }
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(**args_dict)
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run command
+    cli.main()
+
+    # Assertions
+    # Check get_collection calls (once for learning, once for chat)
+    assert mock_client.get_collection.call_count == 2
+    mock_client.get_collection.assert_any_call(name="derived_learnings_v1", embedding_function=mock_ef)
+    mock_client.get_collection.assert_any_call(name="chat_history_v1")
+
+    # Check add call to learning collection
+    mock_learning_collection.add.assert_called_once()
+    add_args = mock_learning_collection.add.call_args.kwargs
+    assert add_args["ids"] == [learning_id]
+    assert add_args["metadatas"][0]["source_chat_id"] == source_chat_id_to_update
+
+    # Check get() call on chat collection
+    mock_chat_collection.get.assert_called_once_with(ids=[source_chat_id_to_update], include=["metadatas"])
+
+    # Check update() call on chat collection
+    mock_chat_collection.update.assert_called_once()
+    update_args = mock_chat_collection.update.call_args.kwargs
+    assert update_args["ids"] == [source_chat_id_to_update]
+    assert len(update_args["metadatas"]) == 1
+    updated_meta = update_args["metadatas"][0]
+    assert updated_meta["status"] == "promoted_to_learning"
+    assert updated_meta["promoted_learning_id"] == learning_id
+    assert updated_meta["other"] == "data"  # Ensure other metadata was preserved
+
+    # Check output/logs
+    captured = capsys.readouterr()
+    assert f"Learning promoted with ID: {learning_id}" in captured.out
+    assert f"Updated status for source chat ID: {source_chat_id_to_update}" in captured.out
+    assert f"Successfully updated status for chat ID {source_chat_id_to_update}" in caplog.text
+
+
+@patch("uuid.uuid4")
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_promote_learning_source_not_found(mock_get_client_ef, mock_argparse, mock_uuid, capsys, caplog):
+    """Test promote-learning warns when source chat ID is not found."""
+    # Mocks
+    mock_client = MagicMock(spec=chromadb.ClientAPI)
+    mock_learning_collection = MagicMock(spec=Collection)
+    mock_chat_collection = MagicMock(spec=Collection)
+    mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client, mock_ef)
+
+    def get_collection_side_effect(name, embedding_function=None):
+        if name == "derived_learnings_v1":
+            return mock_learning_collection
+        elif name == "chat_history_v1":
+            return mock_chat_collection
+        raise ValueError(f"Unexpected collection name: {name}")
+
+    mock_client.get_collection.side_effect = get_collection_side_effect
+    mock_uuid.return_value = uuid.UUID("aaaaaaaabbbbccccddddeeeeeeeeeeee")
+    learning_id = "aaaaaaaabbbbccccddddeeeeeeeeeeee"
+    source_chat_id_not_found = "chat_id_404"
+
+    # Mock chat history get() returning empty or non-matching results
+    mock_chat_collection.get.return_value = {"ids": [], "metadatas": []}
+
+    # Command Args
+    args_dict = {
+        "command": "promote-learning",
+        "verbose": 0,
+        "description": "Learning 404.",
+        "pattern": "try/except",
+        "code_ref": "src/error.py:sha456:10",
+        "tags": "error-handling",
+        "confidence": 0.7,
+        "source_chat_id": source_chat_id_not_found,
+        "collection_name": "derived_learnings_v1",
+        "chat_collection_name": "chat_history_v1",
+    }
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(**args_dict)
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run command
+    cli.main()
+
+    # Assertions
+    # Check add call to learning collection happened
+    mock_learning_collection.add.assert_called_once()
+    # The ID used in add() comes from str(uuid.uuid4()), which includes hyphens
+    expected_hyphenated_id = str(mock_uuid.return_value)
+    assert mock_learning_collection.add.call_args.kwargs["ids"] == [expected_hyphenated_id]
+
+    # Check get() call on chat collection
+    mock_chat_collection.get.assert_called_once_with(ids=[source_chat_id_not_found], include=["metadatas"])
+
+    # Check update() was NOT called on chat collection
+    mock_chat_collection.update.assert_not_called()
+
+    # Check output/logs for warning
+    captured = capsys.readouterr()
+    # Use the hyphenated ID for checking output as well
+    assert f"Learning promoted with ID: {expected_hyphenated_id}" in captured.out  # Learning was still added
+    assert f"Warning: Source chat ID {source_chat_id_not_found} not found. Status not updated." in captured.out
+    assert f"Source chat ID {source_chat_id_not_found} not found" in caplog.text
+
+
+# =====================================================================
+# Tests for Review and Promote (New Subcommand)
+# =====================================================================
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")  # Mock connection
+@patch("chroma_mcp_client.cli.run_interactive_promotion")  # Mock the actual function
+@patch("sys.exit")
+def test_review_and_promote_command_called(
+    mock_sys_exit, mock_run_interactive_promotion, mock_get_client_ef, mock_argparse, caplog, capsys
+):
+    """Test that the 'review-and-promote' CLI command calls the correct function with correct args."""
+    # Configure mock argparse to return specific args
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="review-and-promote",
+        verbose=0,
+        days_limit=10,
+        fetch_limit=20,
+        chat_collection_name="my_chats",
+        learnings_collection_name="my_learnings",
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Configure mock get_client_and_ef
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef_instance = MagicMock()  # Simplified mock for EF
+    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+
+    caplog.set_level(logging.INFO)
+
+    # Run CLI
     main()
+
+    # Assert get_client_and_ef was called
+    mock_get_client_ef.assert_called_once()
+
+    # Assert run_interactive_promotion was called with the correct arguments
+    mock_run_interactive_promotion.assert_called_once_with(
+        days_limit=10,
+        fetch_limit=20,
+        chat_collection_name="my_chats",
+        learnings_collection_name="my_learnings",
+    )
+
+    # Assert sys.exit was not called (successful execution)
+    mock_sys_exit.assert_not_called()
+
+    # Check log messages
+    assert "Executing 'review-and-promote' command..." in caplog.text
+    assert "'review-and-promote' command finished." in caplog.text
+    # Check console output
+    captured = capsys.readouterr()
+    assert "Interactive review and promotion process complete." in captured.out
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")  # Mock connection
+@patch("chroma_mcp_client.cli.run_interactive_promotion")  # Mock the actual function
+@patch("sys.exit")
+def test_review_and_promote_command_defaults_called(
+    mock_sys_exit, mock_run_interactive_promotion, mock_get_client_ef, mock_argparse, caplog
+):
+    """Test that 'review-and-promote' uses default arguments correctly."""
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="review-and-promote",
+        verbose=0,
+        # Using default values by not specifying them, relies on parse_args applying them
+        # However, for this test, we need to mock what parse_args *would* return if defaults were used.
+        # The CLI sets defaults in add_argument, so we explicitly provide them here to simulate that.
+        days_limit=7,  # Default from cli.py
+        fetch_limit=50,  # Default from cli.py
+        chat_collection_name="chat_history_v1",  # Default from cli.py
+        learnings_collection_name="derived_learnings_v1",  # Default from cli.py
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef_instance = MagicMock()
+    mock_get_client_ef.return_value = (mock_client_instance, mock_ef_instance)
+
+    main()
+
+    mock_run_interactive_promotion.assert_called_once_with(
+        days_limit=7,
+        fetch_limit=50,
+        chat_collection_name="chat_history_v1",
+        learnings_collection_name="derived_learnings_v1",
+    )
+    mock_sys_exit.assert_not_called()
+
+
+# =====================================================================
+# Tests for Promote Learning
+# =====================================================================
+# (Existing promote-learning tests would be here)
+
+
+# =====================================================================
+# Tests for Review and Promote (New Subcommand)
+# =====================================================================
+# (Existing review-and-promote tests would be here)
+
+
+# Make sure this is at the end or in an appropriate section
+# if __name__ == "__main__":
+#     pytest.main() # Or however tests are run

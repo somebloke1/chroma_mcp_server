@@ -178,12 +178,12 @@ print(default_api.chroma_get_all_documents(collection_name="mcp_flow_test_coll")
 
 ### 7. Query Documents
 
-Perform a semantic search. We'll use the basic query tool.
+Perform a semantic search. This tool now queries both the specified `collection_name` AND the `derived_learnings_v1` collection, merging the results.
 
-**Note:** The quality and specific ranking of results depend on the chosen embedding function.
+**Note:** The quality and specific ranking of results depend on the chosen embedding function and the content of both collections.
 
 ```tool_code
-print(default_api.chroma_query_documents(
+print(default_api.mcp_chroma_dev_chroma_query_documents(
     collection_name="mcp_flow_test_coll",
     query_texts=["Tell me about test documents"], # Required list, should work
     # n_results is optional (defaults to 10), include is optional
@@ -192,7 +192,7 @@ print(default_api.chroma_query_documents(
 
 **Note:** Optional parameters omitted due to potential client issues. Use specific variants for filtering if needed and if the client supports them.
 
-*Expected Outcome (Client Limitation possible):* A list of results likely including relevant documents. May fail if client cannot handle `query_texts` list.
+*Expected Outcome (Client Limitation possible):* A list of results including relevant documents from BOTH `mcp_flow_test_coll` and potentially `derived_learnings_v1`. Each result item's metadata should include a `source_collection` field indicating its origin (`mcp_flow_test_coll` or `derived_learnings_v1`). May fail if client cannot handle `query_texts` list.
 
 ### 7b. Query with Metadata Filter (`where`)
 

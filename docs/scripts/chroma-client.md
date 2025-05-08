@@ -162,6 +162,81 @@ chroma-client update-collection-ef --collection-name NAME --ef-name EF_NAME
 chroma-client update-collection-ef --collection-name chat_history_v1 --ef-name sentence_transformer
 ```
 
+#### `promote-learning`
+
+Manually promotes an insight or finding into the `derived_learnings_v1` collection. This is useful for adding learnings that didn't originate directly from an automatically analyzed chat entry, or if the interactive `review-and-promote` workflow is bypassed.
+
+```bash
+chroma-client promote-learning [OPTIONS]
+```
+
+**Options:**
+
+- `--description TEXT`: **(Required)** Concise description of the learning.
+- `--pattern TEXT`: **(Required)** Generalized pattern or rule derived.
+- `--code-ref TEXT`: **(Required)** Relevant code snippet reference (`chunk_id`: `file:sha:index`).
+- `--tags TEXT`: **(Required)** Comma-separated tags.
+- `--confidence FLOAT`: **(Required)** Confidence score (0.0-1.0).
+- `--source-chat-id TEXT`: (Optional) ID of the source entry in `chat_history_v1` to link and update status to `promoted_to_learning`.
+- `--collection-name NAME`: Target collection for the new learning (default: `derived_learnings_v1`).
+- `--chat-collection-name NAME`: Source chat history collection (default: `chat_history_v1`).
+
+**Example:**
+
+```bash
+# Promote learning from chat entry 'xyz', linking to a code chunk
+chroma-client promote-learning \
+  --source-chat-id "xyz" \
+  --description "Use BackgroundTasks for non-blocking FastAPI tasks." \
+  --pattern "Defer long operations in FastAPI via BackgroundTasks." \
+  --code-ref "src/api/tasks.py:abc123def456:1" \
+  --tags "fastapi,background,async,python" \
+  --confidence 0.9
+```
+
+**(Note:** For ease of use, a wrapper script `scripts/promote_learning.sh` and a corresponding hatch alias `promote-learn` are typically available. See [`docs/scripts/promote-learning.md`](promote-learning.md) for details.)**
+
+#### `setup-collections`
+
+Ensures that all standard ChromaDB collections required by the system (`codebase_v1`, `chat_history_v1`, `derived_learnings_v1`, `thinking_sessions_v1`) exist. It will create any missing collections using default settings.
+
+```bash
+hatch run chroma-client setup-collections
+# or using alias:
+hatch run setup-collections
+```
+
+### `review-and-promote`
+
+Starts an interactive workflow to review chat entries marked with the status 'analyzed' (typically by the `analyze-chat-history` command). It allows the user to:
+
+- View the summary of each analyzed chat entry.
+- Search the codebase (`codebase_v1`) for potentially relevant code snippets (chunks) based on the chat summary.
+- Choose to:
+  - **Promote (p):** Create a new entry in the `derived_learnings_v1` collection. The user provides details like pattern, tags, and confidence, and selects a suggested code reference or enters one manually.
+  - **Ignore (i):** Mark the chat entry with status 'ignored'.
+  - **Skip (s):** Skip the current entry and move to the next.
+  - **Quit (q):** Exit the review process.
+
+This provides a more user-friendly way to curate derived learnings compared to manually using `promote-learning`.
+
+**Arguments:**
+
+- `--days-limit` (int, default: 7): How many days back to look for 'analyzed' entries.
+- `--fetch-limit` (int, default: 50): Maximum number of entries to fetch for review in one go.
+- `--chat-collection-name` (str, default: "chat_history_v1"): Name of the chat history collection.
+- `--learnings-collection-name` (str, default: "derived_learnings_v1"): Name of the derived learnings collection.
+
+**Example:**
+
+```bash
+# Start interactive review for entries from the last 3 days
+hatch run chroma-client review-and-promote --days-limit 3
+
+# or using alias:
+hatch run review-promote --days-limit 3
+```
+
 ### Note on Usage with Hatch
 
 When running these commands within the `hatch` environment (e.g., `hatch run ...`), you might encounter issues where the `chroma-client` alias defined in `pyproject.toml` is not correctly resolved for subcommands like `analyze-chat-history`.

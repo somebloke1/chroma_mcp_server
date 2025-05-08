@@ -46,3 +46,22 @@ The script accepts several command-line arguments:
 # Analyze entries with default settings
 ./scripts/analyze_chat_history.sh
 ```
+
+## Expected Output
+
+Upon successful completion, the script (via the underlying `chroma-client` command) will log:
+
+1. Information about the entries being processed.
+2. The final count of processed and correlated entries.
+3. A list of entries whose status was successfully updated to the `--new-status` (default: `analyzed`), including their IDs and prompt summaries. This list is useful for identifying candidates for the `promote-learning` command.
+
+```text
+INFO:chroma_mcp_client.analysis:Analysis complete. Processed 19 entries. Found potential correlation in 2 entries.
+INFO:chroma_mcp_client.analysis:
+--- Entries updated to 'analyzed' ---
+INFO:chroma_mcp_client.analysis:  ID: entry_id_1, Summary: Prompt summary for entry 1...
+INFO:chroma_mcp_client.analysis:  ID: entry_id_2, Summary: Prompt summary for entry 2...
+# ... and so on
+```
+
+If errors occur during processing, they will be logged to the console.

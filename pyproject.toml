@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.1.119"
+version = "0.2.0"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -98,6 +98,11 @@ dependencies = [
 chroma-mcp-server-dev = "python -m chroma_mcp.cli"
 print-cwd = "python -c 'import os; print(os.getcwd())'"
 analyze-chat = "./scripts/analyze_chat_history.sh {args}"
+promote-learn = "./scripts/promote_learning.sh {args}"
+# Interactive review and promote script alias
+review-promote = "./scripts/review_and_promote.sh {args}"
+# Log a thought script alias
+log-thought = "python -m chroma_mcp_thinking.client {args}"
 
 [tool.hatch.envs.test]
 dependencies = [

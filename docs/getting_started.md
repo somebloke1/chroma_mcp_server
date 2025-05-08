@@ -156,7 +156,15 @@ The server primarily uses environment variables for configuration. A `.env` file
   - `CHROMA_HEADERS`: Optional HTTP headers (JSON string) for `http` mode.
   - `CHROMA_TENANT`, `CHROMA_DATABASE`, `CHROMA_API_KEY`: Required for `cloud` mode.
 
-**Note on Changing Embedding Functions:** If you modify the `CHROMA_EMBEDDING_FUNCTION` (or the corresponding `--embedding-function` CLI argument) after collections have already been created, you may encounter `Embedding function name mismatch` errors when trying to access those existing collections. To resolve this, use the `chroma-client update-collection-ef` command to update the metadata of the affected collection(s). See the [chroma-client script documentation](scripts/chroma-client.md) for details.
+**Note on Embedding Function Consistency for Collections:**
+If you modify the `CHROMA_EMBEDDING_FUNCTION` environment variable (or the corresponding `--embedding-function` CLI argument for server startup) after collections like `codebase_v1` have already been created, you may encounter `Embedding function name mismatch` errors when client tools (e.g., `review-and-promote`, MCP server queries) try to access them. This happens because these tools often expect collections to use a specific embedding model (e.g., 'accurate' for `codebase_v1`).
+
+To resolve this:
+
+- For `codebase_v1`: The recommended approach is often to delete the existing collection and re-index your codebase using `hatch run index-codebase` (or `chroma-client index --all`). This ensures it's created with the 'accurate' model, which is the default for indexing and querying.
+- For other collections, or if re-indexing `codebase_v1` is not feasible: You can use the `chroma-client update-collection-ef --collection <name> --ef <new_ef_name>` command to update the collection's metadata to reflect the new embedding function name. Be cautious with this, as it only changes the metadata pointer; the actual embeddings are not recomputed. This is usually suitable if the actual embedding *model* hasn't changed, only its registered name or how the client refers to it.
+
+See the [chroma-client script documentation](scripts/chroma-client.md) for details on `update-collection-ef`.
 
 Cursor uses `.cursor/mcp.json` to configure server launch commands:
 

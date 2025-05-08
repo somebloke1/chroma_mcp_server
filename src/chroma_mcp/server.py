@@ -491,7 +491,7 @@ async def list_tools() -> List[types.Tool]:
         ),
         types.Tool(
             name=TOOL_NAMES["QUERY_DOCS"],
-            description="Query documents using semantic search (no filters). Returns IDs and potentially distances/scores. Use `chroma_get_documents_by_ids` to fetch details. Requires: `collection_name`, `query_texts`. Optional: `n_results`.",
+            description="Query documents using semantic search. Queries the specified 'collection_name' AND the 'derived_learnings_v1' collection. Results are merged, and each item's metadata includes a 'source_collection' field. Returns IDs, documents, metadatas, and distances. Requires: `collection_name`, `query_texts`. Optional: `n_results`.",
             inputSchema=INPUT_MODELS[TOOL_NAMES["QUERY_DOCS"]].model_json_schema(),
         ),
         types.Tool(
