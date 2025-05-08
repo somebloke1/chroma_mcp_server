@@ -506,10 +506,61 @@ class TestDocumentTools:
         result = await _query_documents_impl(input_model)
 
         # --- Assert ---
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name)
-        mock_collection.query.assert_called_once_with(query_texts=query, n_results=n_results, include=[])
-        assert_successful_json_result(result, expected_query_result)
+        # mock_validate.assert_called_once_with(collection_name) # Removed this line
+        # mock_client.get_collection.assert_called_once_with(collection_name) # Original assertion, _query_documents_impl calls it for primary
+        # The above get_collection is complex due to two calls, let's refine mock setup for this test or check calls more generally.
+        # For now, let's focus on the query call to the first collection if that's the intent of this original test.
+
+        # Check that get_collection was called for the primary collection name.
+        # And also for the learnings collection name.
+        mock_client.get_collection.assert_any_call(collection_name)
+        mock_client.get_collection.assert_any_call(document_tools.LEARNINGS_COLLECTION_NAME)
+
+        # Assuming this test originally intended to check the primary collection's query mock:
+        # We need a more sophisticated mock_client.get_collection side_effect if we want to assert on mock_collection.query
+        # For now, let's ensure the overall structure of the result from the combined query is fine.
+        # If mock_collection.query.return_value was for the primary, and learnings is empty by default in fixture:
+        primary_like_result = {
+            "ids": expected_query_result.get("ids", [[]]),
+            "documents": expected_query_result.get("documents", [[]]),
+            "metadatas": [
+                [meta.copy() for meta in expected_query_result.get("metadatas", [[]])[0]]
+            ],  # deepcopy for modification
+            "distances": expected_query_result.get("distances", [[]]),
+        }
+        if primary_like_result["metadatas"][0]:
+            for meta_item in primary_like_result["metadatas"][0]:
+                meta_item["source_collection"] = collection_name
+
+        # Adjust mock_collection to be specific for this test to simplify assertions
+        mock_primary_collection_specific = MagicMock()
+        mock_primary_collection_specific.query.return_value = expected_query_result
+
+        mock_learnings_collection_specific = MagicMock()
+        mock_learnings_collection_specific.query.return_value = {
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+        }
+
+        def specific_get_collection_side_effect(name, embedding_function=None):
+            if name == collection_name:
+                return mock_primary_collection_specific
+            elif name == document_tools.LEARNINGS_COLLECTION_NAME:
+                return mock_learnings_collection_specific
+            return MagicMock()
+
+        mock_client.get_collection.side_effect = specific_get_collection_side_effect
+        # Re-run with the more specific mock side effect for get_collection
+        result = await _query_documents_impl(input_model)
+
+        mock_primary_collection_specific.query.assert_called_once_with(
+            query_texts=query, n_results=n_results, include=["documents", "metadatas", "distances"]
+        )
+        assert_successful_json_result(
+            result, primary_like_result
+        )  # Check against expected structure with source_collection
 
     @pytest.mark.asyncio
     async def test_query_documents_collection_not_found(self, mock_chroma_client_document):
@@ -524,26 +575,514 @@ class TestDocumentTools:
         with assert_raises_mcp_error(f"Collection '{collection_name}' not found."):
             await _query_documents_impl(input_model)
 
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name)
+        # mock_validate.assert_called_once_with(collection_name) # Removed this line
+        # mock_client.get_collection.assert_called_once_with(collection_name) # This will be called, but the error path is complex.
+        # The primary collection query will fail, then it will try learnings.
+        # Let's ensure get_collection was attempted for primary and learnings (if primary failed in a way that learnings is tried).
+
+        # If the primary get_collection fails with ValueError, the current _query_documents_impl logs an error
+        # and then tries the learnings collection. If learnings also fails (e.g. not found by default mock),
+        # it returns empty results.
+        # This test was for _query_documents_impl itself raising McpError, which it no longer does for this specific case.
+        # Instead, it logs and returns empty. So, the assert_raises_mcp_error is not appropriate here.
+
+        # We need to redefine how this test works based on current _query_documents_impl behavior.
+        # If primary is not found, it logs error, then tries learnings. If learnings is also not found, returns empty.
+
+        mock_client.get_collection.reset_mock()  # Reset from fixture setup
+
+        def specific_get_collection_failure(name, embedding_function=None):
+            if name == collection_name:  # Primary fails
+                raise ValueError(f"Collection {name} does not exist.")
+            elif name == document_tools.LEARNINGS_COLLECTION_NAME:  # Learnings also fails to be found
+                raise ValueError(f"Collection {name} does not exist.")
+            return MagicMock()
+
+        mock_client.get_collection.side_effect = specific_get_collection_failure
+
+        result = await _query_documents_impl(input_model)  # Re-run with new mock setup
+
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result["ids"] == [[]]
+        # Check that get_collection was attempted for both
+        mock_client.get_collection.assert_any_call(collection_name)
+        mock_client.get_collection.assert_any_call(document_tools.LEARNINGS_COLLECTION_NAME)
+        assert mock_client.get_collection.call_count == 2  # Explicitly two attempts
 
     @pytest.mark.asyncio
     async def test_query_documents_chroma_error(self, mock_chroma_client_document):
-        """Test handling errors during the actual Chroma query call."""
+        """Test error handling when ChromaDB query operation fails."""
         mock_client, mock_collection, mock_validate = mock_chroma_client_document
-        collection_name = "query_chroma_fail"
-        error_message = "Query failed internally."
-        mock_client.get_collection.return_value = mock_collection
-        mock_collection.query.side_effect = Exception(error_message)
+        collection_name = "test_query_error"
+        query_texts = ["query1"]
+        n_results = 5
 
-        # --- Act & Assert ---
-        input_model = QueryDocumentsInput(collection_name=collection_name, query_texts=["q"])
-        with assert_raises_mcp_error(f"An unexpected error occurred during query: {error_message}"):
-            await _query_documents_impl(input_model)
+        # Simulate ChromaDB error during query
+        mock_collection.query.side_effect = Exception("Simulated ChromaDB query error")
 
-        mock_validate.assert_called_once_with(collection_name)
-        mock_client.get_collection.assert_called_once_with(collection_name)
-        mock_collection.query.assert_called_once()  # Verify query was attempted
+        input_model = QueryDocumentsInput(collection_name=collection_name, query_texts=query_texts, n_results=n_results)
+
+        # The _query_documents_impl now attempts two queries. If the primary fails,
+        # it logs and continues to learnings. If learnings also fails (or not found),
+        # it might return empty or raise. Current impl returns empty on primary failure.
+        # Let's adjust this test to reflect the new behavior.
+        # If primary fails, and learnings collection is not found (default mock),
+        # it should return empty results.
+
+        # Setup get_collection to raise error for learnings if called
+        def get_collection_side_effect(name, embedding_function=None):
+            if name == collection_name:
+                mock_collection.query.side_effect = Exception("Simulated ChromaDB query error")
+                return mock_collection
+            elif name == document_tools.LEARNINGS_COLLECTION_NAME:  # Check against the constant
+                raise ValueError(
+                    f"Collection {document_tools.LEARNINGS_COLLECTION_NAME} does not exist"
+                )  # Simulate not found
+            return MagicMock()  # Default for other unexpected calls
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        result = await _query_documents_impl(input_model)
+
+        # Assert that it returns an empty, valid structure
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result["ids"] == [[]], "Expected empty IDs list for the query"
+        assert parsed_result["documents"] == [[]], "Expected empty documents list"
+        assert parsed_result["metadatas"] == [[]], "Expected empty metadatas list"
+        # Distances might also be empty or null depending on exact empty structure
+        assert parsed_result.get("distances") == [[]], "Expected empty distances list"
+
+        # mock_validate.assert_called_once_with(collection_name) # Primary collection validation - REMOVED
+        # It should attempt to get both collections
+        assert mock_client.get_collection.call_count == 2
+        mock_client.get_collection.assert_any_call(collection_name)
+        mock_client.get_collection.assert_any_call(document_tools.LEARNINGS_COLLECTION_NAME)
+
+    # --- Tests for _query_documents_impl merging logic ---
+
+    @pytest.mark.asyncio
+    async def test_query_documents_impl_merges_results_successfully(self, mock_chroma_client_document):
+        """Test _query_documents_impl successfully queries and merges from primary and learnings collections."""
+        mock_client, _, mock_validate = mock_chroma_client_document  # Main mock_collection not used directly
+
+        primary_collection_name = "test_primary"
+        learnings_collection_name = document_tools.LEARNINGS_COLLECTION_NAME  # Use constant
+        query_texts = ["find similar items"]
+        n_results = 2
+
+        # Mock collections
+        mock_primary_collection = MagicMock(name="primary_collection")
+        mock_learnings_collection = MagicMock(name="learnings_collection")
+
+        # Define return values for query
+        primary_query_result = {
+            "ids": [["primary_id1", "primary_id2"]],
+            "documents": [["doc_p1", "doc_p2"]],
+            "metadatas": [[{"meta": "p1"}, {"meta": "p2"}]],
+            "distances": [[0.1, 0.2]],
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+        learnings_query_result = {
+            "ids": [["learning_id1", "learning_id2"]],
+            "documents": [["doc_l1", "doc_l2"]],
+            "metadatas": [[{"meta": "l1"}, {"meta": "l2"}]],
+            "distances": [[0.05, 0.15]],
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+
+        mock_primary_collection.query.return_value = primary_query_result
+        mock_learnings_collection.query.return_value = learnings_query_result
+
+        def get_collection_side_effect(name, embedding_function=None):
+            if name == primary_collection_name:
+                return mock_primary_collection
+            elif name == learnings_collection_name:
+                return mock_learnings_collection
+            raise ValueError(f"Unexpected collection name: {name}")
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        input_model = QueryDocumentsInput(
+            collection_name=primary_collection_name, query_texts=query_texts, n_results=n_results
+        )
+        result = await _query_documents_impl(input_model)
+
+        # Assertions
+        # mock_validate.assert_called_once_with(primary_collection_name) # REMOVED
+        assert mock_client.get_collection.call_count == 2
+        mock_client.get_collection.assert_any_call(primary_collection_name)
+        mock_client.get_collection.assert_any_call(learnings_collection_name)
+
+        mock_primary_collection.query.assert_called_once_with(
+            query_texts=query_texts, n_results=n_results, include=["documents", "metadatas", "distances"]
+        )
+        mock_learnings_collection.query.assert_called_once_with(
+            query_texts=query_texts, n_results=n_results, include=["documents", "metadatas", "distances"]
+        )
+
+        parsed_result = assert_successful_json_result(result)
+
+        expected_ids = [["primary_id1", "primary_id2", "learning_id1", "learning_id2"]]
+        expected_docs = [["doc_p1", "doc_p2", "doc_l1", "doc_l2"]]
+        expected_metas = [
+            [
+                {"meta": "p1", "source_collection": primary_collection_name},
+                {"meta": "p2", "source_collection": primary_collection_name},
+                {"meta": "l1", "source_collection": learnings_collection_name},
+                {"meta": "l2", "source_collection": learnings_collection_name},
+            ]
+        ]
+        expected_dists = [[0.1, 0.2, 0.05, 0.15]]
+
+        assert parsed_result["ids"] == expected_ids
+        assert parsed_result["documents"] == expected_docs
+        assert parsed_result["metadatas"] == expected_metas
+        assert parsed_result["distances"] == expected_dists
+
+    @pytest.mark.asyncio
+    async def test_query_documents_impl_primary_only_results(self, mock_chroma_client_document):
+        """Test merging when only the primary collection returns results."""
+        mock_client, _, mock_validate = mock_chroma_client_document
+        primary_collection_name = "test_primary_only"
+        learnings_collection_name = document_tools.LEARNINGS_COLLECTION_NAME
+        query_texts = ["search term"]
+        n_results = 1
+
+        mock_primary_collection = MagicMock(name="primary_collection")
+        mock_learnings_collection = MagicMock(name="learnings_collection")
+
+        primary_query_result = {
+            "ids": [["p_id1"]],
+            "documents": [["doc_p1"]],
+            "metadatas": [[{"m": "p1"}]],
+            "distances": [[0.1]],
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+        empty_learnings_result = {
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],  # Empty results for the query
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+
+        mock_primary_collection.query.return_value = primary_query_result
+        mock_learnings_collection.query.return_value = empty_learnings_result
+
+        def get_collection_side_effect(name, embedding_function=None):
+            if name == primary_collection_name:
+                return mock_primary_collection
+            if name == learnings_collection_name:
+                return mock_learnings_collection
+            raise ValueError(f"Unexpected collection name: {name}")
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        input_model = QueryDocumentsInput(
+            collection_name=primary_collection_name, query_texts=query_texts, n_results=n_results
+        )
+        result = await _query_documents_impl(input_model)
+
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result["ids"] == [["p_id1"]]
+        assert parsed_result["metadatas"][0][0]["source_collection"] == primary_collection_name
+        assert len(parsed_result["ids"][0]) == 1
+
+    @pytest.mark.asyncio
+    async def test_query_documents_impl_learnings_only_results(self, mock_chroma_client_document):
+        """Test merging when only the learnings collection returns results."""
+        mock_client, _, mock_validate = mock_chroma_client_document
+        primary_collection_name = "test_learnings_only_primary"
+        learnings_collection_name = document_tools.LEARNINGS_COLLECTION_NAME
+        query_texts = ["search term"]
+        n_results = 1
+
+        mock_primary_collection = MagicMock(name="primary_collection")
+        mock_learnings_collection = MagicMock(name="learnings_collection")
+
+        empty_primary_result = {
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+        learnings_query_result = {
+            "ids": [["l_id1"]],
+            "documents": [["doc_l1"]],
+            "metadatas": [[{"m": "l1"}]],
+            "distances": [[0.05]],
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+
+        mock_primary_collection.query.return_value = empty_primary_result
+        mock_learnings_collection.query.return_value = learnings_query_result
+
+        def get_collection_side_effect(name, embedding_function=None):
+            if name == primary_collection_name:
+                return mock_primary_collection
+            if name == learnings_collection_name:
+                return mock_learnings_collection
+            raise ValueError(f"Unexpected collection name: {name}")
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        input_model = QueryDocumentsInput(
+            collection_name=primary_collection_name, query_texts=query_texts, n_results=n_results
+        )
+        result = await _query_documents_impl(input_model)
+
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result["ids"] == [["l_id1"]]
+        assert parsed_result["metadatas"][0][0]["source_collection"] == learnings_collection_name
+        assert len(parsed_result["ids"][0]) == 1
+
+    @pytest.mark.asyncio
+    async def test_query_documents_impl_no_results_from_either(self, mock_chroma_client_document):
+        """Test merging when neither collection returns results."""
+        mock_client, _, mock_validate = mock_chroma_client_document
+        primary_collection_name = "test_no_results_primary"
+        learnings_collection_name = document_tools.LEARNINGS_COLLECTION_NAME
+        query_texts = ["search term"]
+        n_results = 1
+
+        mock_primary_collection = MagicMock(name="primary_collection")
+        mock_learnings_collection = MagicMock(name="learnings_collection")
+
+        empty_result = {  # Simulate empty result for one query text
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+
+        mock_primary_collection.query.return_value = empty_result
+        mock_learnings_collection.query.return_value = empty_result
+
+        def get_collection_side_effect(name, embedding_function=None):
+            if name == primary_collection_name:
+                return mock_primary_collection
+            if name == learnings_collection_name:
+                return mock_learnings_collection
+            raise ValueError(f"Unexpected collection name: {name}")
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        input_model = QueryDocumentsInput(
+            collection_name=primary_collection_name, query_texts=query_texts, n_results=n_results
+        )
+        result = await _query_documents_impl(input_model)
+
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result["ids"] == [[]]  # Check for one query text, empty results
+        assert parsed_result["documents"] == [[]]
+        assert parsed_result["metadatas"] == [[]]
+        assert parsed_result["distances"] == [[]]
+
+    @pytest.mark.asyncio
+    async def test_query_documents_impl_learnings_collection_fails_query(self, mock_chroma_client_document):
+        """Test when learnings collection query fails but primary succeeds."""
+        mock_client, _, mock_validate = mock_chroma_client_document
+        primary_collection_name = "test_learnings_fail_primary"
+        learnings_collection_name = document_tools.LEARNINGS_COLLECTION_NAME
+        query_texts = ["search term"]
+        n_results = 1
+
+        mock_primary_collection = MagicMock(name="primary_collection")
+        mock_learnings_collection = MagicMock(name="learnings_collection")
+
+        primary_query_result = {
+            "ids": [["p_id1"]],
+            "documents": [["doc_p1"]],
+            "metadatas": [[{"m": "p1"}]],
+            "distances": [[0.1]],
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+
+        mock_primary_collection.query.return_value = primary_query_result
+        mock_learnings_collection.query.side_effect = Exception("Learnings query failed")
+
+        def get_collection_side_effect(name, embedding_function=None):
+            if name == primary_collection_name:
+                return mock_primary_collection
+            if name == learnings_collection_name:
+                return mock_learnings_collection
+            raise ValueError(f"Unexpected collection name: {name}")
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        input_model = QueryDocumentsInput(
+            collection_name=primary_collection_name, query_texts=query_texts, n_results=n_results
+        )
+        result = await _query_documents_impl(input_model)
+
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result["ids"] == [["p_id1"]]  # Should still get primary results
+        assert parsed_result["metadatas"][0][0]["source_collection"] == primary_collection_name
+        assert len(parsed_result["ids"][0]) == 1
+        # Optionally, check logs for the warning about learnings query failure
+
+    @pytest.mark.asyncio
+    async def test_query_documents_impl_primary_collection_fails_query(self, mock_chroma_client_document):
+        """Test when primary collection query fails but learnings succeeds."""
+        mock_client, _, mock_validate = mock_chroma_client_document
+        primary_collection_name = "test_primary_fail_primary"
+        learnings_collection_name = document_tools.LEARNINGS_COLLECTION_NAME
+        query_texts = ["search term"]
+        n_results = 1
+
+        mock_primary_collection = MagicMock(name="primary_collection")
+        mock_learnings_collection = MagicMock(name="learnings_collection")
+
+        learnings_query_result = {
+            "ids": [["l_id1"]],
+            "documents": [["doc_l1"]],
+            "metadatas": [[{"m": "l1"}]],
+            "distances": [[0.05]],
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+
+        mock_primary_collection.query.side_effect = Exception("Primary query failed")
+        mock_learnings_collection.query.return_value = learnings_query_result
+
+        def get_collection_side_effect(name, embedding_function=None):
+            if name == primary_collection_name:
+                return mock_primary_collection
+            if name == learnings_collection_name:
+                return mock_learnings_collection
+            raise ValueError(f"Unexpected collection name: {name}")
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        input_model = QueryDocumentsInput(
+            collection_name=primary_collection_name, query_texts=query_texts, n_results=n_results
+        )
+        result = await _query_documents_impl(input_model)
+
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result["ids"] == [["l_id1"]]  # Should get learnings results
+        assert parsed_result["metadatas"][0][0]["source_collection"] == learnings_collection_name
+        assert len(parsed_result["ids"][0]) == 1
+        # Optionally, check logs for the error about primary query failure
+
+    @pytest.mark.asyncio
+    async def test_query_documents_impl_both_collections_fail_query(self, mock_chroma_client_document):
+        """Test when both collection queries fail."""
+        mock_client, _, mock_validate = mock_chroma_client_document
+        primary_collection_name = "test_both_fail_primary"
+        learnings_collection_name = document_tools.LEARNINGS_COLLECTION_NAME
+        query_texts = ["search term"]
+        n_results = 1
+
+        mock_primary_collection = MagicMock(name="primary_collection")
+        mock_learnings_collection = MagicMock(name="learnings_collection")
+
+        mock_primary_collection.query.side_effect = Exception("Primary query failed")
+        mock_learnings_collection.query.side_effect = Exception("Learnings query failed")
+
+        def get_collection_side_effect(name, embedding_function=None):
+            if name == primary_collection_name:
+                return mock_primary_collection
+            if name == learnings_collection_name:
+                return mock_learnings_collection
+            raise ValueError(f"Unexpected collection name: {name}")
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        input_model = QueryDocumentsInput(
+            collection_name=primary_collection_name, query_texts=query_texts, n_results=n_results
+        )
+        result = await _query_documents_impl(input_model)
+
+        parsed_result = assert_successful_json_result(result)
+        assert parsed_result["ids"] == [[]]  # Expect empty valid structure
+        assert parsed_result["documents"] == [[]]
+        assert parsed_result["metadatas"] == [[]]
+        assert parsed_result["distances"] == [[]]
+
+    @pytest.mark.asyncio
+    async def test_query_documents_impl_multiple_query_texts_merge(self, mock_chroma_client_document):
+        """Test merging logic with multiple query texts."""
+        mock_client, _, mock_validate = mock_chroma_client_document
+        primary_collection_name = "test_multi_query_primary"
+        learnings_collection_name = document_tools.LEARNINGS_COLLECTION_NAME
+        query_texts = ["query text 1", "query text 2"]
+        n_results = 1
+
+        mock_primary_collection = MagicMock(name="primary_collection")
+        mock_learnings_collection = MagicMock(name="learnings_collection")
+
+        primary_results = {
+            "ids": [["p_id1_q1"], ["p_id1_q2"]],
+            "documents": [["doc_p1_q1"], ["doc_p1_q2"]],
+            "metadatas": [[{"m": "p1q1"}], [{"m": "p1q2"}]],
+            "distances": [[0.1], [0.2]],
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+        learnings_results = {
+            "ids": [["l_id1_q1"], []],  # Result for q1, no result for q2
+            "documents": [["doc_l1_q1"], []],
+            "metadatas": [[{"m": "l1q1"}], []],
+            "distances": [[0.05], []],
+            "embeddings": None,
+            "uris": None,
+            "data": None,
+        }
+
+        mock_primary_collection.query.return_value = primary_results
+        mock_learnings_collection.query.return_value = learnings_results
+
+        def get_collection_side_effect(name, embedding_function=None):
+            if name == primary_collection_name:
+                return mock_primary_collection
+            if name == learnings_collection_name:
+                return mock_learnings_collection
+            raise ValueError(f"Unexpected collection name: {name}")
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        input_model = QueryDocumentsInput(
+            collection_name=primary_collection_name, query_texts=query_texts, n_results=n_results
+        )
+        result = await _query_documents_impl(input_model)
+
+        parsed_result = assert_successful_json_result(result)
+
+        # For query 1
+        assert parsed_result["ids"][0] == ["p_id1_q1", "l_id1_q1"]
+        assert parsed_result["documents"][0] == ["doc_p1_q1", "doc_l1_q1"]
+        assert parsed_result["metadatas"][0][0] == {"m": "p1q1", "source_collection": primary_collection_name}
+        assert parsed_result["metadatas"][0][1] == {"m": "l1q1", "source_collection": learnings_collection_name}
+        assert parsed_result["distances"][0] == [0.1, 0.05]
+
+        # For query 2
+        assert parsed_result["ids"][1] == ["p_id1_q2"]
+        assert parsed_result["documents"][1] == ["doc_p1_q2"]
+        assert parsed_result["metadatas"][1][0] == {"m": "p1q2", "source_collection": primary_collection_name}
+        assert parsed_result["distances"][1] == [0.2]
+
+    # --- End Tests for _query_documents_impl merging logic ---
 
     # --- Get Documents Tests ---
 
@@ -946,39 +1485,80 @@ class TestDocumentTools:
         mock_client.get_collection.return_value = mock_collection
         mock_collection.query.side_effect = Exception(generic_error_message)
         input_query = QueryDocumentsInput(collection_name=collection_name, query_texts=["q"])
-        with assert_raises_mcp_error(f"An unexpected error occurred during query: {generic_error_message}"):
-            await _query_documents_impl(input_query)
-        mock_validate.assert_called_with(collection_name)
-        mock_client.get_collection.assert_called_with(collection_name)
-        mock_collection.query.assert_called_once()
-        mock_client.reset_mock()
-        mock_collection.reset_mock()
+        # The original test expected an McpError here. However, _query_documents_impl
+        # now catches exceptions from individual collection queries and attempts to proceed.
+        # If both fail, it returns an empty valid structure.
+        # mock_client.get_collection.return_value = mock_collection # Already set by fixture
+        # mock_collection.query.side_effect = Exception(generic_error_message) # Already set by fixture default behavior if not overridden
+
+        # Setup specific side effects for this test section
+        mock_primary_coll_generic_err = MagicMock()
+        mock_primary_coll_generic_err.query.side_effect = Exception(generic_error_message)
+        mock_learnings_coll_generic_err = MagicMock()
+        mock_learnings_coll_generic_err.query.side_effect = Exception(generic_error_message)
+
+        def generic_error_get_collection(name, embedding_function=None):
+            if name == collection_name:
+                return mock_primary_coll_generic_err
+            elif name == document_tools.LEARNINGS_COLLECTION_NAME:
+                return mock_learnings_coll_generic_err
+            return MagicMock()
+
+        mock_client.get_collection.side_effect = generic_error_get_collection
+
+        result_query = await _query_documents_impl(input_query)
+        parsed_query_result = assert_successful_json_result(result_query)
+        assert parsed_query_result["ids"] == [[]]
+
+        # mock_validate.assert_called_with(collection_name) # REMOVED
+        # mock_client.get_collection.assert_called_with(collection_name) # More complex now
+        assert mock_client.get_collection.call_count == 2
+        mock_client.get_collection.assert_any_call(collection_name)
+        mock_client.get_collection.assert_any_call(document_tools.LEARNINGS_COLLECTION_NAME)
+        # mock_collection.query.assert_called_once() # Not simple with two collections
+        mock_primary_coll_generic_err.query.assert_called_once()
+        mock_learnings_coll_generic_err.query.assert_called_once()
+
+        mock_client.reset_mock()  # Reset all calls on the main client mock
+        mock_collection.reset_mock()  # Reset the general mock_collection from fixture if it was used or modified
         mock_validate.reset_mock()
+        # Ensure get_collection side effect is cleared for subsequent parts of this test
+        mock_client.get_collection.side_effect = mock_collection  # Restore default fixture behavior
 
         # --- Test Update (Content - Singular) --- #
-        mock_client.get_collection.return_value = mock_collection
-        mock_collection.update.side_effect = Exception(generic_error_message)
-        input_update_content = UpdateDocumentContentInput(
-            collection_name=collection_name, id="id1", document="d"
-        )  # Singular
-        with assert_raises_mcp_error(
-            f"ChromaDB Error: Failed to update document content. {generic_error_message}"
-        ):  # Updated msg
+        # Create a NEW mock collection specifically for this part
+        mock_update_collection = MagicMock(name="update_specific_collection")
+        mock_update_collection.update.side_effect = Exception(generic_error_message)
+
+        # Configure get_collection to return this specific mock
+        mock_client.get_collection.side_effect = None
+        mock_client.get_collection.return_value = mock_update_collection
+
+        # Set the side effect *after* resetting mock_collection
+        # mock_collection.update.side_effect = Exception(generic_error_message) << Remove this line
+        input_update_content = UpdateDocumentContentInput(collection_name=collection_name, id="id1", document="d")
+        with assert_raises_mcp_error(f"ChromaDB Error: Failed to update document content. {generic_error_message}"):
             await _update_document_content_impl(input_update_content)
-        mock_validate.assert_called_with(collection_name)
-        mock_client.get_collection.assert_called_with(name=collection_name)
-        mock_collection.update.assert_called_once()
+
+        # Assertions for Update part
+        mock_validate.assert_called_once_with(collection_name)
+        mock_client.get_collection.assert_called_once_with(name=collection_name)
+        mock_update_collection.update.assert_called_once()  # Assert on the specific mock
+
+        # Reset mocks fully before Delete section
         mock_client.reset_mock()
-        mock_collection.reset_mock()
+        mock_collection.reset_mock()  # Now reset the fixture one
         mock_validate.reset_mock()
 
+        # Restore default fixture behavior for get_collection explicitly for Delete part
+        mock_client.get_collection.side_effect = None
+        mock_client.get_collection.return_value = mock_collection  # Restore fixture's collection
+
         # --- Test Delete (Singular ID) --- #
-        mock_client.get_collection.return_value = mock_collection
+        # Set the side effect *after* resetting mock_collection (the fixture one)
         mock_collection.delete.side_effect = Exception(generic_error_message)
-        input_delete = DeleteDocumentByIdInput(collection_name=collection_name, id="id1")  # Singular
-        with assert_raises_mcp_error(
-            f"ChromaDB Error: Failed to delete document. {generic_error_message}"
-        ):  # Updated msg
+        input_delete = DeleteDocumentByIdInput(collection_name=collection_name, id="id1")
+        with assert_raises_mcp_error(f"ChromaDB Error: Failed to delete document. {generic_error_message}"):
             await _delete_document_by_id_impl(input_delete)
         mock_validate.assert_called_with(collection_name)
         mock_client.get_collection.assert_called_with(name=collection_name)

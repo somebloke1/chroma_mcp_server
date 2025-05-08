@@ -10,6 +10,7 @@ import logging.handlers
 import os
 import warnings
 import argparse
+import sys
 
 # Import the server module to access its globals
 from src.chroma_mcp import server
@@ -30,6 +31,7 @@ from src.chroma_mcp.utils import (
     ValidationError,
     set_main_logger,
     set_server_config,
+    BASE_LOGGER_NAME,
 )
 
 from unittest.mock import MagicMock, patch
@@ -520,3 +522,91 @@ def initialized_chroma_client():
     # from chroma_mcp import server
     # server._chroma_client_instance = None
     # print("Chroma client reset after test.")
+
+
+# --- Begin added logger fixture ---
+@pytest.fixture(scope="session", autouse=True)
+def configure_test_logger():
+    """
+    Configures a basic logger for the test session to prevent
+    'Logger requested before main configuration' warnings and ensure
+    logs are captured by pytest if needed. Runs automatically for the session.
+    """
+    logger = logging.getLogger(BASE_LOGGER_NAME)
+    # Prevent adding handlers multiple times if fixture runs unexpectedly often
+    if not logger.hasHandlers():
+        logger.setLevel(logging.DEBUG)  # Set to DEBUG to capture all levels during tests
+        handler = logging.StreamHandler(sys.stderr)  # Log to stderr like pytest does
+        formatter = logging.Formatter("%(asctime)s | %(name)-20s | %(levelname)-8s | %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        # Set this basic logger as the 'main' logger for the utils.get_logger() function
+        set_main_logger(logger)
+        logger.debug("Test logger configured by session fixture.")
+    # Yield control to the test session
+    yield
+    # Teardown (optional, e.g., remove handler if necessary)
+    # logger.handlers.clear() # Might not be needed if process exits cleanly
+
+
+# --- End added logger fixture ---
+
+
+# Fixture to initialize Chroma client once per session for specific tests
+# This avoids repeated initialization warnings if multiple tests need it.
+# Note: This assumes a persistent client setup for testing to avoid state issues.
+# If ephemeral is needed, adjust or use a function-scoped fixture.
+@pytest.fixture(scope="session")
+def initialized_chroma_client(tmp_path_factory):
+    """Initializes a persistent Chroma client for the test session."""
+    data_path = tmp_path_factory.mktemp("chroma_test_data")
+    print(f"DEBUG: Using tmp Chroma data path: {data_path}")
+
+    # Define a minimal config for testing
+    test_config = ChromaClientConfig(
+        client_type="persistent",
+        data_dir=str(data_path),
+        embedding_function_name="default",  # Use a known default EF
+    )
+
+    # Store the original config if it exists, to restore later
+    # Note: get_server_config might raise if never set, handle this?
+    # For simplicity, assume it's None initially or we don't need strict restore.
+    # original_config = None
+    # try:
+    #     original_config = get_server_config()
+    # except Exception:
+    #     pass
+
+    # Set the test configuration globally
+    set_server_config(test_config)
+    print(f"DEBUG: Set test server config: {test_config}")
+
+    # Use patch only for the client instance, ensuring it starts as None
+    with patch("src.chroma_mcp.utils.chroma_client._chroma_client", None):
+        print("DEBUG: Attempting to get Chroma client within fixture...")
+        try:
+            # Call get_chroma_client which should initialize based on the *globally set* config
+            client = get_chroma_client()
+            print(f"DEBUG: Chroma client obtained: {client}")
+            yield client  # Provide the client to tests
+
+            # Teardown:
+            # Reset the client instance via the utility function
+            from src.chroma_mcp.utils.chroma_client import reset_client
+
+            reset_client()
+            print("DEBUG: Chroma client reset via reset_client().")
+
+            # Restore original config if needed (optional)
+            # if original_config:
+            #    set_server_config(original_config)
+            # else:
+            #    # Or clear it? Depends on desired state after tests.
+            #    # You might need a `clear_server_config()` function.
+            #    pass
+            print("DEBUG: Chroma client fixture teardown complete.")
+
+        except Exception as e:
+            print(f"ERROR: Failed to initialize/yield Chroma client in fixture: {e}")
+            pytest.fail(f"Failed to initialize Chroma client for tests: {e}")

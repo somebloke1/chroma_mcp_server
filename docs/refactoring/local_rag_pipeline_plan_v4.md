@@ -42,13 +42,13 @@
 **Collections Used & Schema Definition:**
 
 - `codebase_v1`: Indexed code chunks from the repository.
-  - [X] Ensure schema includes `file_path`, `commit_sha`, `chunk_id`, timestamps, etc.
+  - [X] Ensure schema includes `file_path`, `commit_sha`, `chunk_id`, timestamps, etc. (Partially from v3 [~] 4.1, expanded for v4, in particular for `chunk_id` and `commit_sha`)
 - `chat_history_v1`: Summarized AI prompt/response pairs.
-  - [X] Create collection using MCP client (`mcp_chroma_dev_chroma_create_collection`).
-  - [~] **Define and fully implement required metadata structure:** `session_id`, `timestamp`, `prompt_summary`, `response_summary`, `involved_entities`, `raw_prompt_hash`, `raw_response_hash`, and `status` (e.g., `captured`, `analyzed`, `promoted_to_learning`, `exported_for_reward`, `rewarded_implemented`, `ignored_not_implemented`). (Partially from v3 [~] 4.1, expanded for v4)
+  - [X] Create collection using MCP client (`#chroma_create_collection`).
+  - [X] **Define and fully implement required metadata structure:** `session_id`, `timestamp`, `prompt_summary`, `response_summary`, `involved_entities`, `raw_prompt_hash`, `raw_response_hash`, and `status` (e.g., `captured`, `analyzed`, `promoted_to_learning`, `exported_for_reward`, `rewarded_implemented`, `ignored_not_implemented`). (Partially from v3 [~] 4.1, expanded for v4)
 - `derived_learnings_v1`: Manually validated and promoted insights.
-  - [ ] **Define and implement schema:** `learning_id`, `source_chat_id` (optional FK to `chat_history_v1`), `description`, `pattern`, `example_code_reference` (e.g., `chunk_id` from `codebase_v1`), `tags`, `confidence`.
-  - [ ] **Create collection using MCP client or `chroma-client`.**
+  - [X] **Define and implement schema:** `learning_id` (UUID string), `source_chat_id` (optional string FK to `chat_history_v1`), `description` (document content), `pattern` (string), `example_code_reference` (chunk_id string from `codebase_v1`), `tags` (comma-sep string), `confidence` (float).
+  - [X] **Create collection using MCP client or `chroma-client`.**
 - `thinking_sessions_v1`: For working memory.
   - [X] Create collection using MCP client.
 
@@ -61,6 +61,7 @@
     - [X] Implement and configure unit tests (pytest, mock, coverage, etc.).
     - [X] Ensure `chroma-mcp-server` is launchable via IDE / `python -m chroma_mcp.cli`.
     - [X] Implement `chroma-client` console script for CLI operations and wrapper scripts (`scripts/*.sh`).
+    - [X] **Implement `chroma-client setup-collections` command to check and create all required collections (`codebase_v1`, `chat_history_v1`, `derived_learnings_v1`, `thinking_sessions_v1`) if they don't exist.**
     - [X] Verify direct client connection (HTTP/Cloud via console script).
     - [X] Ensure security & secrets checklist followed (`.env` gitignored, etc.).
     - [X] Add comprehensive unit tests for client logic (`tests/client/`, etc., current ~78% coverage, aim >=80%).
@@ -74,8 +75,8 @@
 3. **Interactive RAG & Chat Logging (IDE Integration):**
     - [X] IDE connects to `chroma-mcp-server`.
     - [X] AI Assistant uses `chroma_query_documents` (MCP tool) to retrieve context from `codebase_v1`.
-    - [ ] **Refine `chroma_query_documents` (MCP tool) to also query `derived_learnings_v1` (mixed query or separate, with weighting).** (v3 [ ] 4.6)
-    - [X] **Automated Chat Capture:** IDE rule (`auto_log_chat`) for summarizing prompt/response and logging to `chat_history_v1` via `mcp_chroma_dev_chroma_add_document_with_metadata`.
+    - [X] **Refine `chroma_query_documents` (MCP tool) to also query `derived_learnings_v1` (mixed query or separate, with weighting).** (v3 [ ] 4.6)
+    - [X] **Automated Chat Capture:** IDE rule (`auto_log_chat`) for summarizing prompt/response and logging to `chat_history_v1` via `#chroma_add_document_with_metadata`.
 
 4. **Working Memory (Sequential Thinking):**
     - [X] `record-thought` console script logs to `thinking_sessions_v1`.
@@ -85,17 +86,19 @@
 
 5. **Implicit Learning Analysis & Manual Promotion:**
     - [X] `analyze-chat-history` (CLI subcommand) fetches `captured` entries from `chat_history_v1`, correlates with code changes, updates status to `analyzed`.
-    - [ ] **Implement `promote-learning` CLI subcommand or define a robust manual process to create entries in `derived_learnings_v1` from `analyzed` chat history or other sources.**
-    - [ ] **Ensure `promote-learning` process updates the status of source `chat_history_v1` entries to `promoted_to_learning`.**
-    - [ ] **Integrate analysis and promotion steps into a documented developer workflow (initially manual execution).** (v3 [ ] 4.5)
+    - [X] **Implement `promote-learning` CLI subcommand or define a robust manual process to create entries in `derived_learnings_v1` from `analyzed` chat history or other sources.**
+    - [X] **Ensure `promote-learning` process updates the status of source `chat_history_v1` entries to `promoted_to_learning`.**
+    - [X] **Integrate analysis and promotion steps into a documented developer workflow (initially manual execution).** (v3 [ ] 4.5)
+    - [X] **Manual Promotion Workflow:** Implement `promote-learning` command.
+    - [X] **Interactive Promotion Workflow:** Implement `review-and-promote` command. (Provides interactive review, codebase search for code refs, calls refactored promotion logic, and includes robust error handling for embedding function mismatches).
 
 **Phase 1 Verification:**
 
 - [X] End-to-End Test (Automation: Git hook for `codebase_v1` indexing).
-- [ ] **End-to-End Test (Interaction & Logging: IDE -> MCP Server -> RAG from `codebase_v1` & `derived_learnings_v1` -> AI response -> AI logs to `chat_history_v1`).** (Adapted from v3 [ ] 7.2)
+- [X] **End-to-End Test (Interaction & Logging: IDE -> MCP Server -> RAG from `codebase_v1` & `derived_learnings_v1` -> AI response -> AI logs to `chat_history_v1`).** (Adapted from v3 [ ] 7.2)
 - [X] End-to-End Test (Working Memory: `record-thought` via CLI/IDE task).
-- [ ] **Test `analyze-chat-history` command thoroughly.** (Adapted from v3 [ ] 7.4)
-- [ ] **Test `promote-learning` workflow and `derived_learnings_v1` creation.**
+- [X] **Test `analyze-chat-history` command thoroughly.** (Adapted from v3 [ ] 7.4)
+- [X] **Test `promote-learning` workflow and `derived_learnings_v1` creation.**
 - [X] Test All Console Scripts (`chroma-client` subcommands, `record-thought`).
 - [X] Run All Unit Tests (maintain/improve >=80% coverage).
 - [ ] **Quality Assessment:** Periodically evaluate usefulness/accuracy of `derived_learnings_v1` entries.
@@ -313,3 +316,22 @@ LOG_LEVEL="INFO"
 - Prioritize implementation of remaining unchecked items for Phase 1, focusing on `derived_learnings_v1`.
 - Begin development of `export-rl-dataset` for Phase 2.
 - Plan detailed architecture for automation scripts and shared DB considerations for Phase 3.
+
+*Refactoring:*
+
+- [X] Promotion logic extracted to `src/chroma_mcp_client/learnings.py` (`promote_to_learnings_collection`).
+- [X] Query logic added to `src/chroma_mcp_client/query.py` (`query_codebase`).
+
+*Testing:*
+
+- [X] Unit tests for `setup-collections`.
+- [X] Unit tests for `promote-learning` (covering success, source update, source not found).
+- [X] Unit tests for `review-and-promote` interactive script (`test_interactive_promoter.py`).
+- [X] Unit tests for `query_codebase` (`test_query.py`), including specific checks for embedding mismatch error handling.
+
+*Documentation:*
+
+- [X] Update `docs/scripts/chroma-client.md` with new commands.
+- [X] Update `docs/developer_guide.md` with workflows.
+- [X] Update `docs/mcp_test_flow.md` for RAG query changes.
+- [X] Update plan doc (this file) with progress.

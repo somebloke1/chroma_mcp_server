@@ -53,16 +53,63 @@ def temp_repo(tmp_path: Path):
 # --- Tests for index_file ---
 
 
-def test_index_file_success(temp_repo: Path, mock_chroma_client_tuple):
-    """Test successful indexing of a supported file."""
+@patch("chroma_mcp_client.indexing.get_current_commit_sha", return_value="mock_commit_sha_test_success")
+def test_index_file_success(mock_get_sha, temp_repo: Path, mock_chroma_client_tuple):
+    """Test successful indexing of a supported file with chunking."""
     mock_client, mock_collection, _, _ = mock_chroma_client_tuple
     file_to_index = temp_repo / "src" / "main.py"
+    # Give it some content to ensure chunking happens (e.g., > 40 lines)
+    file_content = "\n".join([f"line {i}" for i in range(50)])
+    file_to_index.write_text(file_content)
+
+    relative_path = "src/main.py"
+    commit_sha = "mock_commit_sha_test_success"
 
     result = index_file(file_to_index, temp_repo)
 
     assert result is True
+    mock_get_sha.assert_called_once_with(temp_repo)
     mock_collection.upsert.assert_called_once()
-    # Check args passed to upsert if needed
+
+    # Assert the arguments passed to upsert
+    upsert_args = mock_collection.upsert.call_args.kwargs
+
+    # Expected chunks (lines_per_chunk=40, line_overlap=5)
+    # Chunk 0: lines 0-39 (40 lines) -> metadata start=1, end=40
+    # Chunk 1: lines 35-49 (15 lines) -> metadata start=36, end=50
+    expected_num_chunks = 2
+
+    assert len(upsert_args["ids"]) == expected_num_chunks
+    assert len(upsert_args["metadatas"]) == expected_num_chunks
+    assert len(upsert_args["documents"]) == expected_num_chunks
+
+    # Check chunk 0
+    expected_id_0 = f"{relative_path}:{commit_sha}:0"
+    assert upsert_args["ids"][0] == expected_id_0
+    assert upsert_args["documents"][0] == "\n".join([f"line {i}" for i in range(40)])
+    meta_0 = upsert_args["metadatas"][0]
+    assert meta_0["file_path"] == relative_path
+    assert meta_0["commit_sha"] == commit_sha
+    assert meta_0["chunk_index"] == 0
+    assert meta_0["start_line"] == 1
+    assert meta_0["end_line"] == 40
+    assert meta_0["filename"] == "main.py"
+    assert meta_0["chunk_id"] == expected_id_0
+    assert "last_indexed_utc" in meta_0
+
+    # Check chunk 1
+    expected_id_1 = f"{relative_path}:{commit_sha}:1"
+    assert upsert_args["ids"][1] == expected_id_1
+    assert upsert_args["documents"][1] == "\n".join([f"line {i}" for i in range(35, 50)])
+    meta_1 = upsert_args["metadatas"][1]
+    assert meta_1["file_path"] == relative_path
+    assert meta_1["commit_sha"] == commit_sha
+    assert meta_1["chunk_index"] == 1
+    assert meta_1["start_line"] == 36  # 35 + 1
+    assert meta_1["end_line"] == 50  # 49 + 1
+    assert meta_1["filename"] == "main.py"
+    assert meta_1["chunk_id"] == expected_id_1
+    assert "last_indexed_utc" in meta_1
 
 
 def test_index_file_non_existent(temp_repo: Path, mock_chroma_client_tuple):
@@ -133,45 +180,66 @@ def test_index_file_collection_get_error(temp_repo: Path, mock_chroma_client_tup
     mock_collection.upsert.assert_not_called()
 
 
-def test_index_file_collection_not_found_and_create_error(temp_repo: Path, mock_chroma_client_tuple):
-    """Test handling error when creating collection after not found."""
-    mock_client, mock_collection, _, _ = mock_chroma_client_tuple
-    mock_client.get_collection.side_effect = ValueError("Collection codebase_v1 does not exist.")
-    mock_client.create_collection.side_effect = Exception("Failed to create")
-    file_to_index = temp_repo / "src" / "main.py"
-
-    result = index_file(file_to_index, temp_repo)
-
-    assert result is False
-    mock_collection.upsert.assert_not_called()
-    mock_client.create_collection.assert_called_once()
-
-
-def test_index_file_collection_not_found_and_create_success(temp_repo: Path, mock_chroma_client_tuple):
-    """Test successfully creating collection after not found."""
-    mock_client, mock_collection, _, _ = mock_chroma_client_tuple
+@patch("chroma_mcp_client.indexing.get_current_commit_sha", return_value="mock_commit_sha_test_create")
+def test_index_file_collection_not_found_and_create_success(mock_get_sha, temp_repo: Path, mock_chroma_client_tuple):
+    """Test successfully creating collection and upserting chunks."""
+    mock_client, mock_collection, mock_ef, _ = mock_chroma_client_tuple
     # Simulate get failing then create succeeding
-    mock_client.get_collection.side_effect = [ValueError("Collection codebase_v1 does not exist."), mock_collection]
+    mock_client.get_collection.side_effect = ValueError("Collection codebase_v1 does not exist.")
     mock_client.create_collection.return_value = mock_collection
+
     file_to_index = temp_repo / "src" / "main.py"
+    # Add content for chunking
+    file_content = "\n".join([f"line {i}" for i in range(10)])  # Simple case, 1 chunk
+    file_to_index.write_text(file_content)
+    relative_path = "src/main.py"
+    commit_sha = "mock_commit_sha_test_create"
 
     result = index_file(file_to_index, temp_repo)
 
     assert result is True
-    mock_client.create_collection.assert_called_once()
+    mock_get_sha.assert_called_once_with(temp_repo)
+    mock_client.create_collection.assert_called_once_with(
+        name="codebase_v1", embedding_function=mock_ef, get_or_create=False
+    )
     mock_collection.upsert.assert_called_once()
 
+    # Verify upsert args for the single chunk
+    upsert_args = mock_collection.upsert.call_args.kwargs
+    expected_num_chunks = 1
+    assert len(upsert_args["ids"]) == expected_num_chunks
+    assert len(upsert_args["metadatas"]) == expected_num_chunks
+    assert len(upsert_args["documents"]) == expected_num_chunks
 
-def test_index_file_upsert_error(temp_repo: Path, mock_chroma_client_tuple):
-    """Test handling error during collection upsert."""
+    expected_id_0 = f"{relative_path}:{commit_sha}:0"
+    assert upsert_args["ids"][0] == expected_id_0
+    assert upsert_args["documents"][0] == file_content
+    meta_0 = upsert_args["metadatas"][0]
+    assert meta_0["file_path"] == relative_path
+    assert meta_0["commit_sha"] == commit_sha
+    assert meta_0["chunk_index"] == 0
+    assert meta_0["start_line"] == 1
+    assert meta_0["end_line"] == 10
+    assert meta_0["chunk_id"] == expected_id_0
+
+
+@patch("chroma_mcp_client.indexing.get_current_commit_sha", return_value="mock_commit_sha_test_upsert_err")
+def test_index_file_upsert_error(mock_get_sha, temp_repo: Path, mock_chroma_client_tuple):
+    """Test handling error during collection upsert with chunking."""
     _, mock_collection, _, _ = mock_chroma_client_tuple
     mock_collection.upsert.side_effect = Exception("Upsert failed")
+
     file_to_index = temp_repo / "src" / "main.py"
+    # Add content for chunking
+    file_content = "\n".join([f"line {i}" for i in range(10)])  # Simple case, 1 chunk
+    file_to_index.write_text(file_content)
 
     result = index_file(file_to_index, temp_repo)
 
     assert result is False
-    mock_collection.upsert.assert_called_once()
+    mock_get_sha.assert_called_once_with(temp_repo)
+    mock_collection.upsert.assert_called_once()  # Ensure upsert was called
+    # No need to check upsert args here, as it failed
 
 
 # --- Tests for index_git_files ---

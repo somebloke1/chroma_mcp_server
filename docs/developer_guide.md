@@ -212,6 +212,81 @@ This project includes capabilities for automatically logging summaries of AI cha
 
 ## Working Memory and Thinking Tools
 
+## Developer Workflow: Implicit Learning & Manual Promotion
+
+This workflow describes how developers can analyze their chat history to identify valuable insights and manually promote them into the `derived_learnings_v1` collection for reuse by the RAG system.
+
+### Overview
+
+The process involves two main CLI commands:
+
+1. `chroma-client analyze-chat-history`: This command scans the `chat_history_v1` collection for entries (typically those with status `captured`), attempts to correlate them with recent code changes in your Git repository, and updates their status to `analyzed`. It outputs a list of entries it successfully processed.
+2. `chroma-client promote-learning`: After reviewing the output of the analysis, the developer uses this command to manually create a structured learning entry in the `derived_learnings_v1` collection. This command also updates the status of the source chat entry to `promoted_to_learning`.
+
+### Step-by-Step Guide
+
+1. **Run Analysis on Chat History:**
+
+    Execute the `analyze-chat-history` command. You'll typically want to specify how many days back to look and the path to your repository.
+
+    ```bash
+    # Example: Analyze chats from the last 7 days in the current repo
+    hatch run chroma-client analyze-chat-history --days-limit 7 --repo-path .
+
+    # Example: Analyze chats from the last 30 days, specifying collection names
+    hatch run chroma-client analyze-chat-history --days-limit 30 --collection-name chat_history_v1 --chat-collection-name chat_history_v1 --repo-path /path/to/your/project
+    ```
+
+    Key options:
+    * `--days-limit INT`: How many days back to fetch entries for analysis.
+    * `--repo-path TEXT`: Path to the root of the Git repository for code correlation.
+    * `--collection-name TEXT`: The chat history collection to analyze (default: `chat_history_v1`).
+
+    The command will output a list of chat entry IDs and their summaries that were updated to `analyzed` status.
+
+2. **Identify Learnings for Promotion:**
+
+    Review the output from the `analyze-chat-history` command. Look for chat interactions that represent a useful pattern, solution, or piece of knowledge worth capturing formally.
+
+3. **Gather Information for `promote-learning`:**
+
+    Once you've identified a chat entry to promote (e.g., ID `chat_entry_xyz`), gather the following details:
+
+    * `--source-chat-id TEXT`: The ID of the chat entry from `chat_history_v1` (e.g., `chat_entry_xyz`). This is optional but highly recommended for traceability.
+    * `--description TEXT`: **(Required)** A concise, human-readable description of the learning or insight. This becomes the main document content in `derived_learnings_v1`.
+    * `--pattern TEXT`: **(Required)** A more generalized statement of the pattern or rule derived from the specific interaction.
+    * `--code-ref TEXT`: **(Required)** A reference to a relevant code snippet, typically a `chunk_id` from the `codebase_v1` collection. The `chunk_id` has the format `relative_file_path:commit_sha:chunk_index` (e.g., `src/module/file.py:abcdef1234567890abcdef1234567890abcdef12:0`).
+    * `--tags TEXT`: **(Required)** A comma-separated string of relevant keywords or tags (e.g., `python,api,refactoring,typer`).
+    * `--confidence FLOAT`: **(Required)** A float between 0.0 and 1.0 indicating your confidence in this learning.
+    * `--collection-name TEXT`: The target collection for the new learning (default: `derived_learnings_v1`).
+    * `--chat-collection-name TEXT`: The source chat history collection (default: `chat_history_v1`), used if `source-chat-id` is provided to update its status.
+
+4. **Execute Promotion:**
+
+    Use the `promote-learning` command with the gathered information. You can use the wrapper script directly or the hatch alias (`promote-learn`).
+
+    ```bash
+    # Example promotion using the hatch alias
+    hatch run promote-learn \
+        --source-chat-id "chat_entry_xyz" \
+        --description "When implementing a FastAPI endpoint that requires background tasks, use BackgroundTasks to ensure the response is sent quickly while tasks run separately." \
+        --pattern "FastAPI endpoints needing deferred work should use BackgroundTasks for non-blocking operations." \
+        --code-ref "src/my_app/api/endpoints.py:commitsha123abc:3" \
+        --tags "fastapi,backgroundtasks,python,api-design" \
+        --confidence 0.95
+    ```
+
+    The command will output the ID of the newly created learning in `derived_learnings_v1` and confirm the status update of the source chat entry.
+
+5. **Verification (Optional):**
+
+    You can verify the promotion using `chroma-client query` or MCP tools:
+
+    * Query `derived_learnings_v1` for the new learning ID to inspect its content.
+    * Query `chat_history_v1` for the `source-chat-id` to confirm its status is `promoted_to_learning` and that it has a `promoted_learning_id` metadata field pointing to the new learning.
+
+This workflow enables a systematic way to build up a high-quality `derived_learnings_v1` collection from practical development interactions.
+
 ## Testing
 
 Tests are located in the `tests/` directory and use `pytest`. Run tests using the script:
@@ -362,3 +437,51 @@ Key environment variables (set in `.env`):
 * `MCP_LOG_LEVEL`: Sets the logging level specifically for MCP framework components.
 * `CHROMA_EMBEDDING_FUNCTION`: `default`, `accurate`, `openai`, etc.
 * API keys (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, etc.) as needed for embedding functions.
+
+### Promoting Learnings (Manual Workflow)
+
+While the goal is often automated analysis, manual curation is crucial for high-quality derived learnings.
+
+1. **Analyze:** Run `analyze-chat-history` to correlate recent chats with code changes and mark potentially valuable entries as `analyzed`:
+
+    ```bash
+    hatch run analyze-chat-history --days-limit 3
+    ```
+
+2. **Review (Outside Script):** Examine the output of `analyze-chat-history` or query the `chat_history_v1` collection directly (e.g., using MCP tools) to find entries marked `analyzed` that represent useful insights.
+3. **Promote:** Use the `promote-learning` command to create a structured entry in `derived_learnings_v1`. You'll need the source chat entry ID and details like the core pattern, tags, confidence, and a relevant code reference (chunk ID).
+
+    ```bash
+    # Example promoting chat entry 'abc-123'
+    hatch run promote-learning \
+        --source-chat-id "abc-123" \
+        --description "Refactored logging setup for better context." \
+        --pattern "logging.basicConfig(...) replaced with custom setup" \
+        --code-ref "src/utils/logging.py:sha456:0-15" \
+        --tags "python,logging,refactor" \
+        --confidence 0.9
+    ```
+
+### Promoting Learnings (Interactive Workflow - Recommended)
+
+To streamline the review and promotion process, use the `review-and-promote` command. This provides a more user-friendly, guided experience:
+
+1. **Analyze:** Run `analyze-chat-history` as described above.
+2. **Review and Promote Interactively:** Start the interactive workflow:
+
+    ```bash
+    hatch run review-and-promote --days-limit 3 
+    # Or alias: hatch run review-promote --days-limit 3
+    ```
+
+    The script will:
+    * Fetch chat entries marked as `analyzed` within the specified time frame.
+    * Display each entry's summary.
+    * Query the `codebase_v1` collection for relevant code snippets based on the chat summary and display potential `code_ref` candidates.
+    * Prompt you to **Promote (p)**, **Ignore (i)**, **Skip (s)**, or **Quit (q)**.
+    * If promoting, guide you through entering the pattern, tags, confidence, and selecting/entering the `code_ref`.
+    * Automatically update the source chat entry status to `promoted_to_learning` or `ignored`.
+
+This interactive command significantly simplifies the process of curating the `derived_learnings_v1` collection.
+
+## Querying for RAG

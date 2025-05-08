@@ -38,6 +38,7 @@ from ..utils.config import validate_collection_name
 
 # --- Constants ---
 DEFAULT_QUERY_N_RESULTS = 10
+LEARNINGS_COLLECTION_NAME = "derived_learnings_v1"  # Define the learnings collection name
 
 # --- Pydantic Input Models for Document Tools ---
 
@@ -888,57 +889,192 @@ async def _delete_document_by_id_impl(input_data: DeleteDocumentByIdInput) -> Li
 
 
 async def _query_documents_impl(input_data: QueryDocumentsInput) -> List[types.TextContent]:
-    """Implementation for basic document query."""
+    """Implementation for querying documents (no filters). Queries primary collection and derived learnings."""
     logger = get_logger("tools.document.query")
-    collection_name = input_data.collection_name
+    client = get_chroma_client()
+    primary_collection_name = input_data.collection_name
     query_texts = input_data.query_texts
     n_results = input_data.n_results
+    # Default includes for this basic query tool
+    include = ["documents", "metadatas", "distances"]
 
-    # --- Validation ---
-    validate_collection_name(collection_name)  # Added validation
-    if not query_texts:
-        raise McpError(ErrorData(code=INVALID_PARAMS, message="Query texts list cannot be empty."))
-    # --- End Validation ---
+    primary_results: Optional[QueryResult] = None
+    learnings_results: Optional[QueryResult] = None
 
-    logger.info(
-        f"Querying '{collection_name}' with {len(query_texts)} texts. N_results: {n_results}. Using default includes."
-    )
-
+    # 1. Query Primary Collection
     try:
-        client = get_chroma_client()
-        collection = client.get_collection(collection_name)
-        query_result: QueryResult = collection.query(
+        logger.debug(f"Querying primary collection: {primary_collection_name}")
+        primary_collection = client.get_collection(primary_collection_name)
+        primary_results = primary_collection.query(
             query_texts=query_texts,
             n_results=n_results,
-            include=[],  # Default include (empty list passes validation)
+            # where=None, # No filters for this tool variant
+            # where_document=None,
+            include=include,
         )
-        logger.debug(f"ChromaDB query result: {query_result}")
-
-        result_json = json.dumps(query_result, cls=NumpyEncoder)
-        # Log number of result sets (matches number of query texts)
-        num_result_sets = len(query_result.get("ids") or [])
-        logger.info(f"Query successful on '{collection_name}', returning {num_result_sets} result sets.")
-        return [types.TextContent(type="text", text=result_json)]
-    except ValueError as e:
-        if f"Collection {collection_name} does not exist" in str(e):
-            logger.warning(f"Collection '{collection_name}' not found for query.")
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Collection '{collection_name}' not found."))
-        else:
-            logger.error(f"Error querying collection '{collection_name}': {e}", exc_info=True)
-            raise McpError(
-                ErrorData(
-                    code=INTERNAL_ERROR,
-                    message=f"An unexpected error occurred during query: {str(e)}",
-                )
-            )
-    except Exception as e:
-        logger.error(f"Error querying collection '{collection_name}': {e}", exc_info=True)
+        logger.debug(f"Primary query successful for {primary_collection_name}")
+    except InvalidDimensionException as e:
+        logger.error(
+            f"Dimension mismatch querying {primary_collection_name}: {e}. Ensure query matches collection embedding dim.",
+            exc_info=True,
+        )
         raise McpError(
-            ErrorData(
-                code=INTERNAL_ERROR,
-                message=f"An unexpected error occurred during query: {str(e)}",
-            )
+            ErrorData(code=INTERNAL_ERROR, message=f"Dimension mismatch querying '{primary_collection_name}': {e}")
         )
+    except Exception as e:
+        logger.error(f"Failed to query primary collection '{primary_collection_name}': {e}", exc_info=True)
+        # Decide if we should still try the learnings collection or fail fast
+        # For now, let's try learnings even if primary fails, but log the error
+        # raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Failed to query collection '{primary_collection_name}': {e}"))
+        primary_results = None  # Ensure it's None if query fails
+
+    # 2. Query Learnings Collection
+    try:
+        logger.debug(f"Querying learnings collection: {LEARNINGS_COLLECTION_NAME}")
+        learnings_collection = client.get_collection(LEARNINGS_COLLECTION_NAME)
+        learnings_results = learnings_collection.query(
+            query_texts=query_texts,
+            n_results=n_results,  # Request same number for now
+            include=include,
+        )
+        logger.debug(f"Learnings query successful for {LEARNINGS_COLLECTION_NAME}")
+    except InvalidDimensionException as e:
+        logger.error(
+            f"Dimension mismatch querying {LEARNINGS_COLLECTION_NAME}: {e}. Ensure query matches collection embedding dim.",
+            exc_info=True,
+        )
+        # Log but don't necessarily fail the whole operation if primary worked
+        learnings_results = None
+    except Exception as e:
+        logger.warning(
+            f"Failed to query or access learnings collection '{LEARNINGS_COLLECTION_NAME}': {e}. Proceeding without learnings results.",
+            # exc_info=True # Optional: include traceback in warning?
+        )
+        learnings_results = None  # Ensure it's None if query fails
+
+    # 3. Merge Results
+    final_results: Dict[str, Optional[List[Any]]] = {
+        "ids": [],
+        "documents": [],
+        "metadatas": [],
+        "distances": [],
+        # Add embeddings and data later if needed for other tools
+    }
+
+    # Check if primary_results and its lists are valid before processing
+    if primary_results and all(isinstance(primary_results.get(k), list) for k in include if k != "embeddings"):
+        num_queries = len(query_texts)
+        num_primary_result_sets = len(primary_results["ids"]) if primary_results.get("ids") else 0
+
+        if num_primary_result_sets == num_queries:
+            for i in range(num_queries):
+                ids = primary_results["ids"][i]
+                metas = primary_results.get("metadatas", [[]] * num_queries)[i] or []
+                docs = primary_results.get("documents", [[]] * num_queries)[i] or []
+                dists = primary_results.get("distances", [[]] * num_queries)[i] or []
+
+                # Ensure all retrieved lists have the same length for this query result set
+                result_count = len(ids)
+                if not (len(metas) == result_count and len(docs) == result_count and len(dists) == result_count):
+                    logger.warning(
+                        f"Inconsistent result lengths from primary collection '{primary_collection_name}' for query {i}. Skipping this result set."
+                    )
+                    continue  # Skip to the next query result set
+
+                # Initialize combined lists for this query if first time
+                if len(final_results["ids"]) <= i:
+                    final_results["ids"].append([])
+                    final_results["metadatas"].append([])
+                    final_results["documents"].append([])
+                    final_results["distances"].append([])
+
+                for j in range(result_count):
+                    meta = metas[j] if metas[j] is not None else {}
+                    meta["source_collection"] = primary_collection_name
+                    final_results["ids"][i].append(ids[j])
+                    final_results["metadatas"][i].append(meta)
+                    final_results["documents"][i].append(docs[j])
+                    final_results["distances"][i].append(dists[j])
+        else:
+            logger.warning(
+                f"Primary query result structure mismatch. Expected {num_queries} result sets, got {num_primary_result_sets}."
+            )
+
+    # Check if learnings_results and its lists are valid before processing
+    if learnings_results and all(isinstance(learnings_results.get(k), list) for k in include if k != "embeddings"):
+        num_queries = len(query_texts)
+        num_learnings_result_sets = len(learnings_results["ids"]) if learnings_results.get("ids") else 0
+
+        if num_learnings_result_sets == num_queries:
+            for i in range(num_queries):
+                ids = learnings_results["ids"][i]
+                metas = learnings_results.get("metadatas", [[]] * num_queries)[i] or []
+                docs = learnings_results.get("documents", [[]] * num_queries)[i] or []
+                dists = learnings_results.get("distances", [[]] * num_queries)[i] or []
+
+                result_count = len(ids)
+                if not (len(metas) == result_count and len(docs) == result_count and len(dists) == result_count):
+                    logger.warning(
+                        f"Inconsistent result lengths from learnings collection '{LEARNINGS_COLLECTION_NAME}' for query {i}. Skipping this result set."
+                    )
+                    continue
+
+                # Initialize combined lists for this query if they don't exist yet
+                if len(final_results["ids"]) <= i:
+                    final_results["ids"].append([])
+                    final_results["metadatas"].append([])
+                    final_results["documents"].append([])
+                    final_results["distances"].append([])
+
+                for j in range(result_count):
+                    meta = metas[j] if metas[j] is not None else {}
+                    meta["source_collection"] = LEARNINGS_COLLECTION_NAME
+                    final_results["ids"][i].append(ids[j])
+                    final_results["metadatas"][i].append(meta)
+                    final_results["documents"][i].append(docs[j])
+                    final_results["distances"][i].append(dists[j])
+        else:
+            logger.warning(
+                f"Learnings query result structure mismatch. Expected {num_queries} result sets, got {num_learnings_result_sets}."
+            )
+
+    # Check if any results were gathered at all
+    if not any(final_results.values()):
+        logger.info(f"No results found for query in either collection.")
+        # Return empty but valid structure based on ChromaDB's QueryResult type hints
+        empty_results: QueryResult = {
+            "ids": [[] for _ in query_texts],
+            "embeddings": None,
+            "documents": [[] for _ in query_texts],
+            "metadatas": [[] for _ in query_texts],
+            "distances": [[] for _ in query_texts],
+        }
+        # Serialize using NumpyEncoder to handle potential numpy types if they ever appear
+        result_json = json.dumps(empty_results, cls=NumpyEncoder)
+        return [types.TextContent(type="text", text=result_json)]
+
+    # TODO: Implement optional re-ranking based on distance or other factors?
+    # TODO: Implement optional truncation if the combined list is too long?
+
+    # Serialize the final merged results
+    # Ensure all lists within final_results have the same length (number of queries)
+    num_queries = len(query_texts)
+    for key in ["ids", "documents", "metadatas", "distances"]:
+        if len(final_results[key]) < num_queries:
+            # Pad with empty lists if some queries yielded no results from either collection
+            final_results[key].extend([[] for _ in range(num_queries - len(final_results[key]))])
+
+    # Construct the final QueryResult dictionary explicitly matching the type hint
+    final_query_result: QueryResult = {
+        "ids": cast(List[List[str]], final_results["ids"]),
+        "embeddings": None,  # Not included by default
+        "documents": cast(Optional[List[List[str]]], final_results["documents"]),
+        "metadatas": cast(Optional[List[List[Dict[str, Any]]]], final_results["metadatas"]),
+        "distances": cast(Optional[List[List[float]]], final_results["distances"]),
+    }
+
+    result_json = json.dumps(final_query_result, cls=NumpyEncoder)
+    return [types.TextContent(type="text", text=result_json)]
 
 
 # Restore filter query implementations
