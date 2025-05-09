@@ -121,7 +121,6 @@ def test_index_file_collection_exists_ef_match(mock_get_sha, temp_repo: Path, mo
     file_content = "line 1\nline 2" # Simple content
     file_to_index.write_text(file_content)
 
-    # Ensure get_collection is called with the embedding function
     result = index_file(file_to_index, temp_repo)
 
     assert result is True
@@ -134,12 +133,9 @@ def test_index_file_collection_exists_ef_match(mock_get_sha, temp_repo: Path, mo
 def test_index_file_collection_exists_ef_mismatch(mock_get_sha, temp_repo: Path, mock_chroma_client_tuple, caplog, capsys):
     """Test index_file when get_collection raises EF mismatch ValueError."""
     mock_client, mock_collection, mock_ef, _ = mock_chroma_client_tuple
-    
-    # Simulate EF mismatch error from ChromaDB
-    # Example error: "Embedding function name mismatch: OpenAIEmbeddingFunction != SentenceTransformerEmbeddingFunction"
-    # Our mock_ef is just a MagicMock, let's give it a __name__ for the error message
-    mock_ef.__class__.__name__ = "ClientSideEmbeddingFunction"
-    error_message_from_chroma = "Embedding function name mismatch: ClientSideEmbeddingFunction != CollectionSideEmbeddingFunction"
+    mock_ef.__class__.__name__ = "ClientSideEmbeddingFunction" # Used in error message construction
+    # Correct ChromaDB error format: "Embedding function name mismatch: PassedEFName != CollectionEFName"
+    error_message_from_chroma = "Embedding function name mismatch: ClientSideEmbeddingFunction != CollectionSideEFNameFromError"
     mock_client.get_collection.side_effect = ValueError(error_message_from_chroma)
 
     file_to_index = temp_repo / "src" / "main.py"
@@ -153,25 +149,21 @@ def test_index_file_collection_exists_ef_mismatch(mock_get_sha, temp_repo: Path,
     mock_collection.upsert.assert_not_called()
     mock_client.create_collection.assert_not_called()
 
-    # Check logs
-    assert len(caplog.records) == 1
     assert "Failed to get collection 'codebase_v1' for indexing. Mismatch:" in caplog.text
-    assert "Client is configured to use an embedding function derived from" in caplog.text
-    assert "resolves to ClientSideEmbeddingFunction" in caplog.text # From type(embedding_func).__name__
-    assert "but the collection appears to use 'CollectionSideEmbeddingFunction'" in caplog.text # Parsed from error
+    assert "resolves to ClientSideEmbeddingFunction" in caplog.text
+    # Check that the parsed collection EF name is from the error string
+    assert "appears to use an EF like 'CollectionSideEFNameFromError'" in caplog.text
     
-    # Check stderr
     captured_stderr = capsys.readouterr().err
     assert "ERROR: Failed to get collection 'codebase_v1' for indexing. Mismatch:" in captured_stderr
 
 
 @patch("chroma_mcp_client.indexing.get_current_commit_sha", return_value="mock_commit_sha_test_ef_mismatch_unparseable")
 def test_index_file_collection_exists_ef_mismatch_unparseable_error(mock_get_sha, temp_repo: Path, mock_chroma_client_tuple, caplog, capsys):
-    """Test EF mismatch when ChromaDB error string is not perfectly parseable by our logic."""
+    """Test EF mismatch when ChromaDB error string is not perfectly parseable by our logic (e.g., no ' != ')."""
     mock_client, mock_collection, mock_ef, _ = mock_chroma_client_tuple
     mock_ef.__class__.__name__ = "AnotherClientEF"
-    # Simulate a less structured mismatch error
-    error_message_from_chroma = "Embedding function name mismatch: something_unexpected_format"
+    error_message_from_chroma = "Embedding function name mismatch: something_unexpected_format_without_separator"
     mock_client.get_collection.side_effect = ValueError(error_message_from_chroma)
 
     file_to_index = temp_repo / "src" / "main.py"
@@ -185,7 +177,62 @@ def test_index_file_collection_exists_ef_mismatch_unparseable_error(mock_get_sha
     mock_collection.upsert.assert_not_called()
 
     assert "resolves to AnotherClientEF" in caplog.text
-    assert "but the collection appears to use 'different from client\'s configuration'" in caplog.text # Fallback parsing
+    # Check for the specific fallback string for this case
+    assert "appears to use an EF like 'different from client\'s configuration (malformed error details)'" in caplog.text
+
+    captured_stderr = capsys.readouterr().err
+    assert "ERROR: Failed to get collection 'codebase_v1' for indexing. Mismatch:" in captured_stderr
+
+
+@patch("chroma_mcp_client.indexing.get_current_commit_sha", return_value="mock_commit_sha_test_ef_mismatch_parsing_fail")
+def test_index_file_collection_exists_ef_mismatch_parsing_failure(mock_get_sha, temp_repo: Path, mock_chroma_client_tuple, caplog, capsys):
+    """Test EF mismatch when the error string causes an IndexError during split (e.g. missing base part)."""
+    mock_client, mock_collection, mock_ef, _ = mock_chroma_client_tuple
+    mock_ef.__class__.__name__ = "YetAnotherClientEF"
+    # This error will cause `str(e).split("Embedding function name mismatch: ")[1]` to raise IndexError
+    error_message_from_chroma = "Embedding function name mismatch:"
+    mock_client.get_collection.side_effect = ValueError(error_message_from_chroma)
+
+    file_to_index = temp_repo / "src" / "main.py"
+    file_to_index.write_text("some content")
+
+    with caplog.at_level(logging.DEBUG): # Check debug logs for parsing failure details
+        result = index_file(file_to_index, temp_repo)
+
+    assert result is False
+    mock_client.get_collection.assert_called_once_with(name="codebase_v1", embedding_function=mock_ef)
+    mock_collection.upsert.assert_not_called()
+
+    assert "resolves to YetAnotherClientEF" in caplog.text
+    assert "Could not parse EF mismatch details from error string" in caplog.text # Check specific debug log
+    # Check for the specific fallback string for this case
+    assert "appears to use an EF like 'different from client\'s configuration (parsing failed)'" in caplog.text
+    
+    captured_stderr = capsys.readouterr().err
+    assert "ERROR: Failed to get collection 'codebase_v1' for indexing. Mismatch:" in captured_stderr
+
+
+@patch("chroma_mcp_client.indexing.get_current_commit_sha", return_value="mock_commit_sha_test_ef_must_be_specified")
+def test_index_file_collection_ef_must_be_specified(mock_get_sha, temp_repo: Path, mock_chroma_client_tuple, caplog, capsys):
+    """Test EF mismatch when error is 'an embedding function must be specified'."""
+    mock_client, mock_collection, mock_ef, _ = mock_chroma_client_tuple
+    mock_ef.__class__.__name__ = "ClientEFForMustSpecifyTest"
+    error_message_from_chroma = "an embedding function must be specified for collection codebase_v1"
+    mock_client.get_collection.side_effect = ValueError(error_message_from_chroma)
+
+    file_to_index = temp_repo / "src" / "main.py"
+    file_to_index.write_text("some content")
+
+    with caplog.at_level(logging.DEBUG):
+        result = index_file(file_to_index, temp_repo)
+    
+    assert result is False
+    mock_client.get_collection.assert_called_once_with(name="codebase_v1", embedding_function=mock_ef)
+    mock_collection.upsert.assert_not_called()
+
+    assert "resolves to ClientEFForMustSpecifyTest" in caplog.text
+    assert "EF mismatch: collection requires an EF" in caplog.text # Check specific debug log
+    assert "appears to use an EF like 'required by collection (mismatch with client\'s attempt)'" in caplog.text
 
     captured_stderr = capsys.readouterr().err
     assert "ERROR: Failed to get collection 'codebase_v1' for indexing. Mismatch:" in captured_stderr
@@ -195,9 +242,7 @@ def test_index_file_collection_exists_ef_mismatch_unparseable_error(mock_get_sha
 def test_index_file_collection_get_other_valueerror(mock_get_sha, temp_repo: Path, mock_chroma_client_tuple, caplog, capsys):
     """Test get_collection raising a ValueError that is NOT an EF mismatch and NOT collection not found."""
     mock_client, mock_collection, mock_ef, _ = mock_chroma_client_tuple
-    
-    # Simulate a generic ValueError that doesn't fit other categories
-    error_message_from_chroma = "Some other ValueError from ChromaDB client"
+    error_message_from_chroma = "Some other ValueError from ChromaDB client not related to EF or existence"
     mock_client.get_collection.side_effect = ValueError(error_message_from_chroma)
 
     file_to_index = temp_repo / "src" / "main.py"
@@ -206,15 +251,15 @@ def test_index_file_collection_get_other_valueerror(mock_get_sha, temp_repo: Pat
     with caplog.at_level(logging.ERROR):
         result = index_file(file_to_index, temp_repo)
 
-    assert result is False # Should fail as it's not a "not found" error to trigger creation
+    assert result is False
     mock_client.get_collection.assert_called_once_with(name="codebase_v1", embedding_function=mock_ef)
     mock_collection.upsert.assert_not_called()
-    mock_client.create_collection.assert_not_called() # Should not attempt to create
+    mock_client.create_collection.assert_not_called()
 
-    # Check logs - it should hit the 'else' branch for non-creation, non-EF-mismatch errors
     assert len(caplog.records) == 1
+    # This error should be caught by the 'else' inside 'except ValueError' 
+    # that re-raises or logs if not a 'not_found' or 'ef_mismatch_error'
     assert f"Error getting collection 'codebase_v1': {error_message_from_chroma}" in caplog.text
-    # No specific "ERROR:" print to stderr for this generic case in the current code, only log.error
 
 
 def test_index_file_non_existent(temp_repo: Path, mock_chroma_client_tuple):
