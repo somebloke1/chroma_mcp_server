@@ -15,6 +15,7 @@ import logging  # Import logging
 import json
 import io  # Import io for BytesIO
 import asyncio  # Import asyncio
+from contextlib import redirect_stderr
 
 # from anyio import abc # No longer using abc for autospec
 
@@ -128,15 +129,16 @@ def test_main_catches_mcp_run_mcp_error(
     error_message = "MCP specific error"
     mock_server_run.side_effect = McpError(ErrorData(code=INVALID_PARAMS, message=error_message))
 
-    # --- Act & Assert ---
-    # Expect server.main() to catch the McpError and re-raise it
-    with pytest.raises(McpError) as exc_info:
-        run_server_main_func()
-    assert error_message in str(exc_info.value)
+    # Capture stderr to check for error messages
+    with io.StringIO() as stderr_capture, redirect_stderr(stderr_capture):
+        # --- Act & Assert ---
+        # Expect server.main() to catch the McpError and re-raise it
+        with pytest.raises(McpError) as exc_info:
+            run_server_main_func()
+        stderr_output = stderr_capture.getvalue()
 
-    # Check logs (server.main logs the error before re-raising)
-    assert "MCP Error:" in caplog.text
-    assert error_message in caplog.text
+    assert error_message in str(exc_info.value)
+    assert "MCP Error:" in stderr_output
 
 
 # Patch only the components directly used by server.main
@@ -153,17 +155,17 @@ def test_main_catches_mcp_run_unexpected_error(
     error_message = "Something else went wrong"
     mock_server_run.side_effect = Exception(error_message)
 
-    # --- Act & Assert ---
-    # Expect server.main() to catch the error, log, and raise McpError
-    with pytest.raises(McpError) as exc_info:
-        run_server_main_func()
+    # Capture stderr to check for error messages
+    with io.StringIO() as stderr_capture, redirect_stderr(stderr_capture):
+        # --- Act & Assert ---
+        # Expect server.main() to catch the error, log, and raise McpError
+        with pytest.raises(McpError) as exc_info:
+            run_server_main_func()
+        stderr_output = stderr_capture.getvalue()
 
     # Check the raised McpError message
     assert f"Critical error running MCP server: {error_message}" in str(exc_info.value)
-
-    # Check logs (server.main logs the critical error)
-    assert "Critical error running MCP server:" in caplog.text
-    assert error_message in caplog.text
+    assert "Critical error running MCP server:" in stderr_output
 
 
 # --- Helper: Create Dummy Args --- #

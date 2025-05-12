@@ -25,7 +25,11 @@ from mcp.server.stdio import stdio_server
 # In stdio mode, we must ensure NO logs go to stdout or stderr to avoid corrupting JSON
 
 # 1. Create log directory if it doesn't exist
-log_dir = os.getenv("CHROMA_LOG_DIR", "logs")
+# Use a relative path that's safe on all platforms including GitHub Actions
+log_dir = os.getenv("CHROMA_LOG_DIR")
+if not log_dir:
+    # If not set, use a directory relative to current working directory
+    log_dir = os.path.join(os.getcwd(), "logs")
 os.makedirs(log_dir, exist_ok=True)
 
 # 2. Configure a file handler for all logs (with timestamp in filename to avoid conflicts)

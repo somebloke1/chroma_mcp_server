@@ -269,6 +269,14 @@ def config_server(args: argparse.Namespace) -> None:
 
         # --- Start: Logger Configuration --- (Keep this section)
         log_dir = args.log_dir
+        # If log_dir is not specified, use a relative path
+        if log_dir and not os.path.isabs(log_dir):
+            # Ensure relative paths are relative to current directory
+            log_dir = os.path.join(os.getcwd(), log_dir)
+        elif not log_dir:
+            # Default to a logs directory in current working directory
+            log_dir = os.path.join(os.getcwd(), "logs")
+
         log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
         log_level = getattr(logging, log_level_str, logging.INFO)
         logger = logging.getLogger(BASE_LOGGER_NAME)
