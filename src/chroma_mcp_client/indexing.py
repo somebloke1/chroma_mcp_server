@@ -170,50 +170,72 @@ def index_file(
         except ValueError as e:
             error_str = str(e).lower()
             # Check for specific ChromaDB error messages related to EF mismatch
-            ef_mismatch_error = "embedding function name mismatch" in error_str or \
-                                "an embedding function must be specified" in error_str # if collection expects EF but none/wrong one given
+            ef_mismatch_error = (
+                "embedding function name mismatch" in error_str
+                or "an embedding function must be specified" in error_str
+            )  # if collection expects EF but none/wrong one given
 
             if ef_mismatch_error:
                 client_ef_name_str = type(embedding_func).__name__ if embedding_func else "None"
-                collection_ef_name_str = "unknown (from collection)" # Default if parsing fails
+                collection_ef_name_str = "unknown (from collection)"  # Default if parsing fails
+
+                # Map of known EF class names to their likely representation in ChromaDB error messages
+                # (typically lowercase with underscores)
+                ef_class_to_error_name_map = {
+                    "SentenceTransformerEmbeddingFunction": "sentence_transformer",
+                    "ONNXMiniLM_L6_V2": "onnx_mini_lm_l6_v2",
+                    "OpenAIEmbeddingFunction": "openai",  # Guessing pattern
+                    "CohereEmbeddingFunction": "cohere",  # Guessing pattern
+                    # Add others as encountered or confirmed
+                }
+
+                # Get the expected error string name for the client's current EF
+                client_ef_error_name_lower = ef_class_to_error_name_map.get(
+                    client_ef_name_str, client_ef_name_str.lower()
+                )
 
                 if "embedding function name mismatch" in error_str:
                     try:
-                        # Attempt to parse: "Embedding function name mismatch: <client_ef_name> != <collection_ef_name>"
                         mismatch_details = str(e).split("Embedding function name mismatch: ")[1]
                         parts = mismatch_details.split(" != ")
                         if len(parts) == 2:
-                            # Heuristic: if our client_ef_name (actual type name) is in the first part of "A != B", then B is collection's.
-                            # Chroma's error usually shows Collection's EF name vs. EF name passed to get_collection.
-                            # Example: ONNXMiniLM_L6_V2 != SentenceTransformerEmbeddingFunction
-                            # client_ef_name_str is the name of embedding_func instance we tried to use.
-                            # The part that is NOT client_ef_name_str is likely the collection's actual EF.
-                            part0_lower = parts[0].lower()
-                            part1_lower = parts[1].lower()
-                            client_ef_name_str_lower = client_ef_name_str.lower()
+                            part0_lower = parts[0].strip().lower()
+                            part1_lower = parts[1].strip().lower()
 
-                            if client_ef_name_str_lower in part0_lower:
-                                collection_ef_name_str = parts[1] # The other part is the collection's EF
-                            elif client_ef_name_str_lower in part1_lower:
-                                collection_ef_name_str = parts[0] # The other part is the collection's EF
+                            # Check if the client's EF (in its error string form) matches one of the parts
+                            if client_ef_error_name_lower == part0_lower:
+                                collection_ef_name_str = parts[1].strip()  # The other part is the collection's EF
+                            elif client_ef_error_name_lower == part1_lower:
+                                collection_ef_name_str = parts[0].strip()  # The other part is the collection's EF
                             else:
-                                # If our client_ef_name_str is not in either part (e.g. error is "EF_A != EF_B" and client is EF_C)
-                                # This case is less likely if ChromaDB directly compares passed EF with collection's EF.
-                                # Default to showing both parts from error.
-                                collection_ef_name_str = f"{parts[0]} OR {parts[1]} (client was {client_ef_name_str})"
-                                logger.debug(f"EF mismatch error string '{str(e)}' parts did not directly include client EF name '{client_ef_name_str}'.")
-
-                        else: # Mismatch string present, but " != " format not as expected
-                            logger.debug(f"EF mismatch error string '{str(e)}' did not contain ' != ' separator or produce 2 parts as expected.")
+                                # Client's EF error name didn't match either part directly.
+                                # This could happen if map is incomplete or error format is very unexpected.
+                                logger.debug(
+                                    f"Client EF error name '{client_ef_error_name_lower}' (from class '{client_ef_name_str}') "
+                                    f"did not match parts '{part0_lower}' or '{part1_lower}' from error: {str(e)}. "
+                                    f"Falling back to OR display."
+                                )
+                                collection_ef_name_str = (
+                                    f"{parts[0].strip()} OR {parts[1].strip()} (client used {client_ef_name_str})"
+                                )
+                        else:  # Mismatch string present, but " != " format not as expected
+                            logger.debug(
+                                f"EF mismatch error string '{str(e)}' did not contain ' != ' separator or produce 2 parts as expected."
+                            )
                             collection_ef_name_str = "different from client's configuration (malformed error details)"
 
-                    except (IndexError, ValueError) as parse_error: # Errors from split() or list indexing
-                        logger.debug(f"Could not parse EF mismatch details from error string '{str(e)}': {parse_error}", exc_info=True)
+                    except (IndexError, ValueError) as parse_error:  # Errors from split() or list indexing
+                        logger.debug(
+                            f"Could not parse EF mismatch details from error string '{str(e)}': {parse_error}",
+                            exc_info=True,
+                        )
                         collection_ef_name_str = "different from client's configuration (parsing failed)"
                 elif "an embedding function must be specified" in error_str:
-                    logger.debug(f"EF mismatch: collection requires an EF, but client's attempt was problematic. Error: {str(e)}")
+                    logger.debug(
+                        f"EF mismatch: collection requires an EF, but client's attempt was problematic. Error: {str(e)}"
+                    )
                     collection_ef_name_str = "required by collection (mismatch with client's attempt)"
-                else: # ef_mismatch_error is True, but the specific known strings weren't matched
+                else:  # ef_mismatch_error is True, but the specific known strings weren't matched
                     logger.debug(f"Unhandled ef_mismatch_error string: {str(e)}")
                     collection_ef_name_str = "different from client's configuration (unrecognized error format)"
 
@@ -226,7 +248,7 @@ def index_file(
                 )
                 logger.error(error_message)
                 print(f"ERROR: {error_message}", file=sys.stderr)
-                return False # Critical error, cannot proceed
+                return False  # Critical error, cannot proceed
 
             # Preserved logic: Check if the error message indicates the collection doesn't exist
             not_found = False

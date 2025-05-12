@@ -149,6 +149,7 @@ The server primarily uses environment variables for configuration. A `.env` file
 - `CHROMA_LOG_DIR`: Path for log files (defaults to a temporary directory).
 - `LOG_LEVEL`: Sets the default logging level for server components and the client CLI (if not overridden by `-v`/`--verbose`).
 - `MCP_LOG_LEVEL`: Sets the logging level specifically for the MCP framework components (e.g., `INFO`, `DEBUG`).
+- `MCP_SERVER_LOG_LEVEL`: Controls logging level specifically for the stdio server mode. In stdio mode, logs are redirected to timestamp-based log files (e.g., `logs/chroma_mcp_stdio_1747049137.log`) to prevent contamination of the JSON communication stream.
 - `CHROMA_EMBEDDING_FUNCTION`: Specifies the embedding function to use (e.g., `default`, `accurate`, `openai`). See README or API reference for all options. Requires API keys for non-local models.
 - API Keys: If using API-based embedding functions (like `openai`, `gemini`), ensure the relevant environment variables (e.g., `OPENAI_API_KEY`, `GOOGLE_API_KEY`) are set.
 - Connection Details (`http`/`cloud` modes):
@@ -162,9 +163,13 @@ If you modify the `CHROMA_EMBEDDING_FUNCTION` environment variable (or the corre
 To resolve this:
 
 - For `codebase_v1`: The recommended approach is often to delete the existing collection and re-index your codebase using `hatch run index-codebase` (or `chroma-client index --all`). This ensures it's created with the 'accurate' model, which is the default for indexing and querying.
-- For other collections, or if re-indexing `codebase_v1` is not feasible: You can use the `chroma-client update-collection-ef --collection <name> --ef <new_ef_name>` command to update the collection's metadata to reflect the new embedding function name. Be cautious with this, as it only changes the metadata pointer; the actual embeddings are not recomputed. This is usually suitable if the actual embedding *model* hasn't changed, only its registered name or how the client refers to it.
+- For other collections, or if re-indexing `codebase_v1` is not feasible: You can use the `chroma-client update-collection-ef --collection <n> --ef <new_ef_name>` command to update the collection's metadata to reflect the new embedding function name. Be cautious with this, as it only changes the metadata pointer; the actual embeddings are not recomputed. This is usually suitable if the actual embedding *model* hasn't changed, only its registered name or how the client refers to it.
+- Alternatively, use `chroma-client setup-collections` to recreate all required collections with the current embedding function configuration.
 
-See the [chroma-client script documentation](scripts/chroma-client.md) for details on `update-collection-ef`.
+See the [chroma-client script documentation](scripts/chroma-client.md) for details on `update-collection-ef` and `setup-collections`.
+
+**Note on Timestamp Consistency:**
+The server enforces consistent timestamp handling by automatically overriding any AI-provided timestamps with server-generated values. This ensures that all documents stored in ChromaDB collections have accurate system timestamps, addressing potential issues where AI models might use their training cutoff dates instead of the actual system time.
 
 Cursor uses `.cursor/mcp.json` to configure server launch commands:
 
@@ -394,3 +399,12 @@ Or with Compose:
 ```bash
 docker-compose up --build
 ```
+
+### Server Logging
+
+The server logs output in several ways depending on the mode of operation:
+
+- **Stdio Mode** (default for MCP servers like Cursor integration): All Python logging is redirected to dedicated per-execution log files (e.g., `logs/chroma_mcp_stdio_<timestamp>.log`) to prevent contamination of the JSON communication stream.
+- **HTTP Mode**: Standard Python logging to console and optionally to log files.
+
+Log levels and directories are configurable through environment variables. See the [Server Logging Guide](logging/server_logging.md) for comprehensive details about the logging system improvements.

@@ -141,6 +141,16 @@ While developing, the recommended way to run the server is using the provided wr
 
 This script internally uses `hatch run chroma-mcp-server-dev [OPTIONS]`. See the script content for details.
 
+#### Logging in Stdio Mode
+
+When the server runs in stdio mode (the default for MCP integrations like Cursor), all Python logging is now redirected to a dedicated log file instead of stderr/stdout to prevent contamination of the JSON communication stream. These logs are stored in the `CHROMA_LOG_DIR` directory (default: `./logs/`) with timestamp-based filenames:
+
+```bash
+logs/chroma_mcp_stdio_<timestamp>.log
+```
+
+This ensures clean JSON communication between the MCP client and server. The log level for stdio mode can be controlled with the `MCP_SERVER_LOG_LEVEL` environment variable.
+
 Alternatively, you can manually run the server directly within the activated Hatch environment:
 
 ```bash
@@ -435,8 +445,19 @@ Key environment variables (set in `.env`):
 * `CHROMA_DATA_DIR`: Path for persistent data.
 * `LOG_LEVEL`: Sets the default logging level for server components and the client CLI (if not overridden by the client's `-v`/`--verbose` flags).
 * `MCP_LOG_LEVEL`: Sets the logging level specifically for MCP framework components.
+* `MCP_SERVER_LOG_LEVEL`: Controls logging level for stdio mode, which uses per-execution log files.
 * `CHROMA_EMBEDDING_FUNCTION`: `default`, `accurate`, `openai`, etc.
 * API keys (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, etc.) as needed for embedding functions.
+
+### Timestamp Enforcement
+
+The server automatically enforces the use of system-generated timestamps for all documents stored in ChromaDB collections. This prevents inconsistencies that can occur when AI models use their training cutoff dates instead of the current system time when generating timestamps. This feature is particularly important for:
+
+* `chat_history_v1` - Chat logs stored with accurate timestamps rather than model perception date
+* `thinking_sessions_v1` - Sequential thinking records with accurate timestamps
+* Other collections with timestamp metadata
+
+No configuration is needed for this feature as it's implemented at the server level in the document and collection tools.
 
 ### Promoting Learnings (Manual Workflow)
 
