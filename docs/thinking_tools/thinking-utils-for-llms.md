@@ -10,6 +10,8 @@ LLMs often generate complex reasoning chains when solving problems. The Thinking
 2. **Semantic Retrieval**: Find similar reasoning patterns using semantic search
 3. **Branching Logic**: Track alternative approaches to problem-solving
 4. **Progressive Refinement**: Record step-by-step evolution of thoughts
+5. **Context-Rich Reasoning**: Leverage enhanced context from chat history and code changes
+6. **Bidirectional Linking**: Connect thoughts to related artifacts for comprehensive context
 
 ## Common LLM Use Cases
 
@@ -106,6 +108,69 @@ for thought in similar_thoughts:
     print()
 ```
 
+### Context-Aware Reasoning with Enhanced Context
+
+Help LLMs reason with richer context from previous chats and code changes:
+
+```python
+import openai
+from chroma_mcp_thinking.thinking_session import ThinkingSession
+from chroma_mcp_client import ChromaMcpClient
+
+client = openai.OpenAI(api_key="your-api-key")
+chroma_client = ChromaMcpClient()
+
+# First, query for relevant previous discussions and code
+chat_entries = chroma_client.query_documents(
+    collection_name="chat_history_v1",
+    query_texts=["authentication implementation JWT"],
+    n_results=2
+)
+
+code_chunks = chroma_client.query_documents(
+    collection_name="codebase_v1",
+    query_texts=["authentication implementation JWT"],
+    n_results=2
+)
+
+# Extract enhanced context
+context_info = []
+for entry in chat_entries:
+    context_info.append(f"Previous discussion: {entry['document']}")
+    if 'diff_summary' in entry['metadata']:
+        context_info.append(f"Code changes: {entry['metadata']['diff_summary']}")
+    if 'tool_sequence' in entry['metadata']:
+        context_info.append(f"Implementation approach: {entry['metadata']['tool_sequence']}")
+        
+for chunk in code_chunks:
+    context_info.append(f"Relevant code: {chunk['document']}")
+
+# Provide this rich context to the LLM for reasoning
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[
+        {"role": "system", "content": "You are an expert software architect. Reason step-by-step with the context provided."},
+        {"role": "user", "content": f"Based on the following context, identify the best approach to extend our authentication system:\n\n{chr(10).join(context_info)}"}
+    ]
+)
+
+reasoning = response.choices[0].message.content
+
+# Record this context-informed reasoning
+thinking_session = ThinkingSession(client=chroma_client)
+thinking_session.record_thought(
+    thought=reasoning,
+    thought_number=1,
+    total_thoughts=1,
+    metadata={
+        "related_chat_ids": [entry['metadata'].get('chat_id') for entry in chat_entries],
+        "related_code_chunks": [chunk['metadata'].get('file_path') for chunk in code_chunks],
+        "confidence": 0.9,
+        "modification_type": "enhancement"
+    }
+)
+```
+
 ## Integration with LLM Applications
 
 ### Using with OpenAI API
@@ -182,39 +247,91 @@ thinking_session.record_thought(
 summary = thinking_session.get_session_summary()
 ```
 
-### LLM Agents with Thinking Utilities
+### LLM Agents with Thinking Utilities and Enhanced Context
 
-For LLM-based agents that need to track their reasoning:
+For LLM-based agents that need to track their reasoning with rich context:
 
 ```python
-class ReasoningAgent:
-    def __init__(self, llm_client, topic, mcp_client):
+class EnhancedReasoningAgent:
+    def __init__(self, llm_client, chroma_client, topic):
         self.llm_client = llm_client
+        self.chroma_client = chroma_client
         self.topic = topic
-        self.mcp_client = mcp_client
-        self.thinking_session = ThinkingSession(client=self.mcp_client)
+        self.thinking_session = ThinkingSession(client=self.chroma_client)
         self.thought_count = 0
+        self.context_data = {
+            "chat_entries": [],
+            "code_chunks": [],
+            "related_ids": {"chats": [], "code": []}
+        }
+        
+    def gather_context(self, query):
+        """Gather relevant context from chat history and codebase"""
+        # Query chat history
+        chat_entries = self.chroma_client.query_documents(
+            collection_name="chat_history_v1",
+            query_texts=[query],
+            n_results=3
+        )
+        
+        # Query codebase
+        code_chunks = self.chroma_client.query_documents(
+            collection_name="codebase_v1",
+            query_texts=[query],
+            n_results=3
+        )
+        
+        # Store results
+        self.context_data["chat_entries"] = chat_entries
+        self.context_data["code_chunks"] = code_chunks
+        self.context_data["related_ids"]["chats"] = [
+            entry['metadata'].get('chat_id') for entry in chat_entries
+        ]
+        self.context_data["related_ids"]["code"] = [
+            chunk['metadata'].get('file_path') for chunk in code_chunks
+        ]
+        
+        # Format context for LLM consumption
+        formatted_context = []
+        for entry in chat_entries:
+            formatted_context.append(f"Previous chat: {entry['document']}")
+            if 'diff_summary' in entry['metadata']:
+                formatted_context.append(f"Code changes: {entry['metadata']['diff_summary']}")
+        
+        for chunk in code_chunks:
+            formatted_context.append(f"Code: {chunk['document']}")
+            
+        return "\n".join(formatted_context)
         
     def think(self, query, max_steps=5):
-        """Generate and record a multi-step reasoning process."""
-        thought = query
+        """Generate and record a multi-step reasoning process with rich context"""
         self.thought_count = 0
+        
+        # Get context first
+        context = self.gather_context(query)
+        thought = f"Query: {query}\n\nContext:\n{context}"
         
         while self.thought_count < max_steps:
             self.thought_count += 1
             is_last_step = self.thought_count == max_steps
             
-            # Get next reasoning step from LLM
+            # Get next reasoning step from LLM with context
             response = self.llm_client.generate(
-                prompt=f"Previous thinking: {thought}\nContinue reasoning about {self.topic}. {'Provide final conclusion.' if is_last_step else 'Next step:'}"
+                prompt=f"Previous thinking: {thought}\nContinue reasoning about {self.topic} using the provided context. {'Provide final conclusion.' if is_last_step else 'Next step:'}"
             )
             
-            # Record this step
+            # Record this step with bidirectional links
             self.thinking_session.record_thought(
                 thought=response,
                 thought_number=self.thought_count,
                 total_thoughts=max_steps,
-                next_thought_needed=not is_last_step
+                next_thought_needed=not is_last_step,
+                metadata={
+                    "related_chat_ids": self.context_data["related_ids"]["chats"],
+                    "related_code_chunks": self.context_data["related_ids"]["code"],
+                    "confidence": 0.8,  # Could be improved by LLM self-assessment
+                    "modification_type": "analysis"
+                }
             )
             
             thought = response
@@ -226,13 +343,18 @@ class ReasoningAgent:
         return self.thinking_session.get_session_summary()
 ```
 
-## Best Practices for LLM Applications
+## Best Practices for LLM Applications with Enhanced Context
 
 1. **Atomic Thought Steps**: Encourage LLMs to produce clear, single-step thoughts rather than lengthy explanations
 2. **Consistent Metadata**: Add model information, confidence scores, and task types in metadata
 3. **Branch on Uncertainty**: Create branches when the LLM expresses uncertainty or offers alternative approaches
 4. **Comparative Analysis**: Use similarity search to compare reasoning approaches across different models or problems
 5. **Session Organization**: Group related reasoning chains in identifiable sessions for easier retrieval
+6. **Prioritize Recent Context**: When integrating with chat history, prioritize recent and high-confidence entries
+7. **Provide Code Diffs**: When reasoning about code changes, include diff summaries for clearer context
+8. **Leverage Tool Sequences**: Reference successful tool sequences from chat history to inform LLM reasoning
+9. **Use Confidence Scores**: Filter context by confidence score to prioritize high-quality information
+10. **Bidirectional Linking**: Establish clear links between thoughts, chats, and code for a comprehensive view
 
 ## Analyzing LLM Reasoning Patterns
 
@@ -249,13 +371,30 @@ similar_sessions = ThinkingSession.find_similar_sessions(
     client=mcp_client
 )
 
-# Analyze common reasoning patterns
-for session in similar_sessions:
-    print(f"Session ID: {session['metadata']['session_id']}")
-    print(f"Model: {session['metadata'].get('llm_model', 'Unknown')}")
-    print(f"Task: {session['metadata'].get('task', 'Unknown')}")
-    print(f"Similarity Score: {session['distance']}")
-    print("---")
+# Find LLM reasoning that leverages specific code patterns
+code_related_thoughts = find_thoughts_across_sessions(
+    query="reasoning about authentication middleware",
+    n_results=5,
+    client=client
+)
+
+# Find which thoughts have the highest confidence scores
+high_confidence_thoughts = []
+for thought in code_related_thoughts:
+    if thought["metadata"].get("confidence", 0) > 0.8:
+        high_confidence_thoughts.append(thought)
+
+# Extract code related to high-confidence thoughts
+for thought in high_confidence_thoughts:
+    if "related_code_chunks" in thought["metadata"]:
+        for code_path in thought["metadata"]["related_code_chunks"]:
+            # Query code chunks
+            code = client.query_documents(
+                collection_name="codebase_v1",
+                query_texts=[""],
+                where={"file_path": code_path}
+            )
+            # This code represents patterns the LLM was highly confident about
 ```
 
 By leveraging Chroma MCP Thinking Utilities, you can transform your LLM applications from black-box systems into transparent, analyzable reasoning engines with retrievable thought processes.

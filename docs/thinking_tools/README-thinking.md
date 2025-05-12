@@ -10,6 +10,8 @@ Chroma MCP Thinking Utilities provides a structured way to:
 - Create branching thought sequences
 - Find semantically similar thoughts across sessions
 - Manage and retrieve complete thinking sessions
+- Integrate with enhanced context from chat history and code changes
+- Leverage bidirectional linking for comprehensive context
 
 ## Installation
 
@@ -28,6 +30,7 @@ A **Thinking Session** represents a sequence of related thoughts with the follow
 - **Session ID**: Unique identifier for the session (auto-generated UUID or custom)
 - **Thoughts**: Ordered sequence of thought entries
 - **Branches**: Optional divergent thought sequences that branch from main thoughts
+- **Related Context**: Optional links to chat history entries and code chunks through bidirectional linking
 
 ### Branches
 
@@ -36,6 +39,14 @@ A **Branch** represents an alternative thought path that diverges from an existi
 - **Branch ID**: Identifier for the specific branch
 - **Parent Thought**: The thought number this branch originated from
 - **Branch Thoughts**: Sequence of thoughts in the branch
+
+### Integration with Enhanced Context Capture
+
+Thinking Utilities work seamlessly with the enhanced context capture system:
+
+- **Bidirectional Linking**: Connect thoughts to related chat history entries and code chunks
+- **Contextual Reasoning**: Leverage rich metadata from chat history (code diffs, tool sequences, confidence scores)
+- **Cross-Collection Queries**: Retrieve relevant context from multiple collections (thoughts, chat history, code)
 
 ## Basic Usage
 
@@ -138,6 +149,74 @@ for thought in similar_thoughts:
     print(f"Similarity Score: {thought['distance']}")
 ```
 
+## Connecting Thoughts to Enhanced Context
+
+### Linking to Chat History and Code Changes
+
+Record thoughts with references to related conversations and code:
+
+```python
+from chroma_mcp_thinking.thinking_session import ThinkingSession
+
+session = ThinkingSession()
+
+# Record a thought that references a specific chat and code
+session.record_thought(
+    thought="Decision: We will implement the authentication flow using JWT tokens based on our discussion",
+    thought_number=1,
+    total_thoughts=3,
+    metadata={
+        "related_chat_ids": ["chat-uuid-1"],  # Reference to chat_history_v1 entry
+        "related_code_chunks": ["src/auth/auth.py"],  # Reference to codebase_v1
+        "confidence": 0.95,  # Confidence score (like in enhanced chat logging)
+        "modification_type": "feature"  # Type of change being considered
+    }
+)
+```
+
+### Retrieving Comprehensive Context
+
+Query across multiple collections for a complete understanding:
+
+```python
+from chroma_mcp_thinking.utils import find_thoughts_across_sessions
+from chroma_mcp_client import ChromaMcpClient
+
+client = ChromaMcpClient()
+
+# Find thoughts about authentication
+auth_thoughts = find_thoughts_across_sessions(
+    query="JWT authentication implementation",
+    n_results=3,
+    client=client
+)
+
+# For each thought, retrieve related context
+for thought in auth_thoughts:
+    # Find related code
+    if "related_code_chunks" in thought["metadata"]:
+        for code_path in thought["metadata"]["related_code_chunks"]:
+            code_chunks = client.query_documents(
+                collection_name="codebase_v1",
+                query_texts=[""],
+                where={"file_path": code_path}
+            )
+            
+    # Find related discussions
+    if "related_chat_ids" in thought["metadata"]:
+        for chat_id in thought["metadata"]["related_chat_ids"]:
+            chat_entries = client.query_documents(
+                collection_name="chat_history_v1",
+                query_texts=[""],
+                where={"chat_id": chat_id}
+            )
+            
+            # Access rich context from chat history
+            for entry in chat_entries:
+                print(f"Code Diff: {entry['metadata'].get('diff_summary', 'N/A')}")
+                print(f"Tool Sequence: {entry['metadata'].get('tool_sequence', 'N/A')}")
+```
+
 ## Advanced Usage
 
 ### Finding Similar Sessions
@@ -168,7 +247,9 @@ result = record_thought_chain(
         "author": "User123",
         "topic": "Research",
         "priority": "High",
-        "tags": ["brainstorming", "innovation"]
+        "tags": ["brainstorming", "innovation"],
+        "confidence": 0.85,  # Confidence in this reasoning chain
+        "related_chat_ids": ["chat-uuid-2"]  # Link to relevant discussions
     }
 )
 ```
@@ -181,6 +262,7 @@ A complete example showcasing various features is available at `examples/thinkin
 2. Creating thought chains
 3. Branching from existing thoughts
 4. Searching for similar thoughts and sessions
+5. Integrating with enhanced context from chat history and code changes
 
 ## Best Practices
 
@@ -188,6 +270,9 @@ A complete example showcasing various features is available at `examples/thinkin
 2. **Clear Branches**: Use descriptive branch IDs to distinguish alternative approaches
 3. **Descriptive Queries**: When searching for thoughts, use semantically rich queries
 4. **Consistent Metadata**: Establish a schema for metadata to ensure consistency
+5. **Contextual Linking**: Reference related chat history entries and code chunks to create a comprehensive knowledge graph
+6. **Confidence Annotation**: Mark thoughts with confidence scores to help prioritize reasoning paths
+7. **Cross-Collection Context**: Combine search results from thoughts, chat history, and code for a complete picture
 
 ## Troubleshooting
 
@@ -204,6 +289,12 @@ If you encounter errors about invalid session IDs, ensure you're using the sessi
 - Check if enough time has passed for indexing to complete
 - Try refining your query to be more semantically aligned with content
 - Verify the thoughts were successfully recorded by retrieving the session summary
+
+### Missing Related Context
+
+- Ensure bidirectional links are correctly set up in metadata
+- Verify that referenced chat IDs and code paths exist in their respective collections
+- Check that you're using the correct metadata field names for references
 
 ## API Reference
 

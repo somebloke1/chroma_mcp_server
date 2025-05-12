@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
 # Rule: Auto-Log Chat Summaries with Enhanced Code Context
 
 **Description:** Automatically logs a comprehensive summary with rich code context to the `chat_history_v1` ChromaDB collection after each AI response, with enhanced context for file changes and bi-directional linking.

@@ -218,7 +218,32 @@ The Smithery CLI reads the `smithery.yaml` file within the installed package, ex
 
 ## Automated Chat Logging
 
-This project includes capabilities for automatically logging summaries of AI chat interactions to ChromaDB, facilitated by IDE rules (e.g., `.cursor/rules/auto_log_chat.mdc`). See the [Automated Chat History Logging Guide](docs/integration/automated_chat_logging.md) for setup details.
+This project includes capabilities for automatically logging summaries of AI chat interactions to ChromaDB, facilitated by IDE rules (e.g., `.cursor/rules/auto_log_chat.mdc`).
+
+There are two main ways to log chat interactions:
+
+1. **Automatic Logging via IDE Rules**: Using the `auto_log_chat` rule in Cursor or other supported IDEs, which instructs the AI to automatically log each interaction. See the [Automated Chat History Logging Guide](docs/integration/automated_chat_logging.md) for setup details.
+
+2. **Manual Logging via CLI**: Using the `chroma-client log-chat` command to manually log chat interactions with rich context:
+
+```bash
+# Basic usage
+chroma-client log-chat --prompt-summary "User question" --response-summary "AI response"
+
+# Full usage with detailed context
+chroma-client log-chat \
+  --prompt-summary "User question" \
+  --response-summary "AI response" \
+  --raw-prompt "Full text of the question" \
+  --raw-response "Full text of the response" \
+  --tool-usage-file tools.json \
+  --file-changes-file changes.json \
+  --involved-entities "file.js,function_name" \
+  --modification-type "feature" \
+  --confidence-score 0.85
+```
+
+See the [CLI Reference](scripts/chroma-client.md#log-chat) for full details of command options.
 
 ## Working Memory and Thinking Tools
 
@@ -506,3 +531,38 @@ To streamline the review and promotion process, use the `review-and-promote` com
 This interactive command significantly simplifies the process of curating the `derived_learnings_v1` collection.
 
 ## Querying for RAG
+
+## Codebase Indexing
+
+The system includes several tools for indexing code content from your codebase into ChromaDB for future retrieval:
+
+### Semantic Chunking
+
+Codebase indexing now uses semantic chunking by default, which preserves logical code structures like functions and classes when creating chunks. This improves retrieval quality by ensuring that queries return complete logical units rather than arbitrary fragments of code.
+
+Key benefits include:
+
+* Better context preservation for function definitions, classes, and methods
+* Improved bi-directional linking between chat discussions and code changes
+* More effective RAG with chunks that follow logical boundaries
+
+For details on how semantic chunking works, see the [Semantic Chunking documentation](usage/semantic_chunking.md).
+
+### Using the Index Command
+
+The primary tool is the `chroma-client index` command, which has several usage patterns:
+
+```bash
+# Index all git-tracked files in the repository
+chroma-client index --all
+
+# Index specific files
+chroma-client index path/to/file1.py path/to/file2.js
+
+# Index specific files with a non-default collection
+chroma-client index path/to/file1.py path/to/file2.js --collection-name my_custom_collection
+```
+
+The indexer scans files, splits them into semantic chunks, calculates embeddings, and stores them in ChromaDB for later retrieval. All this happens on the server side using the configured embedding function.
+
+### Git Integration

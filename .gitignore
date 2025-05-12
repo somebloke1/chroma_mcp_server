@@ -203,7 +203,8 @@ logs/
 .hatch/
 
 # Cursor
-.cursor/
+.cursor/*
+!.cursor/rules/
 
 # Local files
 .local/

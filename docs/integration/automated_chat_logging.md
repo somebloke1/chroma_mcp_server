@@ -44,3 +44,56 @@ Integration with non-Cursor clients depends heavily on the specific client's cap
 - **Limited Support:** If the client offers no way to inject persistent instructions automatically, you would need to manually remind the AI assistant to follow the logging procedure described in the rule file, which is less reliable.
 
 Consult the documentation for your specific AI client/IDE integration to determine the best method for applying the rule instructions.
+
+## Manual Logging via CLI Command
+
+In cases where automatic logging is not available or for logging interactions from non-IDE environments, the project provides a CLI command for manual logging:
+
+### `chroma-client log-chat`
+
+This command allows you to manually log chat interactions with rich context:
+
+```bash
+chroma-client log-chat --prompt-summary "User question" --response-summary "AI response"
+```
+
+#### Required Parameters
+
+- `--prompt-summary`: A concise summary of the user's question or request
+- `--response-summary`: A concise summary of the AI's response or solution
+
+#### Optional Parameters
+
+- `--raw-prompt`: The full text of the user's prompt
+- `--raw-response`: The full text of the AI's response
+- `--tool-usage-file`: Path to a JSON file containing tool usage information
+- `--file-changes-file`: Path to a JSON file containing file change information
+- `--involved-entities`: Comma-separated list of entities involved (files, functions, concepts)
+- `--session-id`: A session identifier (UUID) to group related interactions
+- `--collection-name`: The collection to log to (default: `chat_history_v1`)
+
+#### Example Usage
+
+Basic usage with only required parameters:
+
+```bash
+chroma-client log-chat \
+  --prompt-summary "How to fix the authentication bug" \
+  --response-summary "Updated token validation in auth.js"
+```
+
+Advanced usage with optional parameters:
+
+```bash
+chroma-client log-chat \
+  --prompt-summary "How to fix the authentication bug" \
+  --response-summary "Updated token validation in auth.js" \
+  --raw-prompt "Users are reporting they can't log in after session timeout" \
+  --raw-response "The issue appears to be in the token validation logic. I've updated auth.js to properly check expiration times." \
+  --tool-usage-file tools.json \
+  --file-changes-file changes.json \
+  --involved-entities "auth.js,login.js,token_validation,session_timeout" \
+  --session-id "550e8400-e29b-41d4-a716-446655440000"
+```
+
+For further details on this command, see the [CLI Reference](../scripts/chroma-client.md#log-chat).

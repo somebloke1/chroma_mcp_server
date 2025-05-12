@@ -8,6 +8,7 @@ The Chroma MCP Thinking Utilities provide a set of high-level functions for work
 - Create branching thought sequences from existing sessions
 - Find similar thoughts across multiple sessions
 - Manage and organize your thinking sessions
+- Connect thinking sessions with chat history and code changes via bidirectional linking
 
 ## Installation
 
@@ -26,6 +27,7 @@ A thinking session represents a sequence of related thoughts, typically forming 
 - A unique session ID
 - A sequence of numbered thoughts
 - Optional metadata such as timestamps and tags
+- Optional links to code chunks and chat history entries
 
 ### Branches
 
@@ -199,6 +201,70 @@ python -m chroma_mcp_thinking.thinking_cli summary abc123
 python -m chroma_mcp_thinking.thinking_cli summary abc123 --exclude-branches
 ```
 
+## Integration with Enhanced Context Capture
+
+The thinking utilities can leverage the rich contextual information captured by the enhanced context capture system:
+
+### Linking Thoughts to Chat History and Code Changes
+
+When recording thoughts, you can reference related chat history entries and code chunks:
+
+```python
+from chroma_mcp_thinking.thinking_session import ThinkingSession
+from mcp import ClientSession
+
+# Initialize the MCP client
+mcp_client = ClientSession()
+session = ThinkingSession(client=mcp_client)
+
+# Record a thought that references a chat history entry and code chunk
+session.record_thought(
+    thought="We should refactor the authentication module following the pattern discussed in our recent chat",
+    thought_number=1,
+    total_thoughts=3,
+    metadata={
+        "related_chat_ids": ["chat-uuid-1", "chat-uuid-2"],  # References to chat_history_v1 entries
+        "related_code_chunks": ["src/auth/auth.py#15-42"]     # References to codebase_v1 chunks
+    }
+)
+```
+
+### Utilizing Enhanced Context in Reasoning
+
+You can leverage the rich context metadata (code diffs, tool sequences, confidence scores) when analyzing related discussions:
+
+```python
+from chroma_mcp_thinking.utils import find_thoughts_across_sessions
+from chroma_mcp_client import ChromaMcpClient
+
+client = ChromaMcpClient()
+
+# Find thoughts related to authentication
+auth_thoughts = find_thoughts_across_sessions(
+    query="authentication module refactoring",
+    n_results=3,
+    client=client
+)
+
+# For each thought, retrieve related chat history entries with rich context
+for thought in auth_thoughts:
+    if "related_chat_ids" in thought["metadata"]:
+        for chat_id in thought["metadata"]["related_chat_ids"]:
+            # Query chat_history_v1 for the related chat entry
+            chat_entries = client.query_documents(
+                collection_name="chat_history_v1",
+                query_texts=[""],  # Empty query to match by ID
+                where={"chat_id": chat_id}
+            )
+            
+            # Access rich context from the chat entry
+            for entry in chat_entries:
+                print(f"Related Chat: {entry['metadata']['prompt_summary']}")
+                print(f"Confidence Score: {entry['metadata']['confidence_score']}")
+                print(f"Code Changes: {entry['metadata']['diff_summary']}")
+                print(f"Tool Sequence: {entry['metadata']['tool_sequence']}")
+```
+
 ## Advanced Usage
 
 ### Finding Similar Sessions
@@ -228,8 +294,50 @@ session.record_thought(
     thought="Final decision: Use JWT for authentication.",
     thought_number=5,
     total_thoughts=5,
-    metadata={"decision": "final", "component": "auth"}
+    metadata={
+        "decision": "final", 
+        "component": "auth",
+        "confidence": 0.95,  # Confidence score like in enhanced chat logging
+        "modification_type": "refactor"  # Similar to enhanced chat logging
+    }
 )
+```
+
+### Cross-Collection Context Integration
+
+For comprehensive context retrieval, you can query across multiple collections:
+
+```python
+# First search for relevant thoughts
+similar_thoughts = find_thoughts_across_sessions(
+    query="authentication module implementation",
+    n_results=3,
+    client=client
+)
+
+# Then search for relevant code chunks
+code_chunks = client.query_documents(
+    collection_name="codebase_v1",
+    query_texts=["authentication module implementation"],
+    n_results=3
+)
+
+# And relevant chat history entries
+chat_entries = client.query_documents(
+    collection_name="chat_history_v1",
+    query_texts=["authentication module implementation"],
+    n_results=3
+)
+
+# Combine results for a comprehensive view
+for thought in similar_thoughts:
+    print(f"Thought: {thought['document']}")
+    
+for chunk in code_chunks:
+    print(f"Code: {chunk['document']}")
+    
+for entry in chat_entries:
+    print(f"Chat: {entry['document']}")
 ```
 
 ## Example Application
@@ -248,6 +356,9 @@ See the complete example in `examples/thinking_example.py` that demonstrates:
 2. **Clear Branches**: When creating branches, make sure the first thought clearly indicates how it diverges from the parent.
 3. **Descriptive Queries**: When searching for similar thoughts, use specific and descriptive queries to get better results.
 4. **Consistent Metadata**: Establish conventions for metadata fields like tags and project names.
+5. **Rich Context Integration**: Utilize bidirectional linking to connect thoughts with related chat history entries and code chunks for more comprehensive context.
+6. **Confidence Scoring**: Apply confidence scores to thoughts similar to enhanced chat logging to help identify high-value reasoning.
+7. **Cross-Collection Queries**: When solving complex problems, leverage context from `sequential_thoughts_v1`, `chat_history_v1`, and `codebase_v1` collections.
 
 ## Troubleshooting
 
