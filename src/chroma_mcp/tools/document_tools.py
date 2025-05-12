@@ -7,6 +7,7 @@ import json
 import logging
 import uuid
 import numpy as np  # Needed for NumpyEncoder usage
+import datetime  # Add for ISO format date handling
 
 from typing import Dict, List, Optional, Any, Union, cast
 from dataclasses import dataclass
@@ -39,6 +40,45 @@ from ..utils.config import validate_collection_name
 # --- Constants ---
 DEFAULT_QUERY_N_RESULTS = 10
 LEARNINGS_COLLECTION_NAME = "derived_learnings_v1"  # Define the learnings collection name
+
+
+# --- Helper for server-side timestamps ---
+def _ensure_server_timestamp(metadata: dict) -> dict:
+    """
+    Ensures that any timestamp fields in metadata use server-side time.
+
+    Args:
+        metadata: A dictionary of metadata that might contain timestamp fields
+
+    Returns:
+        The metadata dict with any timestamp fields replaced with current server time
+    """
+    timestamp_fields = ["timestamp", "last_indexed_utc", "created_at", "updated_at", "last_modified"]
+
+    # Current server timestamps in different formats
+    unix_ts = time.time()
+    iso_ts = datetime.datetime.now().isoformat()
+
+    # Create a copy to avoid modifying the input directly
+    updated_metadata = metadata.copy()
+
+    # Check for and replace common timestamp field names
+    for field in timestamp_fields:
+        if field in updated_metadata:
+            # Use appropriate format based on existing value type
+            existing_value = updated_metadata[field]
+            if isinstance(existing_value, (int, float)):
+                updated_metadata[field] = unix_ts
+            elif isinstance(existing_value, str):
+                # Check if it looks like an ISO format timestamp
+                if "T" in existing_value and "-" in existing_value:
+                    updated_metadata[field] = iso_ts
+                else:
+                    # Default to Unix timestamp for other string formats
+                    updated_metadata[field] = str(unix_ts)
+
+    return updated_metadata
+
 
 # --- Pydantic Input Models for Document Tools ---
 
@@ -376,6 +416,10 @@ async def _add_document_with_metadata_impl(input_data: AddDocumentWithMetadataIn
         )
     # --- End Parsing ---
 
+    # --- Ensure timestamps are server-side ---
+    parsed_metadata = _ensure_server_timestamp(parsed_metadata)
+    # --- End timestamp enforcement ---
+
     # --- Generate ID --- #
     generated_id = str(uuid.uuid4())  # Singular
     logger.debug(f"Generated ID '{generated_id}' for document in '{collection_name}' (metadata provided).")
@@ -450,6 +494,10 @@ async def _add_document_with_id_and_metadata_impl(
             ErrorData(code=INVALID_PARAMS, message=f"Metadata string did not decode to a dictionary: {str(e)}")
         )
     # --- End Parsing ---
+
+    # --- Ensure timestamps are server-side ---
+    parsed_metadata = _ensure_server_timestamp(parsed_metadata)
+    # --- End timestamp enforcement ---
 
     logger.info(
         f"Adding 1 document with ID '{id}' and parsed metadata to '{collection_name}'. Increment index: {increment_index}"
@@ -803,6 +851,10 @@ async def _update_document_metadata_impl(input_data: UpdateDocumentMetadataInput
         logger.warning(f"Invalid JSON format for metadata: {metadata_str} - Error: {e}")
         raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Invalid JSON format for metadata: {e}"))
     # --- End Validation ---
+
+    # --- Ensure timestamps are server-side ---
+    metadata_dict = _ensure_server_timestamp(metadata_dict)
+    # --- End timestamp enforcement ---
 
     logger.info(f"Updating metadata for document '{document_id}' in '{collection_name}' with: {metadata_dict}")
     try:

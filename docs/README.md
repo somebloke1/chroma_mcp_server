@@ -1,0 +1,265 @@
+# Chroma MCP Server Documentation
+
+Welcome to the Chroma MCP Server documentation. This guide provides comprehensive information about installation, configuration, usage, and development of the server.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Cursor Integration](#cursor-integration)
+- [Running in Development](#running-in-development)
+- [Docker](#docker)
+- [Logging](#logging)
+- [Working Memory](#working-memory)
+
+## Overview
+
+The Chroma MCP Server allows you to connect AI applications with Chroma through the Model Context Protocol. Beyond standard MCP interactions, this implementation emphasizes creating a persistent, automatically updated "Second Brain" for development by integrating:
+
+- **Automated Codebase Indexing:** Tools and configurations (like Git hooks calling a dedicated `chroma-mcp-client`) enable automatic indexing of code changes into a designated Chroma collection.
+- **Automated Chat Logging:** IDE rules (like `auto_log_chat` for Cursor) facilitate automatic summarization and logging of AI chat interactions into a separate Chroma collection.
+- **Working Memory Tools:** Specialized MCP commands for capturing and retrieving structured thoughts and development context.
+
+This enables AI models to:
+
+- Store and retrieve embeddings
+- Perform semantic search on vector data
+- Manage collections of embeddings
+- Support RAG (Retrieval Augmented Generation) workflows
+
+**Note on Ongoing Development:** The advanced features discussed in the "Second Brain" concept, particularly the later phases involving automated reinforcement learning and model fine-tuning (`Phase 2` and `Phase 3` of the `docs/refactoring/local_rag_pipeline_plan_v4.md`), are currently under active implementation. The foundational `Phase 1` features (automated indexing, chat logging, working memory) are largely complete and ready for use.
+
+## Installation
+
+Choose your preferred installation method:
+
+### Standard Installation
+
+```bash
+# Using pip
+pip install chroma-mcp-server
+
+# Using UVX (recommended for Cursor)
+uv pip install chroma-mcp-server
+```
+
+### Full Installation (with embedding models)
+
+```bash
+# Using pip
+pip install chroma-mcp-server[full]
+
+# Using UVX
+uv pip install "chroma-mcp-server[full]"
+```
+
+### Via Smithery (for Local Execution)
+
+[Smithery](https://smithery.ai/) acts as a registry and local launcher for MCP servers. AI clients like Claude Desktop can use Smithery to find, install, and run your server locally.
+
+```bash
+# Requires Node.js/npx
+# Installs the package (usually via pip) into a Smithery-managed environment
+npx -y @smithery/cli install chroma-mcp-server
+
+# If the server requires an API key for installation via Smithery:
+# npx -y @smithery/cli install chroma-mcp-server --key YOUR_API_KEY
+```
+
+*(Note: This method requires the package to be published on PyPI and registered with Smithery. The `--key` option usage depends on the specific server's registration settings on Smithery).*
+
+## Configuration
+
+The server can be configured with command-line options or environment variables:
+
+### Command-line Options
+
+```bash
+# Example setting mode to stdio
+chroma-mcp-server --mode stdio --client-type persistent --data-dir ./my_data
+# Example using default http mode
+chroma-mcp-server --client-type persistent --data-dir ./my_data --log-dir ./logs --embedding-function accurate
+```
+
+### Environment Variables
+
+```bash
+export CHROMA_SERVER_MODE=stdio # Optional, defaults to http
+export CHROMA_CLIENT_TYPE=persistent
+export CHROMA_DATA_DIR=./my_data
+export CHROMA_LOG_DIR=./logs
+export CHROMA_EMBEDDING_FUNCTION=accurate
+chroma-mcp-server
+```
+
+### Available Configuration Options
+
+- `--mode`: Server mode (`stdio` or `http`, default: `http`). Also configurable via `CHROMA_SERVER_MODE`.
+- `--client-type`: Type of Chroma client (`ephemeral`, `persistent`, `http`, `cloud`). Also configurable via `CHROMA_CLIENT_TYPE`.
+- `--data-dir`: Path to data directory for persistent client. Also configurable via `CHROMA_DATA_DIR`.
+- `--log-dir`: Path to log directory. Also configurable via `CHROMA_LOG_DIR`.
+- `--host`: Host address for HTTP client. Also configurable via `CHROMA_HOST`.
+- `--port`: Port for HTTP client. Also configurable via `CHROMA_PORT`.
+- `--ssl`: Whether to use SSL for HTTP client. Also configurable via `CHROMA_SSL`.
+- `--tenant`: Tenant ID for Cloud client. Also configurable via `CHROMA_TENANT`.
+- `--database`: Database name for Cloud client. Also configurable via `CHROMA_DATABASE`.
+- `--api-key`: API key for Cloud client. Also configurable via `CHROMA_API_KEY`.
+- `--cpu-execution-provider`: Force CPU execution provider for local embedding functions (`auto`, `true`, `false`). Also configurable via `CHROMA_CPU_EXECUTION_PROVIDER`.
+- `--embedding-function`: Name of the embedding function to use. Choices: 'default'/'fast' (Local CPU, balanced), 'accurate' (Local CPU/GPU via sentence-transformers, higher accuracy), 'openai' (API, general purpose), 'cohere' (API, retrieval/multilingual focus), 'huggingface' (API, flexible model choice), 'jina' (API, long context focus), 'voyageai' (API, retrieval focus), 'gemini' (API, general purpose). API-based functions require corresponding API keys set as environment variables (e.g., OPENAI_API_KEY). Also configurable via `CHROMA_EMBEDDING_FUNCTION`.
+
+### .env File Support
+
+The server automatically loads environment variables from a `.env` file in the project root. You can copy the example file as a starting point:
+
+```bash
+cp .env.template .env
+```
+
+Edit the file to adjust values as needed for your setup.
+
+## Usage
+
+### Starting the server
+
+```bash
+# Using the command-line executable (after pip/uvx install)
+chroma-mcp-server [OPTIONS]
+
+# Or using the Python module (in an environment where it's installed)
+python -m chroma_mcp.cli [OPTIONS]
+
+# Or via Smithery CLI (after npx ... install)
+# Example with config:
+npx -y @smithery/cli run chroma-mcp-server --config '{ "clientType": "persistent", "dataDir": "./my_chroma_data" }'
+
+# Example if the server requires an API key for running via Smithery:
+# npx -y @smithery/cli run chroma-mcp-server --key YOUR_API_KEY --config '{...}'
+```
+
+### Checking the Version
+
+```bash
+chroma-mcp-server --version
+```
+
+## Cursor Integration
+
+To use with Cursor, add or modify the `.cursor/mcp.json` file in your project root. Here's an example configuration defining development (`chroma_dev`), testing (`chroma_test`), and production (`chroma_prod`) server setups:
+
+```json
+{
+  "mcpServers": {
+    "chroma_dev": {
+      "command": "/path/to/project/scripts/run_chroma_mcp_server_dev.sh",
+      "args": [],
+      "env": {
+        "CHROMA_CLIENT_TYPE": "persistent",
+        "CHROMA_DATA_DIR": "/path/to/your/dev_data",
+        "CHROMA_LOG_DIR": "/path/to/your/dev_logs",
+        "LOG_LEVEL": "DEBUG",
+        "MCP_LOG_LEVEL": "DEBUG"
+      }
+    },
+    "chroma_test": {
+      "command": "uvx",
+      "args": [
+        "--refresh",
+        "--default-index", "https://test.pypi.org/simple/",
+        "--index", "https://pypi.org/simple/",
+        "--index-strategy", "unsafe-best-match",
+        "chroma-mcp-server@latest"
+      ],
+      "env": {
+        "CHROMA_CLIENT_TYPE": "persistent",
+        "CHROMA_DATA_DIR": "/path/to/your/test_data",
+        "CHROMA_LOG_DIR": "/path/to/your/test_logs",
+        "LOG_LEVEL": "INFO",
+        "MCP_LOG_LEVEL": "INFO"
+      }
+    },
+    "chroma_prod": {
+      "command": "uvx",
+      "args": [
+        "chroma-mcp-server"
+      ],
+      "env": {
+        "CHROMA_CLIENT_TYPE": "persistent",
+        "CHROMA_DATA_DIR": "/path/to/your/prod_data",
+        "CHROMA_LOG_DIR": "/path/to/your/prod_logs",
+        "LOG_LEVEL": "INFO",
+        "MCP_LOG_LEVEL": "INFO",
+        "MCP_SERVER_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+**Notes:**
+
+- Replace `/path/to/project/scripts/run_chroma_mcp_server_dev.sh` with the actual absolute path to the script in your development environment.
+- Replace `/path/to/your/...` placeholders with actual paths for your data and log directories. It's recommended to use separate directories for dev, test, and prod to avoid data conflicts.
+- The `chroma_dev` configuration uses the `run_chroma_mcp_server_dev.sh` script, which runs the server directly from your local source code using Hatch. This is ideal for rapid development and testing changes without reinstalling.
+- The `chroma_test` configuration uses `uvx` to fetch and run the *latest* version available on TestPyPI. This is useful for testing release candidates.
+- The `chroma_prod` configuration uses `uvx` to run the version of `chroma-mcp-server` that is currently installed globally via `uvx` (typically the latest stable release from PyPI).
+
+## Running in Development
+
+For development purposes, the recommended approach is to use the wrapper script that runs the server within the Hatch environment:
+
+```bash
+# Ensure you are in the project root directory
+./scripts/run_chroma_mcp_server_dev.sh [OPTIONS]
+```
+
+**Important:** After modifying the code (server, client, etc.), you must rebuild and reinstall the package within the Hatch environment for changes to take effect:
+
+```bash
+# Replace <version> with the actual version built
+hatch build && hatch run pip uninstall chroma-mcp-server -y && hatch run pip install 'dist/chroma_mcp_server-<version>-py3-none-any.whl[full,dev]'
+```
+
+For more detailed development information, see the **[Developer Guide](developer_guide.md)**.
+
+## Docker
+
+Build and run via Docker:
+
+```bash
+docker build -t chroma-mcp-server .
+docker run -p 8000:8000 \
+  -e CHROMA_CLIENT_TYPE=persistent \
+  -e CHROMA_DATA_DIR=/data \
+  -e CHROMA_LOG_DIR=/logs \
+  -e CHROMA_EMBEDDING_FUNCTION=default \
+  chroma-mcp-server
+```
+
+Or with Compose:
+
+```bash
+docker-compose up --build
+```
+
+## Logging
+
+The server logs output in several ways depending on the mode of operation:
+
+- **Stdio Mode** (default for MCP servers like Cursor integration): All Python logging is redirected to dedicated per-execution log files (e.g., `logs/chroma_mcp_stdio_<timestamp>.log`) to prevent contamination of the JSON communication stream.
+- **HTTP Mode**: Standard Python logging to console and optionally to log files.
+
+Log levels and directories are configurable through environment variables. See the [Server Logging Guide](logging/server_logging.md) for comprehensive details about the logging system improvements.
+
+## Working Memory
+
+This server includes specialized tools for creating a persistent, searchable "working memory" to aid AI development workflows. Learn more about how these tools leverage embeddings to manage context across sessions in the **[Embeddings and Thinking Tools Guide](thinking_tools/embeddings_and_thinking.md)**.
+
+## Additional Resources
+
+- [API Reference](api_reference.md) - Detailed documentation of available tools and their parameters
+- [Getting Started](getting_started.md) - A more detailed guide for setting up and using the server
+- [Getting Started with Second Brain](getting_started_second_brain.md) - Learn about the Second Brain concept
+- [Developer Guide](developer_guide.md) - Instructions for developers working on the codebase
+- [MCP Test Flow](mcp_test_flow.md) - A simulated workflow using the MCP tools

@@ -164,11 +164,93 @@ def index_file(
 
         # Get or create the collection (only need to do this once per file)
         try:
-            collection = client.get_collection(name=collection_name)
-            logger.debug(f"Using existing collection: {collection_name}")
+            # Explicitly pass embedding_function to trigger early mismatch error
+            collection = client.get_collection(name=collection_name, embedding_function=embedding_func)
+            logger.debug(f"Using existing collection: {collection_name} with configured embedding function.")
         except ValueError as e:
-            # Check if the error message indicates the collection doesn't exist
             error_str = str(e).lower()
+            # Check for specific ChromaDB error messages related to EF mismatch
+            ef_mismatch_error = (
+                "embedding function name mismatch" in error_str
+                or "an embedding function must be specified" in error_str
+            )  # if collection expects EF but none/wrong one given
+
+            if ef_mismatch_error:
+                client_ef_name_str = type(embedding_func).__name__ if embedding_func else "None"
+                collection_ef_name_str = "unknown (from collection)"  # Default if parsing fails
+
+                # Map of known EF class names to their likely representation in ChromaDB error messages
+                # (typically lowercase with underscores)
+                ef_class_to_error_name_map = {
+                    "SentenceTransformerEmbeddingFunction": "sentence_transformer",
+                    "ONNXMiniLM_L6_V2": "onnx_mini_lm_l6_v2",
+                    "OpenAIEmbeddingFunction": "openai",  # Guessing pattern
+                    "CohereEmbeddingFunction": "cohere",  # Guessing pattern
+                    # Add others as encountered or confirmed
+                }
+
+                # Get the expected error string name for the client's current EF
+                client_ef_error_name_lower = ef_class_to_error_name_map.get(
+                    client_ef_name_str, client_ef_name_str.lower()
+                )
+
+                if "embedding function name mismatch" in error_str:
+                    try:
+                        mismatch_details = str(e).split("Embedding function name mismatch: ")[1]
+                        parts = mismatch_details.split(" != ")
+                        if len(parts) == 2:
+                            part0_lower = parts[0].strip().lower()
+                            part1_lower = parts[1].strip().lower()
+
+                            # Check if the client's EF (in its error string form) matches one of the parts
+                            if client_ef_error_name_lower == part0_lower:
+                                collection_ef_name_str = parts[1].strip()  # The other part is the collection's EF
+                            elif client_ef_error_name_lower == part1_lower:
+                                collection_ef_name_str = parts[0].strip()  # The other part is the collection's EF
+                            else:
+                                # Client's EF error name didn't match either part directly.
+                                # This could happen if map is incomplete or error format is very unexpected.
+                                logger.debug(
+                                    f"Client EF error name '{client_ef_error_name_lower}' (from class '{client_ef_name_str}') "
+                                    f"did not match parts '{part0_lower}' or '{part1_lower}' from error: {str(e)}. "
+                                    f"Falling back to OR display."
+                                )
+                                collection_ef_name_str = (
+                                    f"{parts[0].strip()} OR {parts[1].strip()} (client used {client_ef_name_str})"
+                                )
+                        else:  # Mismatch string present, but " != " format not as expected
+                            logger.debug(
+                                f"EF mismatch error string '{str(e)}' did not contain ' != ' separator or produce 2 parts as expected."
+                            )
+                            collection_ef_name_str = "different from client's configuration (malformed error details)"
+
+                    except (IndexError, ValueError) as parse_error:  # Errors from split() or list indexing
+                        logger.debug(
+                            f"Could not parse EF mismatch details from error string '{str(e)}': {parse_error}",
+                            exc_info=True,
+                        )
+                        collection_ef_name_str = "different from client's configuration (parsing failed)"
+                elif "an embedding function must be specified" in error_str:
+                    logger.debug(
+                        f"EF mismatch: collection requires an EF, but client's attempt was problematic. Error: {str(e)}"
+                    )
+                    collection_ef_name_str = "required by collection (mismatch with client's attempt)"
+                else:  # ef_mismatch_error is True, but the specific known strings weren't matched
+                    logger.debug(f"Unhandled ef_mismatch_error string: {str(e)}")
+                    collection_ef_name_str = "different from client's configuration (unrecognized error format)"
+
+                env_ef_setting = os.getenv("CHROMA_EMBEDDING_FUNCTION", "default")
+                error_message = (
+                    f"Failed to get collection '{collection_name}' for indexing. Mismatch: "
+                    f"Client is configured to use an embedding function derived from '{env_ef_setting}' (resolves to {client_ef_name_str}), "
+                    f"but the collection appears to use an EF like '{collection_ef_name_str}'. "
+                    f"Ensure CHROMA_EMBEDDING_FUNCTION is consistent or re-index collection '{collection_name}' with the correct embedding function."
+                )
+                logger.error(error_message)
+                print(f"ERROR: {error_message}", file=sys.stderr)
+                return False  # Critical error, cannot proceed
+
+            # Preserved logic: Check if the error message indicates the collection doesn't exist
             not_found = False
             if (
                 f"collection {collection_name} does not exist" in error_str

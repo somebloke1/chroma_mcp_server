@@ -610,3 +610,31 @@ def initialized_chroma_client(tmp_path_factory):
         except Exception as e:
             print(f"ERROR: Failed to initialize/yield Chroma client in fixture: {e}")
             pytest.fail(f"Failed to initialize Chroma client for tests: {e}")
+
+
+@pytest.fixture(autouse=True)
+def setup_logging(caplog):
+    """Configure logging to ensure caplog captures all logs properly."""
+    # Set caplog level to DEBUG to capture all logs
+    caplog.set_level(logging.DEBUG)
+
+    # Ensure logs from all relevant modules are captured
+    for logger_name in [
+        "chroma_mcp_client",
+        "chroma_mcp_client.cli",
+        "chroma_mcp_client.indexing",
+        "chroma_mcp_client.query",
+        "chroma_mcp_client.interactive_promoter",
+        "chroma_mcp",
+        "chromamcp",
+        "src.chroma_mcp.server",
+        "src.chroma_mcp.utils",
+        "root",  # For root logger
+    ]:
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.DEBUG)
+        # Reset handlers to avoid duplication
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+
+    yield

@@ -8,6 +8,8 @@ import chromadb
 from chromadb.api.client import ClientAPI
 from chromadb.errors import InvalidDimensionException
 import numpy as np
+import time  # Add explicit import for time
+import datetime  # Add for ISO format dates
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Dict, List, Optional, Union, cast
@@ -31,6 +33,45 @@ from ..utils import (
 )
 from ..utils.config import get_collection_settings, validate_collection_name
 from ..types import ChromaClientConfig
+
+
+# --- Helper for server-side timestamps ---
+def _ensure_server_timestamp(metadata: dict) -> dict:
+    """
+    Ensures that any timestamp fields in metadata use server-side time.
+
+    Args:
+        metadata: A dictionary of metadata that might contain timestamp fields
+
+    Returns:
+        The metadata dict with any timestamp fields replaced with current server time
+    """
+    timestamp_fields = ["timestamp", "last_indexed_utc", "created_at", "updated_at", "last_modified"]
+
+    # Current server timestamps in different formats
+    unix_ts = time.time()
+    iso_ts = datetime.datetime.now().isoformat()
+
+    # Create a copy to avoid modifying the input directly
+    updated_metadata = metadata.copy()
+
+    # Check for and replace common timestamp field names
+    for field in timestamp_fields:
+        if field in updated_metadata:
+            # Use appropriate format based on existing value type
+            existing_value = updated_metadata[field]
+            if isinstance(existing_value, (int, float)):
+                updated_metadata[field] = unix_ts
+            elif isinstance(existing_value, str):
+                # Check if it looks like an ISO format timestamp
+                if "T" in existing_value and "-" in existing_value:
+                    updated_metadata[field] = iso_ts
+                else:
+                    # Default to Unix timestamp for other string formats
+                    updated_metadata[field] = str(unix_ts)
+
+    return updated_metadata
+
 
 # --- Pydantic Input Models for Collection Tools ---
 
@@ -673,6 +714,9 @@ async def _create_collection_with_metadata_impl(
         except ValueError as e:  # Catch the isinstance check
             logger.warning(f"Metadata did not decode to a dictionary for '{collection_name}': {e}")
             raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e)))
+
+        # Ensure any timestamps are server-side
+        metadata_dict = _ensure_server_timestamp(metadata_dict)
 
         # Validate name (can raise ValidationError)
         validate_collection_name(collection_name)

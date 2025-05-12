@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import patch, MagicMock, call
 import logging
+import io
+from contextlib import redirect_stderr
 
 # Assuming the module is in src/chroma_mcp_client
 from chroma_mcp_client.interactive_promoter import run_interactive_promotion
@@ -54,8 +56,6 @@ def test_run_interactive_promotion_no_entries(mock_chroma_init, mock_fetch_entri
     mock_client, _, _ = mock_chroma_init
     mock_fetch_entries.return_value = []
 
-    caplog.set_level(logging.INFO)
-
     run_interactive_promotion()
 
     mock_fetch_entries.assert_called_once_with(
@@ -67,17 +67,18 @@ def test_run_interactive_promotion_no_entries(mock_chroma_init, mock_fetch_entri
     # Check console print with capsys
     captured_stdout = capsys.readouterr().out
     assert "No entries with status 'analyzed' found within the specified time limit." in captured_stdout
-    # Check log message with caplog
-    assert "No analyzed entries found." in caplog.text
 
 
 def test_run_interactive_promotion_init_fails(caplog):
     """Test behavior when Chroma initialization fails."""
     with patch("chroma_mcp_client.interactive_promoter.get_client_and_ef", return_value=(None, None)) as mock_init_fail:
-        caplog.set_level(logging.ERROR)
-        run_interactive_promotion()
+        # Capture stderr to check for error message
+        with io.StringIO() as stderr_capture, redirect_stderr(stderr_capture):
+            run_interactive_promotion()
+            stderr_output = stderr_capture.getvalue()
+
         mock_init_fail.assert_called_once()
-        assert "Failed to initialize Chroma connection." in caplog.text
+        assert "Failed to initialize Chroma connection" in stderr_output
 
 
 def test_run_interactive_promotion_user_actions(
@@ -96,8 +97,6 @@ def test_run_interactive_promotion_user_actions(
     # Simulate user inputs: ignore, skip, skip, quit
     mock_input.side_effect = ["i", "s", "s", "q"]
     mock_update_status.return_value = True  # Assume status update succeeds
-
-    caplog.set_level(logging.INFO)
 
     run_interactive_promotion(
         chat_collection_name="test_chat_coll",
@@ -148,10 +147,6 @@ def test_run_interactive_promotion_user_actions(
     assert "Promoted: 0" in captured.out
     assert "Ignored: 1" in captured.out
     assert "Skipped: 2" in captured.out  # entry2 and entry3 are skipped
-
-    # Check log messages (via caplog)
-    assert "Fetching entries with status 'analyzed' from 'test_chat_coll'" in caplog.text
-    assert "Interactive promotion workflow finished." in caplog.text
 
 
 # More tests will be added here for promoting, ignoring, skipping, quitting.

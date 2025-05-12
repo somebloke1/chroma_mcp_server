@@ -13,10 +13,91 @@ those modules to automatically register themselves with the shared `mcp` instanc
 import importlib.metadata
 from typing import Dict
 import sys
+import logging
+import os
+import time
+import tempfile  # Add tempfile import
 
 from mcp.server import Server
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.stdio import stdio_server
+
+# Configure logging at module import time - CRITICAL FOR STDIO MODE
+# In stdio mode, we must ensure NO logs go to stdout or stderr to avoid corrupting JSON
+
+# 1. Create log directory if it doesn't exist
+# Use a temporary directory that's guaranteed to be writable
+log_dir = os.getenv("CHROMA_LOG_DIR")
+try:
+    if not log_dir:
+        # If not set, first try a relative path in current directory
+        log_dir = os.path.join(os.getcwd(), "logs")
+
+    # Try to create the directory, catch permission errors
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except (PermissionError, OSError):
+        # If there's a permission error, fall back to a system temp directory
+        log_dir = os.path.join(tempfile.gettempdir(), "chroma_mcp_logs")
+        os.makedirs(log_dir, exist_ok=True)
+        print(f"WARNING: Using temporary log directory due to permission issues: {log_dir}", file=sys.stderr)
+except Exception as e:
+    # Last resort fallback to temp directory
+    log_dir = tempfile.gettempdir()
+    print(f"WARNING: Using system temp directory for logs due to error: {e}", file=sys.stderr)
+
+# 2. Configure a file handler for all logs (with timestamp in filename to avoid conflicts)
+timestamp = int(time.time())
+log_file = os.path.join(log_dir, f"chroma_mcp_stdio_{timestamp}.log")
+
+# 3. Configure the root logger with a file handler
+root_logger = logging.getLogger()
+log_level_str = os.getenv("MCP_SERVER_LOG_LEVEL", "INFO")
+log_level = getattr(logging, log_level_str.upper(), logging.INFO)
+root_logger.setLevel(log_level)  # Use environment variable for log level
+
+# 4. Remove any existing handlers that might log to stdout/stderr
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+
+# 5. Add file handler
+file_handler = logging.FileHandler(log_file)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_handler.setFormatter(formatter)
+root_logger.addHandler(file_handler)
+
+# 6. Add null handler to prevent uncaught logs going to default stderr
+null_handler = logging.NullHandler()
+root_logger.addHandler(null_handler)
+
+# 7. Log that we've configured logging
+logging.info(f"STDIO MODE: Logging configured - all logs redirected to {log_file}")
+
+# 8. Monkey patch logging.getLogger to ensure any future loggers get our configuration
+original_getLogger = logging.getLogger
+
+
+def patched_getLogger(name=None):
+    logger = original_getLogger(name)
+
+    # If this is a new logger with no handlers, ensure it gets our configuration
+    if not logger.handlers:
+        # Remove propagation to prevent double logging
+        logger.propagate = False
+
+        # Add our file handler
+        handler = logging.FileHandler(log_file)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+        # Add null handler to avoid default stderr output
+        logger.addHandler(logging.NullHandler())
+
+    return logger
+
+
+logging.getLogger = patched_getLogger
+logging.info("Monkey patched logging.getLogger to ensure all future loggers use file output only")
 
 # Create the single, shared standard Server instance
 # Using 'server' instead of 'mcp' to avoid confusion with the protocol name
@@ -52,6 +133,9 @@ server = Server(name="chroma-mcp-server")
 
 async def main_stdio():
     """Run the server using stdio transport."""
+    # Logging is already configured at module import time
+    logging.info("Entering stdio mode - all logs are going to file only")
+
     # logger.info("Entering stdio_server context manager...")
     async with stdio_server() as (read_stream, write_stream):
         # logger.info("Stdio streams acquired. Triggering tool handler registration...")
@@ -61,23 +145,23 @@ async def main_stdio():
             from chroma_mcp.tools import document_tools
             from chroma_mcp.tools import thinking_tools
 
-            # logger.info("Successfully imported tool modules inside main_stdio.")
+            logging.info("Successfully imported tool modules inside main_stdio.")
             # Explicitly import server module AFTER tools to ensure decorators run
             import chroma_mcp.server
 
-            # logger.info("Explicitly imported chroma_mcp.server.")
+            logging.info("Explicitly imported chroma_mcp.server.")
         except ImportError as e:
             # logger.error(f"Failed to import tool modules/server inside main_stdio: {e}", exc_info=True)
             print(f"Failed to import tool modules/server inside main_stdio: {e}", file=sys.stderr)
             raise
 
-        # logger.info("Creating initialization options...")
+        logging.info("Creating initialization options...")
         init_options = server.create_initialization_options(
             notification_options=NotificationOptions(
                 # Configure notifications if needed
             )
         )
-        # logger.info("Initialization options created. Calling server.run...")
+        logging.info("Initialization options created. Calling server.run...")
         try:
             await server.run(
                 read_stream,
@@ -85,9 +169,9 @@ async def main_stdio():
                 init_options,
                 raise_exceptions=True,
             )
-            # logger.info("server.run completed successfully.")
+            logging.info("server.run completed successfully.")
         except Exception as e:
-            # logger.error("Error during server.run: %s", e, exc_info=True)
+            logging.error(f"Error during server.run: {e}", exc_info=True)
             print(f"Error during server.run: {e}", file=sys.stderr)
             raise
 

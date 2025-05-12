@@ -14,6 +14,7 @@ import logging
 import logging.handlers  # Add this for FileHandler
 import sys  # Import sys for stderr output as last resort
 import json
+import tempfile  # Add tempfile import
 
 from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
@@ -268,7 +269,31 @@ def config_server(args: argparse.Namespace) -> None:
         #    load_dotenv(dotenv_path=args.dotenv_path)
 
         # --- Start: Logger Configuration --- (Keep this section)
-        log_dir = args.log_dir
+        try:
+            log_dir = args.log_dir
+            # If log_dir is not specified, use a relative path
+            if log_dir and not os.path.isabs(log_dir):
+                # Ensure relative paths are relative to current directory
+                log_dir = os.path.join(os.getcwd(), log_dir)
+            elif not log_dir:
+                # Default to a logs directory in current working directory
+                log_dir = os.path.join(os.getcwd(), "logs")
+
+            # Try to create the directory, catch permission errors
+            try:
+                if log_dir:
+                    os.makedirs(log_dir, exist_ok=True)
+            except (PermissionError, OSError):
+                # If there's a permission error, fall back to a system temp directory
+                log_dir = os.path.join(tempfile.gettempdir(), "chroma_mcp_logs")
+                os.makedirs(log_dir, exist_ok=True)
+                print(f"WARNING: Using temporary log directory due to permission issues: {log_dir}", file=sys.stderr)
+
+        except Exception as e:
+            # Last resort fallback to temp directory
+            log_dir = tempfile.gettempdir()
+            print(f"WARNING: Using system temp directory for logs due to error: {e}", file=sys.stderr)
+
         log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
         log_level = getattr(logging, log_level_str, logging.INFO)
         logger = logging.getLogger(BASE_LOGGER_NAME)
@@ -282,13 +307,16 @@ def config_server(args: argparse.Namespace) -> None:
             console_handler.setFormatter(formatter)
             logger.addHandler(console_handler)
             if log_dir:
-                os.makedirs(log_dir, exist_ok=True)
-                log_file = os.path.join(log_dir, "chroma_mcp_server.log")
-                file_handler = logging.handlers.RotatingFileHandler(
-                    log_file, maxBytes=10 * 1024 * 1024, backupCount=5  # 10 MB
-                )
-                file_handler.setFormatter(formatter)
-                logger.addHandler(file_handler)
+                # Try to create a file handler, with fallback if it fails
+                try:
+                    log_file = os.path.join(log_dir, "chroma_mcp_server.log")
+                    file_handler = logging.handlers.RotatingFileHandler(
+                        log_file, maxBytes=10 * 1024 * 1024, backupCount=5  # 10 MB
+                    )
+                    file_handler.setFormatter(formatter)
+                    logger.addHandler(file_handler)
+                except (PermissionError, OSError) as e:
+                    print(f"WARNING: Could not create log file. Logging to console only: {e}", file=sys.stderr)
         set_main_logger(logger)
         # --- End: Logger Configuration ---
 

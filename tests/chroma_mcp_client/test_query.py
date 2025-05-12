@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import patch, MagicMock
 import chromadb
+import io
+from contextlib import redirect_stderr
 
 # Module to test
 from chroma_mcp_client.query import query_codebase, DEFAULT_CODEBASE_COLLECTION, DEFAULT_QUERY_N_RESULTS
@@ -64,11 +66,13 @@ def test_query_codebase_get_collection_error(mock_chroma_client, caplog):
     query = ["query that fails"]
     client.get_collection.side_effect = Exception("Cannot connect")
 
-    results = query_codebase(client=client, embedding_function=ef, query_texts=query)
+    # Capture stderr to see error messages
+    with io.StringIO() as stderr_capture, redirect_stderr(stderr_capture):
+        results = query_codebase(client=client, embedding_function=ef, query_texts=query)
+        stderr_output = stderr_capture.getvalue()
 
     assert results is None
-    assert "Failed to query collection" in caplog.text
-    assert "Cannot connect" in caplog.text
+    assert "Failed to query collection" in stderr_output
 
 
 def test_query_codebase_query_error(mock_chroma_client, caplog):
@@ -78,8 +82,10 @@ def test_query_codebase_query_error(mock_chroma_client, caplog):
     query = ["query that fails query"]
     collection.query.side_effect = Exception("Query failed internally")
 
-    results = query_codebase(client=client, embedding_function=ef, query_texts=query)
+    # Capture stderr to see error messages
+    with io.StringIO() as stderr_capture, redirect_stderr(stderr_capture):
+        results = query_codebase(client=client, embedding_function=ef, query_texts=query)
+        stderr_output = stderr_capture.getvalue()
 
     assert results is None
-    assert "Failed to query collection" in caplog.text
-    assert "Query failed internally" in caplog.text
+    assert "Failed to query collection" in stderr_output

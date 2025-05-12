@@ -216,12 +216,13 @@ async def _base_sequential_thinking_impl(
         effective_session_id = session_id if session_id else str(uuid.uuid4())
         effective_branch_from_thought = branch_from_thought if branch_from_thought > 0 else None
         effective_branch_id = branch_id if branch_id else None
-        timestamp = int(time.time())
+        # IMPORTANT: Server-side timestamp generation - no reliance on AI model's perception
+        timestamp = int(time.time())  # ← Using server-side timestamp
         metadata = ThoughtMetadata(
             session_id=effective_session_id,
             thought_number=thought_number,
             total_thoughts=total_thoughts,
-            timestamp=timestamp,
+            timestamp=timestamp,  # ← Using server-side timestamp from above
             branch_from_thought=effective_branch_from_thought,  # Use effective value
             branch_id=effective_branch_id,  # Use effective value
             next_thought_needed=next_thought_needed,
