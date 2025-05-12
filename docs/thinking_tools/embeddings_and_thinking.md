@@ -40,6 +40,33 @@ Each recorded thought is automatically embedded into a vector representation by 
 * **Retrieval:** When an AI assistant needs context from the past, it doesn't rely on simple keyword matching. Instead, it uses the `find_similar_thoughts` tool. This tool takes a query (e.g., "What was the plan for refactoring the database module?") and performs a **semantic search** against the stored thought embeddings.
 * **Semantic Search:** ChromaDB finds thoughts whose embeddings are *semantically closest* to the query's embedding, even if the exact wording differs. This allows retrieving relevant past thoughts, plans, or code snippets based on their meaning, not just keywords.
 
+## Integration with Enhanced Context Capture and Bidirectional Linking
+
+The Thinking Utilities complement the enhanced context capture system and bidirectional linking:
+
+* **Connection to Chat History:** Thinking sessions can reference discussions recorded in `chat_history_v1`, creating connections between explicit reasoning steps and AI-developer interactions.
+* **Connection to Code Changes:** Thoughts can link to specific code chunks in `codebase_v1`, allowing AI to connect conceptual reasoning with concrete implementations.
+* **Context-Rich Reasoning:** Recorded thoughts can utilize the enhanced context metadata (code diffs, tool sequences, confidence scores) from chat history entries to inform their reasoning.
+* **Multi-Collection Queries:** When searching for context, AI can leverage both working memory (`sequential_thoughts_v1`) and the rich contextual information stored in `chat_history_v1` and `codebase_v1`.
+
+This integration enables a more comprehensive understanding of the development process, where explicit reasoning steps can be linked to actual code changes and conversations:
+
+```mermaid
+graph LR
+    A[Thinking Session] -- references --> B[Chat History Entry]
+    B -- modifies --> C[Code Chunk]
+    A -- reasons about --> C
+    D[AI Assistant] -- queries --> A
+    D -- queries --> B
+    D -- queries --> C
+    
+    subgraph "ChromaDB Collections"
+        A["sequential_thoughts_v1"]
+        B["chat_history_v1"]
+        C["codebase_v1"]
+    end
+```
+
 ## Embedding Models
 
 The Chroma MCP Server relies on embedding models to represent text data (documents, thoughts) as numerical vectors. These vectors capture the semantic meaning of the text, enabling similarity searches.
@@ -91,29 +118,42 @@ graph LR
     F --> E;
 ```
 
+## Memory Integration for AI Assistants
+
+To use these thinking tools effectively, AI assistants should follow the memory integration guidelines defined in the `memory-integration-rule`. This rule helps AI assistants to:
+
+1. Check for previous thought threads and ensure continuity
+2. Structure complex reasoning across multiple messages
+3. Find and reference semantically similar past thoughts
+4. Synthesize knowledge across multiple thinking sessions
+5. Connect conceptual discussions with concrete code implementations
+6. Document conceptual evolution with clear markers
+
+For more details on how AI assistants should use these tools, see the [Memory Integration Rules](../rules/memory-integration-rules.md).
+
 ## The Thinking Tools (`thinking_tools.py`)
 
 These tools provide the interface to manage the working memory.
 
 ### 1. Recording Thoughts
 
-* **`mcp_chroma_test_chroma_sequential_thinking`**: Records a single thought.
+* **`#chroma_sequential_thinking`**: Records a single thought.
   * **Key Params:** `thought` (content), `thought_number`, `total_thoughts`, `session_id` (optional, generated if empty).
   * **Functionality:** Embeds the `thought` content and stores it along with metadata (session, sequence number, timestamp) in the `sequential_thoughts_v1` collection. Returns the `session_id` and generated `thought_id`.
 * **Branches:** Allows creating alternative thought sequences within a session using `branch_id` and `branch_from_thought`.
 
 ### 2. Retrieving Thoughts (Semantic Search)
 
-* **`mcp_chroma_test_chroma_find_similar_thoughts`**: Finds thoughts semantically similar to a query.
+* **`#chroma_find_similar_thoughts`**: Finds thoughts semantically similar to a query.
   * **Key Params:** `query` (text to search for), `session_id` (optional filter), `n_results`, `threshold` (similarity cutoff), `include_branches`.
   * **Functionality:** Embeds the `query`, searches the `sequential_thoughts_v1` collection for thoughts with similar embeddings (within the optional session and branch constraints), filters by the similarity `threshold`, and returns the matching thoughts (content, metadata, similarity score).
 
 ### 3. Retrieving Sessions
 
-* **`mcp_chroma_test_chroma_get_session_summary`**: Retrieves all thoughts recorded for a specific `session_id`.
+* **`#chroma_get_session_summary`**: Retrieves all thoughts recorded for a specific `session_id`.
   * **Key Params:** `session_id`, `include_branches`.
   * **Functionality:** Fetches all thoughts matching the `session_id` (optionally filtering branches), sorts them by `thought_number`, and returns the complete sequence.
-* **`mcp_chroma_test_chroma_find_similar_sessions`**: Finds sessions whose overall content is semantically similar to a query.
+* **`#chroma_find_similar_sessions`**: Finds sessions whose overall content is semantically similar to a query.
   * **Key Params:** `query`, `n_results`, `threshold`.
   * **Functionality:** (Requires pre-computation or a separate `thinking_sessions` collection). Embeds the `query` and searches for sessions (represented by aggregated embeddings or summaries stored separately) that are semantically similar. Returns matching `session_id`s and similarity scores.
 
@@ -157,5 +197,6 @@ sequenceDiagram
 * **Code Snippet Search:** "Find the code snippet where we handled database connections." -> `find_similar_thoughts`
 * **Session Review:** "Summarize the key steps taken in session Z." -> `get_session_summary`
 * **Cross-Session Learning:** "Find other sessions where we discussed authentication." -> `find_similar_sessions` (if implemented)
+* **Reasoning with Enhanced Context:** "Analyze this code pattern, considering the context from our previous discussions and code changes." -> Combined approach using `find_similar_thoughts` and queries across `chat_history_v1` and `codebase_v1`
 
 By using these tools, AI assistants can maintain a more continuous understanding of the development process, leading to more relevant suggestions, fewer repeated questions, and a smoother workflow for the developer.

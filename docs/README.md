@@ -13,12 +13,19 @@ Welcome to the Chroma MCP Server documentation. This guide provides comprehensiv
 - [Docker](#docker)
 - [Logging](#logging)
 - [Working Memory](#working-memory)
+- [Enhanced Context Capture](usage/enhanced_context_capture.md)
+- [Semantic Code Chunking](usage/semantic_chunking.md)
+- [Automated Chat Logging](integration/automated_chat_logging.md)
+- [Memory Integration](rules/memory-integration-rules.md)
 
 ## Overview
 
 The Chroma MCP Server allows you to connect AI applications with Chroma through the Model Context Protocol. Beyond standard MCP interactions, this implementation emphasizes creating a persistent, automatically updated "Second Brain" for development by integrating:
 
 - **Automated Codebase Indexing:** Tools and configurations (like Git hooks calling a dedicated `chroma-mcp-client`) enable automatic indexing of code changes into a designated Chroma collection.
+- **Semantic Code Chunking:** The system preserves logical code structures (functions, classes) when creating chunks, ensuring more meaningful context retrieval.
+- **Enhanced Context Capture:** Automatically extracts rich contextual information from code changes including diffs, tool sequences, and modification types.
+- **Bidirectional Linking:** Creates navigable connections between chat discussions and code changes, allowing tracing of feature evolution.
 - **Automated Chat Logging:** IDE rules (like `auto_log_chat` for Cursor) facilitate automatic summarization and logging of AI chat interactions into a separate Chroma collection.
 - **Working Memory Tools:** Specialized MCP commands for capturing and retrieving structured thoughts and development context.
 
@@ -28,8 +35,10 @@ This enables AI models to:
 - Perform semantic search on vector data
 - Manage collections of embeddings
 - Support RAG (Retrieval Augmented Generation) workflows
+- Track the evolution of code through discussions and modifications
+- Maintain context across multiple development sessions
 
-**Note on Ongoing Development:** The advanced features discussed in the "Second Brain" concept, particularly the later phases involving automated reinforcement learning and model fine-tuning (`Phase 2` and `Phase 3` of the `docs/refactoring/local_rag_pipeline_plan_v4.md`), are currently under active implementation. The foundational `Phase 1` features (automated indexing, chat logging, working memory) are largely complete and ready for use.
+**Current Implementation Status:** The foundational features of the "Second Brain" concept (Phase 1 in `docs/refactoring/local_rag_pipeline_plan_v4.md`) have been largely implemented, including automated indexing with semantic chunking, enhanced chat logging with rich context capture, bidirectional linking, working memory, and derived learnings promotion. The CLI tools for analysis and promotion are being enhanced to fully leverage this rich metadata. More advanced features (Phases 2 and 3) involving LoRA fine-tuning and automated reinforcement learning are under active development.
 
 ## Installation
 
@@ -255,6 +264,33 @@ Log levels and directories are configurable through environment variables. See t
 ## Working Memory
 
 This server includes specialized tools for creating a persistent, searchable "working memory" to aid AI development workflows. Learn more about how these tools leverage embeddings to manage context across sessions in the **[Embeddings and Thinking Tools Guide](thinking_tools/embeddings_and_thinking.md)**.
+
+## Key Enhanced Features
+
+### Enhanced Context Capture
+
+The system automatically extracts rich contextual information when AI interactions modify code, including:
+
+- Code snippets before and after changes (preserving context)
+- Detailed diff summaries highlighting what was actually modified
+- Tool sequences used during the interaction (e.g., read_file→edit_file→run_terminal_cmd)
+- Confidence scores to help identify high-value interactions
+- Classification of modification types (refactor/bugfix/feature/documentation)
+
+See the [Enhanced Context Capture Guide](usage/enhanced_context_capture.md) for details.
+
+### Bidirectional Linking
+
+The system creates and maintains navigable connections between:
+
+- Chat interactions that modify code and the affected code chunks
+- Code chunks and the discussions that created or modified them
+
+This allows tracing feature evolution across both domains, providing deeper context for AI and developers. See the [Automated Chat Logging Guide](integration/automated_chat_logging.md) for implementation details.
+
+### Semantic Code Chunking
+
+Rather than using fixed-size chunks, the system preserves logical code structures (functions, classes, methods) when indexing code, ensuring more meaningful context retrieval. See the [Semantic Chunking Guide](usage/semantic_chunking.md) for more information.
 
 ## Additional Resources
 

@@ -13,6 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import uuid
 import time
+import json
 
 # Get our specific logger
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 from .connection import get_client_and_ef
 from .indexing import index_file, index_git_files
 from .analysis import analyze_chat_history  # Import the new function
+from .auto_log_chat_impl import log_chat_to_chroma  # Import the chat logging function
 
 # Import from utils to set the main logger
 from chroma_mcp.utils import set_main_logger, BASE_LOGGER_NAME as UTILS_BASE_LOGGER_NAME
@@ -260,6 +262,49 @@ def main():
         "--chat-collection-name",
         default="chat_history_v1",
         help="Name of the chat history collection to update status if source ID is provided.",
+    )
+
+    # --- Log Chat Subparser ---
+    log_chat_parser = subparsers.add_parser(
+        "log-chat",
+        help="Log chat interaction with enhanced context to ChromaDB.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    log_chat_parser.add_argument(
+        "--prompt-summary",
+        required=True,
+        help="Summary of the user's prompt/question.",
+    )
+    log_chat_parser.add_argument("--response-summary", required=True, help="Summary of the AI's response/solution.")
+    log_chat_parser.add_argument(
+        "--raw-prompt",
+        help="Full text of the user's prompt.",
+    )
+    log_chat_parser.add_argument(
+        "--raw-response",
+        help="Full text of the AI's response.",
+    )
+    log_chat_parser.add_argument(
+        "--tool-usage-file",
+        help="JSON file containing tool usage information.",
+    )
+    log_chat_parser.add_argument(
+        "--file-changes-file",
+        help="JSON file containing information about file changes.",
+    )
+    log_chat_parser.add_argument(
+        "--involved-entities",
+        help="Comma-separated list of entities involved in the interaction.",
+        default="",
+    )
+    log_chat_parser.add_argument(
+        "--session-id",
+        help="Session ID for the interaction (UUID). Generated if not provided.",
+    )
+    log_chat_parser.add_argument(
+        "--collection-name",
+        default="chat_history_v1",
+        help="Name of the ChromaDB collection to log to.",
     )
 
     args = parser.parse_args()
@@ -534,6 +579,43 @@ def main():
         else:
             logger.error("'promote-learning' command failed. See previous logs for details.")
             sys.exit(1)  # Exit if the promotion function indicated failure by returning None
+
+    elif args.command == "log-chat":
+        logger.info("Executing 'log-chat' command...")
+        try:
+            # Parse tool usage from file if provided
+            tool_usage = []
+            if args.tool_usage_file:
+                with open(args.tool_usage_file, "r") as f:
+                    tool_usage = json.load(f)
+                logger.debug(f"Loaded tool usage from {args.tool_usage_file}: {len(tool_usage)} tools")
+
+            # Parse file changes from file if provided
+            file_changes = []
+            if args.file_changes_file:
+                with open(args.file_changes_file, "r") as f:
+                    file_changes = json.load(f)
+                logger.debug(f"Loaded file changes from {args.file_changes_file}: {len(file_changes)} files")
+
+            # Call the implementation
+            chat_id = log_chat_to_chroma(
+                chroma_client=client,  # Use the initialized client
+                prompt_summary=args.prompt_summary,
+                response_summary=args.response_summary,
+                raw_prompt=args.raw_prompt or args.prompt_summary,
+                raw_response=args.raw_response or args.response_summary,
+                tool_usage=tool_usage,
+                file_changes=file_changes,
+                involved_entities=args.involved_entities,
+                session_id=args.session_id,
+            )
+
+            logger.info(f"'log-chat' command finished. Chat ID: {chat_id}")
+            print(f"Chat history logged successfully with ID: {chat_id}")
+        except Exception as e:
+            logger.error(f"An error occurred during chat history logging: {e}", exc_info=True)
+            print(f"Error during logging: {e}")
+            sys.exit(1)
 
     else:
         logger.error(f"Unknown command: {args.command}")

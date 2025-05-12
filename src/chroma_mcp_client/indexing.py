@@ -6,6 +6,9 @@ import logging
 from pathlib import Path
 from typing import Set, List, Tuple, Optional
 import os
+import glob
+import re
+import uuid
 
 # Explicitly configure logger for this module to ensure DEBUG messages are shown when configured
 logger = logging.getLogger(__name__)
@@ -102,6 +105,140 @@ def chunk_file_content(content: str, lines_per_chunk: int = 40, line_overlap: in
 
     # Filter out chunks that might be empty after join if they only contained empty lines
     return [c for c in chunks_with_pos if c[0].strip()]
+
+
+def chunk_file_content_semantic(
+    content: str, file_path: Path, lines_per_chunk: int = 40, line_overlap: int = 5
+) -> List[Tuple[str, int, int]]:
+    """
+    Chunks content using semantic boundaries when possible.
+
+    For code files, tries to chunk along class and function boundaries.
+    Falls back to line-based chunking when semantic chunking is not suitable.
+
+    Args:
+        content: File content to chunk
+        file_path: Path to the file (used to determine file type)
+        lines_per_chunk: Max lines per chunk for fallback chunking
+        line_overlap: Line overlap for fallback chunking
+
+    Returns:
+        List of tuples: (chunk_text, start_line_idx (0-based), end_line_idx (0-based, inclusive))
+    """
+    lines = content.splitlines()
+    if not lines:
+        return []
+
+    suffix = file_path.suffix.lower()
+
+    # Check if we should use semantic chunking based on file type
+    if suffix in (".py", ".js", ".ts", ".java", ".c", ".cpp", ".cs", ".go", ".php", ".rb"):
+        # Try semantic chunking for code files
+        chunks = _chunk_code_semantic(lines, suffix)
+
+        # If semantic chunking produced meaningful chunks, use those
+        if chunks and len(chunks) > 1:  # More than one chunk indicates successful semantic splitting
+            logger.debug(f"Using semantic chunking for {file_path}")
+            return chunks
+        else:
+            logger.debug(f"Semantic chunking not effective for {file_path}, falling back to line-based chunking")
+
+    # Fall back to standard line-based chunking
+    return chunk_file_content(content, lines_per_chunk, line_overlap)
+
+
+def _chunk_code_semantic(lines: List[str], file_type: str) -> List[Tuple[str, int, int]]:
+    """
+    Chunk code files based on semantic structure.
+
+    Args:
+        lines: List of code lines
+        file_type: File extension to determine language
+
+    Returns:
+        List of tuples: (chunk_text, start_line_idx, end_line_idx)
+    """
+    chunks = []
+
+    # Basic patterns for common code constructs
+    class_pattern = re.compile(r"^\s*(class|interface|struct)\s+\w+")
+    function_pattern = re.compile(
+        r"^\s*(def|function|func|public|private|protected|static|void|int|float|double|String)\s+\w+\s*\("
+    )
+
+    # Python-specific function pattern
+    py_function_pattern = re.compile(r"^\s*(?:async\s+)?def\s+\w+\s*\(")
+
+    # JavaScript/TypeScript patterns
+    js_function_pattern = re.compile(
+        r"^\s*(?:async\s+)?(?:function\s+\w+|\w+\s*=\s*(?:async\s+)?function|\w+\s*=\s*\(.*\)\s*=>|(?:async\s+)?\(.*\)\s*=>)"
+    )
+    js_class_method_pattern = re.compile(r"^\s*(?:async\s+)?\w+\s*\(.*\)")
+
+    # Find semantic boundaries
+    boundaries = []
+    in_docstring = False
+
+    for i, line in enumerate(lines):
+        # Skip doc comments
+        if file_type == ".py":
+            if line.strip().startswith('"""') or line.strip().startswith("'''"):
+                in_docstring = not in_docstring
+                continue
+            if in_docstring:
+                continue
+
+        # Check for class/module-level constructs
+        if class_pattern.match(line):
+            boundaries.append(i)
+
+        # Check for function definitions based on language
+        if file_type == ".py" and py_function_pattern.match(line):
+            boundaries.append(i)
+        elif file_type in (".js", ".ts") and (js_function_pattern.match(line) or js_class_method_pattern.match(line)):
+            boundaries.append(i)
+        elif function_pattern.match(line):
+            boundaries.append(i)
+
+    if not boundaries:
+        return []
+
+    # Add start and end boundaries
+    boundaries = [0] + boundaries + [len(lines)]
+    boundaries = sorted(set(boundaries))  # Remove duplicates and sort
+
+    # Create chunks from boundaries
+    for i in range(len(boundaries) - 1):
+        start_line = boundaries[i]
+        end_line = boundaries[i + 1] - 1  # -1 because end is inclusive
+
+        # If chunk is empty or too small, skip
+        if end_line < start_line:
+            continue
+
+        chunk_text = "\n".join(lines[start_line : end_line + 1])
+        if not chunk_text.strip():
+            continue
+
+        chunks.append((chunk_text, start_line, end_line))
+
+    # If we have only one very large chunk, split it further using line-based chunking
+    MAX_LINES_PER_SEMANTIC_CHUNK = 100
+    result_chunks = []
+
+    for chunk_text, start_line, end_line in chunks:
+        chunk_lines = chunk_text.splitlines()
+
+        # If chunk is too big, split it
+        if len(chunk_lines) > MAX_LINES_PER_SEMANTIC_CHUNK:
+            sub_chunks = chunk_file_content(chunk_text, MAX_LINES_PER_SEMANTIC_CHUNK, 5)
+            # Adjust line numbers to be relative to the whole file
+            for sub_text, sub_start, sub_end in sub_chunks:
+                result_chunks.append((sub_text, start_line + sub_start, start_line + sub_end))
+        else:
+            result_chunks.append((chunk_text, start_line, end_line))
+
+    return result_chunks
 
 
 def index_file(
@@ -277,19 +414,21 @@ def index_file(
             logger.error(f"Unexpected error getting collection '{collection_name}': {get_e}", exc_info=True)
             return False
 
-        # Chunk the content
-        # TODO: Make chunking parameters configurable
-        chunks = chunk_file_content(content, lines_per_chunk=40, line_overlap=5)
-        if not chunks:
-            logger.info(f"No valid content chunks generated for file: {relative_path}")
-            return False  # Return False, but file itself wasn't an error
+        # Now chunk the file content using semantic boundaries when possible
+        chunks_with_pos = chunk_file_content_semantic(content, file_path)
+        if not chunks_with_pos:
+            logger.info(f"No meaningful chunks extracted from {file_path}")
+            return False
+
+        # Log info about chunking
+        logger.debug(f"Split {file_path} into {len(chunks_with_pos)} chunks")
 
         ids_list = []
         metadatas_list = []
         documents_list = []
         chunk_count = 0
 
-        for chunk_index, (chunk_text, start_line, end_line) in enumerate(chunks):
+        for chunk_index, (chunk_text, start_line, end_line) in enumerate(chunks_with_pos):
             # Generate chunk_id: relative_path:commit_sha:chunk_index
             chunk_id = f"{relative_path}:{commit_sha}:{chunk_index}"
 

@@ -135,6 +135,47 @@ chroma-client analyze-chat-history --days-limit 30
 chroma-client analyze-chat-history --repo-path /path/to/other/repo --status-filter pending --new-status correlated
 ```
 
+#### `log-chat`
+
+Log a chat interaction with enhanced context to ChromaDB, capturing rich metadata about the interaction, file changes, and tool usage.
+
+```bash
+chroma-client log-chat [OPTIONS]
+```
+
+**Options:**
+
+- `--prompt-summary TEXT`: (Required) Summary of the user's prompt/question.
+- `--response-summary TEXT`: (Required) Summary of the AI's response/solution.
+- `--raw-prompt TEXT`: Full text of the user's prompt. Falls back to prompt summary if not provided.
+- `--raw-response TEXT`: Full text of the AI's response. Falls back to response summary if not provided.
+- `--tool-usage-file PATH`: Path to JSON file containing tool usage information.
+- `--file-changes-file PATH`: Path to JSON file containing information about file changes.
+- `--involved-entities TEXT`: Comma-separated list of entities involved in the interaction (e.g., file paths, function names).
+- `--session-id UUID`: Session ID for the interaction. Generated as a new UUID if not provided.
+- `--collection-name NAME`: Name of the ChromaDB collection to log to. Default: `chat_history_v1`.
+
+**Examples:**
+
+```bash
+# Basic usage with only required parameters
+chroma-client log-chat --prompt-summary "How to fix the login bug" --response-summary "Fixed the login issue by updating authentication flow"
+
+# Complete usage with all parameters
+chroma-client log-chat \
+  --prompt-summary "How to fix the login bug" \
+  --response-summary "Fixed the login issue by updating authentication flow" \
+  --raw-prompt "I'm having issues with users not being able to log in. Can you help fix it?" \
+  --raw-response "The issue is in auth.js where the token validation is incorrect. I've updated the code to properly validate tokens." \
+  --tool-usage-file tools.json \
+  --file-changes-file changes.json \
+  --involved-entities "auth.js,login.js,authentication,validation" \
+  --session-id "3e4r5t6y-7u8i-9o0p-a1s2-d3f4g5h6j7k8" \
+  --collection-name "custom_chat_history"
+```
+
+The captured information is stored in the specified ChromaDB collection with rich metadata to enable future retrieval, correlation with code changes, and learning from past interactions.
+
 #### `update-collection-ef`
 
 Updates the embedding function name stored in a specific collection's metadata.

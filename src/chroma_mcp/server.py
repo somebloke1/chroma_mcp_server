@@ -80,6 +80,9 @@ from .tools.thinking_tools import (
     FindSimilarSessionsInput,
 )
 
+# Import our new LogChatInput model
+from .tools.auto_log_chat_bridge import LogChatInput
+
 # Import all _impl functions
 from .tools.collection_tools import (
     _create_collection_impl,
@@ -115,6 +118,9 @@ from .tools.thinking_tools import (
     _get_session_summary_impl,
     _find_similar_sessions_impl,
 )
+
+# Import our log_chat implementation
+from .tools.auto_log_chat_bridge import mcp_log_chat, _log_chat_impl
 
 # Add this near the top of the file, after imports but before any other code
 CHROMA_AVAILABLE = False
@@ -385,6 +391,7 @@ TOOL_NAMES = {
     "GET_VERSION": "chroma_get_server_version",
     "UPDATE_DOC_CONTENT": "chroma_update_document_content",
     "UPDATE_DOC_META": "chroma_update_document_metadata",
+    "LOG_CHAT": "chroma_log_chat",
 }
 
 # Pydantic models mapping
@@ -418,6 +425,7 @@ INPUT_MODELS = {
     TOOL_NAMES["UPDATE_DOC_CONTENT"]: UpdateDocumentContentInput,
     TOOL_NAMES["UPDATE_DOC_META"]: UpdateDocumentMetadataInput,
     TOOL_NAMES["GET_VERSION"]: None,  # GET_VERSION has no input model
+    TOOL_NAMES["LOG_CHAT"]: LogChatInput,
 }
 
 # Tool implementation function mapping
@@ -451,6 +459,7 @@ IMPL_FUNCTIONS = {
     TOOL_NAMES["UPDATE_DOC_CONTENT"]: _update_document_content_impl,
     TOOL_NAMES["UPDATE_DOC_META"]: _update_document_metadata_impl,
     TOOL_NAMES["GET_VERSION"]: None,  # GET_VERSION needs a simple handler
+    TOOL_NAMES["LOG_CHAT"]: _log_chat_impl,
 }
 
 
@@ -610,6 +619,11 @@ async def list_tools() -> List[types.Tool]:
                 "properties": {},
                 "required": [],
             },
+        ),
+        types.Tool(
+            name=TOOL_NAMES["LOG_CHAT"],
+            description="Log chat interaction with enhanced context for future retrieval and bidirectional linking. Requires prompt and response summaries plus optional context.",
+            inputSchema=INPUT_MODELS[TOOL_NAMES["LOG_CHAT"]].model_json_schema(),
         ),
     ]
     # Add debug log

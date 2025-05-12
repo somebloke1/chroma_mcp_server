@@ -818,6 +818,80 @@ A JSON object containing similar sessions and their summaries.
 }
 ```
 
+### `chroma_log_chat`
+
+Log chat interaction with enhanced context for future retrieval and bidirectional linking with code.
+
+#### Parameters for chroma_log_chat
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `prompt_summary` | string | Yes | Summary of the user's prompt/question |
+| `response_summary` | string | Yes | Summary of the AI's response/solution |
+| `raw_prompt` | string | No | Full text of the user's prompt |
+| `raw_response` | string | No | Full text of the AI's response |
+| `tool_usage` | array | No | List of tools used during the interaction |
+| `file_changes` | array | No | List of files modified with before/after content |
+| `involved_entities` | string | No | Comma-separated string of entities involved in the interaction (e.g., file paths, function names) |
+| `session_id` | string | No | Session ID for the interaction (UUID). Generated if not provided |
+| `collection_name` | string | No | Name of the ChromaDB collection to log to (default: "chat_history_v1") |
+| `modification_type` | string | No | Type of change (refactor, bugfix, feature, etc.) |
+| `confidence_score` | float | No | Confidence in the value of the interaction (0.0-1.0) |
+| `code_context` | object | No | JSON object containing before/after code snippets of modified files |
+| `diff_summary` | string | No | Concise description of the code changes made |
+| `tool_sequence` | string | No | Sequence of tools used in the interaction (e.g., "read_file→edit_file") |
+| `related_code_chunks` | array | No | References to chunk_ids from codebase_v1 that were modified |
+
+#### Returns from chroma_log_chat
+
+A JSON object containing:
+
+- `success`: Boolean indicating whether the operation was successful
+- `chat_id`: ID of the created chat document if successful
+- `error`: Error message if unsuccessful
+- `bidirectional_links`: Information about established connections between chat entry and code chunks
+
+#### Bidirectional Linking
+
+When code changes are included, the tool automatically:
+
+1. Identifies the relevant code chunks that were modified
+2. Updates the chat entry's `related_code_chunks` field with references to those chunks
+3. Updates each code chunk's `related_chat_ids` metadata to include this chat ID
+4. Creates a navigable history between discussions and code changes
+
+This bidirectional linking enables powerful capabilities:
+
+- Finding all discussions related to a specific code file or function
+- Seeing all code affected by a particular discussion
+- Tracing the evolution of a feature or fix across multiple conversations
+
+#### Example for chroma_log_chat
+
+```json
+{
+  "prompt_summary": "Update API documentation for log-chat command",
+  "response_summary": "Added comprehensive documentation for log-chat in API reference",
+  "raw_prompt": "Please update the documentation to include log-chat command...",
+  "raw_response": "I've updated the API reference with detailed information...",
+  "tool_usage": [
+    {"name": "read_file", "args": {"path": "docs/api_reference.md"}},
+    {"name": "edit_file", "args": {"path": "docs/api_reference.md"}}
+  ],
+  "file_changes": [
+    {
+      "file_path": "docs/api_reference.md",
+      "before_content": "... original content ...",
+      "after_content": "... modified content ..."
+    }
+  ],
+  "involved_entities": "docs/api_reference.md,log-chat,documentation",
+  "modification_type": "documentation",
+  "confidence_score": 0.85,
+  "tool_sequence": "read_file→edit_file"
+}
+```
+
 ---
 
 ## Error Handling

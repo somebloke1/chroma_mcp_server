@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
 # Memory Integration with Previous Thoughts and Concepts
 
 **Description:** These rules guide how the AI should leverage previous thoughts and conceptual discussions, especially when there are no file modifications but there is valuable conceptual thinking being developed.

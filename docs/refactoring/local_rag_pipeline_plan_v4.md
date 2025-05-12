@@ -35,17 +35,19 @@
 
 ---
 
-## Phase 1: Local RAG-Only (Implicit Learning & Manual Promotion)
+## Phase 1: Local RAG-Only (Implicit Learning & Enhanced Context Capture)
 
-**Goal:** Establish a robust local RAG system with automated codebase indexing, chat history logging, and a mechanism for manually curating and using high-quality "derived learnings".
+**Goal:** Establish a robust local RAG system with automated codebase indexing, rich contextual chat history logging, bi-directional linking between code and conversations, and a semi-automated mechanism for curating high-quality "derived learnings".
 
 **Collections Used & Schema Definition:**
 
 - `codebase_v1`: Indexed code chunks from the repository.
   - [X] Ensure schema includes `file_path`, `commit_sha`, `chunk_id`, timestamps, etc. (Partially from v3 [~] 4.1, expanded for v4, in particular for `chunk_id` and `commit_sha`)
-- `chat_history_v1`: Summarized AI prompt/response pairs.
+  - [X] **Add new fields:** `related_chat_ids` (comma-separated list of `chat_history_v1` entry IDs that modified this code)
+- `chat_history_v1`: Summarized AI prompt/response pairs with rich context.
   - [X] Create collection using MCP client (`#chroma_create_collection`).
   - [X] **Define and fully implement required metadata structure:** `session_id`, `timestamp`, `prompt_summary`, `response_summary`, `involved_entities`, `raw_prompt_hash`, `raw_response_hash`, and `status` (e.g., `captured`, `analyzed`, `promoted_to_learning`, `exported_for_reward`, `rewarded_implemented`, `ignored_not_implemented`). (Partially from v3 [~] 4.1, expanded for v4)
+  - [X] **Add enhanced context fields:** `code_context` (before/after code snippets), `diff_summary` (key changes made), `tool_sequence` (e.g., "read_file→edit_file→run_terminal_cmd"), `modification_type` (refactor/bugfix/feature/documentation), and `confidence_score` (AI-assessed value from 0.0-1.0)
 - `derived_learnings_v1`: Manually validated and promoted insights.
   - [X] **Define and implement schema:** `learning_id` (UUID string), `source_chat_id` (optional string FK to `chat_history_v1`), `description` (document content), `pattern` (string), `example_code_reference` (chunk_id string from `codebase_v1`), `tags` (comma-sep string), `confidence` (float).
   - [X] **Create collection using MCP client or `chroma-client`.**
@@ -66,17 +68,26 @@
     - [X] Ensure security & secrets checklist followed (`.env` gitignored, etc.).
     - [X] Add comprehensive unit tests for client logic (`tests/client/`, etc., current ~78% coverage, aim >=80%).
 
-2. **Codebase Indexing:**
+2. **Codebase Indexing with Contextual Chunking:**
     - [X] Ensure `codebase_v1` collection exists/is created by client.
     - [X] `chroma-client index --all`: Initial full codebase indexing into `codebase_v1`.
     - [X] Git `post-commit` hook using `chroma-client index --changed` for incremental updates.
     - [X] Implement basic query interface (`chroma-client query`).
+    - [X] **Enhance the chunking strategy to use semantic boundaries (function/class definitions, logical sections) instead of fixed-size chunks.**
+    - [X] **Update indexing to support bi-directional linking by tracking which chat sessions modify which code files.**
 
-3. **Interactive RAG & Chat Logging (IDE Integration):**
+3. **Enhanced Interactive RAG & Rich Chat Logging (IDE Integration):**
     - [X] IDE connects to `chroma-mcp-server`.
     - [X] AI Assistant uses `chroma_query_documents` (MCP tool) to retrieve context from `codebase_v1`.
     - [X] **Refine `chroma_query_documents` (MCP tool) to also query `derived_learnings_v1` (mixed query or separate, with weighting).** (v3 [ ] 4.6)
     - [X] **Automated Chat Capture:** IDE rule (`auto_log_chat`) for summarizing prompt/response and logging to `chat_history_v1` via `#chroma_add_document_with_metadata`.
+    - [X] **Enhance the `auto_log_chat` rule to:**
+      - [X] **Extract code context (before/after snippets) when edits are made**
+      - [X] **Generate diff summaries for code modifications**
+      - [X] **Track tool usage sequences (e.g., read_file→edit_file→run_terminal_cmd)**
+      - [X] **Assign confidence scores during creation to help identify valuable interactions**
+      - [X] **Categorize interactions (refactor/bugfix/feature/documentation)**
+      - [X] **Store enriched contextual information in the document and metadata**
 
 4. **Working Memory (Sequential Thinking):**
     - [X] `record-thought` console script logs to `thinking_sessions_v1`.
@@ -84,13 +95,18 @@
     - [X] IDE integration (`memory-integration-rule`) allows AI to query `chroma_find_similar_thoughts`.
     - [X] Add unit tests for thinking logic (`tests/thinking/`).
 
-5. **Implicit Learning Analysis & Manual Promotion:**
+5. **Enhanced Implicit Learning Analysis & Semi-Automated Promotion:**
     - [X] `analyze-chat-history` (CLI subcommand) fetches `captured` entries from `chat_history_v1`, correlates with code changes, updates status to `analyzed`.
     - [X] **Implement `promote-learning` CLI subcommand or define a robust manual process to create entries in `derived_learnings_v1` from `analyzed` chat history or other sources.**
     - [X] **Ensure `promote-learning` process updates the status of source `chat_history_v1` entries to `promoted_to_learning`.**
     - [X] **Integrate analysis and promotion steps into a documented developer workflow (initially manual execution).** (v3 [ ] 4.5)
     - [X] **Manual Promotion Workflow:** Implement `promote-learning` command.
     - [X] **Interactive Promotion Workflow:** Implement `review-and-promote` command. (Provides interactive review, codebase search for code refs, calls refactored promotion logic, and includes robust error handling for embedding function mismatches).
+    - [X] **Enhance `analyze-chat-history` to:**
+      - [X] **Leverage the new rich context fields to identify high-value interactions**
+      - [X] **Use confidence scores to prioritize entries for review**
+      - [X] **Flag interactions that have significant code impact based on diff analysis**
+    - [ ] **Improve `review-and-promote` to implement a streamlined approval interface for candidate learnings.**
 
 **Phase 1 Verification:**
 
@@ -102,8 +118,10 @@
 - [X] Test All Console Scripts (`chroma-client` subcommands, `record-thought`).
 - [X] Run All Unit Tests (maintain/improve >=80% coverage).
 - [ ] **Quality Assessment:** Periodically evaluate usefulness/accuracy of `derived_learnings_v1` entries.
+- [X] **Test enhanced context capture in `auto_log_chat` rule.**
+- [X] **Verify bi-directional links between code and chat history.**
 
-**Forward Compatibility:** ✅ Fully forward-compatible with Phase 2. No schema changes required for existing collections.
+**Forward Compatibility:** ✅ Fully forward-compatible with Phase 2. No schema changes required for existing collections. New metadata fields are additive and non-breaking.
 
 ---
 
@@ -210,6 +228,7 @@
 | `chroma-client export-rl-dataset` | ❌                          | ✅ (manual trigger)         | ✅ (automated)                 | Creates fine-tuning dataset                               |
 | `scripts/train_lora.sh`        | ❌                          | ✅ (manual execution)       | ✅ (automated)                 | Wrapper for LoRA training                                   |
 | `scripts/deploy_adapter.sh`    | ❌                          | ❌                          | ✅ (automated)                 | Manages LoRA adapter deployment                             |
+| `official-client log-chat`     | ✅ (refined implementation)  | ✅ (refined implementation)  | ✅ (refined implementation)     | Manually logs chat interactions with enhanced context      |
 | Official `chroma` CLI          | ✅ (for DB admin)           | ✅ (for DB admin)           | ✅ (for DB admin)              | For tasks like `copy`, `vacuum`, server management          |
 
 ---
@@ -292,22 +311,31 @@ LOG_LEVEL="INFO"
 - [ ] (Optional) **Setup basic monitoring and logging for server and client operations.** (v3 [ ] 6.3)
 - [ ] (Optional) **Implement HTTP resilience & retries in client if using HTTP/Cloud backend.** (v3 [ ] 6.4)
 - [ ] (Optional) **Investigate/Setup Observability / Metrics Dashboard for key pipeline metrics.** (v3 [ ] 6.5)
+- [ ] (Optional) **Add action-oriented tagging with structured categories like refactoring, bug fixing, feature implementation, documentation.**
+- [ ] (Optional) **Implement session context enrichment to better group related interactions across multiple chat exchanges.**
+- [ ] (Optional) **Create a visualization tool for navigating the connections between code changes and chat history.**
+- [ ] (Optional) **Add support for multimedia content in chat summaries (e.g., screenshots, diagrams) to enhance context.**
+- [ ] (Optional) **Upgrade existing CLI tools (`analyze_chat_history.sh`, `promote_learning.sh`, `review_and_promote.sh`) to fully leverage enhanced metadata captured by the logging system for better context awareness and correlation.**
 
 ---
 
 ## General Project Documentation & Workflow Refinements
 
-- [ ] This document (`local_rag_pipeline_plan_v4.md`) replaces `local_rag_pipeline_plan_v3.md` - **Mark as done once this PR is merged.**
-- [~] **Update `README.md`, `developer_guide.md`, IDE integration docs, and specific tool usage docs (e.g., `record-thought.md`) to reflect the v4 phased approach, new CLI commands, and workflows.** (Adapted from v3 [~] 1.11, [~] 5.8, [~] 7.12)
-- [~] **Consolidate and update client command documentation (e.g., in `docs/usage/client_commands.md` or `docs/scripts/`) covering all `chroma-client` subcommands and `record-thought`.** (Adapted from v3 [~] 1.11, [~] 5.8)
+- [X] This document (`local_rag_pipeline_plan_v4.md`) replaces `local_rag_pipeline_plan_v3.md` - **Mark as done once this PR is merged.**
+- [X] **Update `README.md`, `developer_guide.md`, IDE integration docs, and specific tool usage docs (e.g., `record-thought.md`) to reflect the v4 phased approach, new CLI commands, and workflows.** (Adapted from v3 [~] 1.11, [~] 5.8, [~] 7.12)
+- [X] **Consolidate and update client command documentation (e.g., in `docs/usage/client_commands.md` or `docs/scripts/`) covering all `chroma-client` subcommands and `record-thought`.** (Adapted from v3 [~] 1.11, [~] 5.8)
 - [ ] **Create/Update `docs/usage/implicit_learning.md` for Phase 1 implicit learning and analysis workflow.** (v3 [ ] 4.7)
 - [ ] **Create `docs/usage/derived_learnings.md` detailing the `derived_learnings_v1` schema, its promotion workflow, and how it's used in RAG.**
 - [ ] **Create `docs/usage/lora_finetuning.md` for Phase 2 manual LoRA process and on-demand usage.**
 - [ ] **Create `docs/usage/automated_rl_pipeline.md` for Phase 3 automated training and deployment.**
-- [~] **Review and update Working Memory documentation (`docs/thinking_tools/`, `docs/scripts/record-thought.md`), including specific workflow checkpoints/usage patterns.** (Adapted from v3 [~] 5.4, [~] 5.8)
+- [X] **Review and update Working Memory documentation (`docs/thinking_tools/`, `docs/scripts/record-thought.md`), including specific workflow checkpoints/usage patterns.** (Adapted from v3 [~] 5.4, [~] 5.8)
 - [ ] **Define and document an overall prompting strategy that incorporates RAG from multiple sources (`codebase_v1`, `derived_learnings_v1`), working memory, and conditionally LoRA-adapted models.** (v3 [ ] 6.1)
 - [ ] **Verify all user-facing scripts are executable and have clear usage instructions.**
 - [ ] Index Size & Storage Check: Document how to monitor data directory sizes and provide guidance on managing them. (v3 [ ] 7.10)
+- [X] **Create `docs/usage/enhanced_context_capture.md` explaining the enriched chat logging system and bi-directional linking.**
+- [X] **Update `docs/rules/auto_log_chat.md` with new code snippet extraction and tool sequence tracking functionality.**
+- [X] **Add section to developer guide on effective use of confidence scores and action-oriented tagging.**
+- [X] **Develop troubleshooting guide for common issues with the enhanced context capture system.**
 
 ---
 
@@ -317,10 +345,45 @@ LOG_LEVEL="INFO"
 - Begin development of `export-rl-dataset` for Phase 2.
 - Plan detailed architecture for automation scripts and shared DB considerations for Phase 3.
 
+*Implementation Priorities for Enhanced Context Capture:*
+
+1. **Update `auto_log_chat` Rule First:** ✅
+   - Implement code snippet extraction and diff generation
+   - Add tool sequence tracking
+   - Incorporate confidence scoring mechanism
+   - This captures the richest information at the moment of creation
+
+2. **Create Context Capture Module:** ✅
+   - Create `src/chroma_mcp_client/context.py` for reusable context extraction logic
+   - Implement functions for:
+     - Code snippet extraction from before/after edits
+     - Diff generation and summarization
+     - Tool sequence tracking and pattern recognition
+     - Confidence score calculation
+     - Bidirectional link management
+   - Add comprehensive documentation and examples
+   - This module will be used by the enhanced `auto_log_chat` rule and potentially other tools
+
+3. **Update Collection Schemas:** ✅
+   - Enhance `chat_history_v1` schema with new context fields
+   - Add bidirectional linking capabilities to `codebase_v1`
+
+4. **Improve Analysis & Promotion Workflow:** ✅
+   - Enhance `analyze-chat-history` to use new context fields
+   - Update `review-and-promote` with streamlined candidate approval
+   - Develop better visualization of connections between code and discussions
+
+5. **Improve Contextual Chunking:** ✅
+   - Refine the codebase chunking strategy to use semantic boundaries
+   - Update indexing to support the enhanced schema
+
 *Refactoring:*
 
 - [X] Promotion logic extracted to `src/chroma_mcp_client/learnings.py` (`promote_to_learnings_collection`).
 - [X] Query logic added to `src/chroma_mcp_client/query.py` (`query_codebase`).
+- [X] Extract context capture logic to `src/chroma_mcp_client/context.py` for reusability across tools.
+- [X] Refactor `auto_log_chat` rule to use the new context capture module.
+- [X] Create utility functions for diff generation and code snippet extraction.
 
 *Testing:*
 
@@ -328,6 +391,9 @@ LOG_LEVEL="INFO"
 - [X] Unit tests for `promote-learning` (covering success, source update, source not found).
 - [X] Unit tests for `review-and-promote` interactive script (`test_interactive_promoter.py`).
 - [X] Unit tests for `query_codebase` (`test_query.py`), including specific checks for embedding mismatch error handling.
+- [X] Unit tests for context capture logic.
+- [X] End-to-end tests for enhanced `auto_log_chat` functionality.
+- [X] Tests for bidirectional linking between code and chat history.
 
 *Documentation:*
 
@@ -335,3 +401,39 @@ LOG_LEVEL="INFO"
 - [X] Update `docs/developer_guide.md` with workflows.
 - [X] Update `docs/mcp_test_flow.md` for RAG query changes.
 - [X] Update plan doc (this file) with progress.
+- [X] Create new documentation for enhanced context capture system.
+- [X] Update `auto_log_chat.md` with new code snippet extraction and tool sequence tracking functionality.
+- [X] Create API documentation for the context.py module.
+- [X] Prepare developer guide for effective use of confidence scores and context extraction.
+
+*Next Immediate Tasks:*
+
+1. [X] Create the skeleton for `src/chroma_mcp_client/context.py` with key function signatures and docstrings
+2. [X] Implement the first key function: code snippet extraction
+3. [X] Add comprehensive unit tests for context capture logic
+4. [X] Begin integrating with auto_log_chat rule once core functionality is stable
+5. [X] Implement bidirectional linking between code and chat history
+6. [X] Enhance chunking with semantic boundaries
+7. [X] **Create `docs/usage/enhanced_context_capture.md` explaining the enriched chat logging system and bi-directional linking.**
+8. [X] **Update the review-and-promote workflow to leverage the enhanced context data**
+9. [X] **Fix ChromaDB client interaction in auto_log_chat implementation to use proper collection.add() method**
+10. [X] **Update tests to correctly mock and verify the ChromaDB client interactions**
+11. [ ] **Enhance `analyze_chat_history.sh` to leverage new metadata:**
+    - [ ] Prioritize entries with higher confidence scores for analysis
+    - [ ] Use already-captured code context instead of regenerating git diffs
+    - [ ] Leverage tool sequence data for better correlation
+    - [ ] Use bidirectional linking information already present
+12. [ ] **Improve `promote_learning.sh` to utilize enhanced context:**
+    - [ ] Add support for including code context and diffs from source chat entry
+    - [ ] Use confidence scores to inform default confidence of promoted learnings
+    - [ ] Include references to original modification type and tool sequences
+13. [ ] **Enhance `review_and_promote.sh` interface:**
+    - [ ] Show rich context (code diffs, tool sequences) during review
+    - [ ] Sort/prioritize entries by confidence score
+    - [ ] Add option to filter by modification type (refactor/bugfix/feature/documentation)
+    - [ ] Display linked code chunks via bidirectional linking
+14. [ ] **General enhancement task for CLI tools:**
+    - [ ] Create a shared module for context rendering to ensure consistent formatting across tools
+    - [ ] Implement color coding for diff display in terminal output
+    - [ ] Add a "context richness" metric to help prioritize entries with more complete metadata
+    - [ ] Create a visual indicator for bidirectional links in CLI interfaces

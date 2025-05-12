@@ -17,7 +17,9 @@ Chroma MCP Server creates a persistent, searchable "working memory" for AI-assis
 Key features:
 
 - **Automated Codebase Indexing:** Track and index code changes
-- **Automated Chat Logging:** Log AI interactions for future reference
+- **Automated Chat Logging:** Log AI interactions with enhanced context capture (code diffs, tool sequences)
+- **Bidirectional Linking:** Connect discussions to code changes for tracing feature evolution
+- **Semantic Code Chunking:** Preserve logical code structures for more meaningful context retrieval
 - **Working Memory Tools:** MCP commands for capturing and retrieving development context
 
 See the [Getting Started with your Second Brain guide](docs/getting_started_second_brain.md) for more details.
@@ -71,6 +73,9 @@ Add or modify `.cursor/mcp.json` in your project root:
 
 ## Recent Improvements
 
+- **Enhanced Context Capture:** Automatically extracts code diffs, tool sequences, and assigns confidence scores
+- **Bidirectional Linking:** Creates navigable connections between chat discussions and code changes
+- **Semantic Code Chunking:** Uses logical boundaries (functions, classes) instead of fixed-size chunks
 - **Server-Side Timestamp Enforcement:** Ensures consistent timestamps across all collections
 - **Enhanced Logging System:** Per-execution log files prevent contamination of JSON communication in stdio mode
 - **Embedding Function Management:** Tools to update collection metadata when changing embedding functions
@@ -84,6 +89,9 @@ Comprehensive documentation is available in the [docs directory](docs/):
 - [Getting Started](docs/getting_started.md) - Detailed setup instructions
 - [Developer Guide](docs/developer_guide.md) - For contributors and developers
 - [Server Logging](docs/logging/server_logging.md) - Details on the improved logging system
+- [Enhanced Context Capture](docs/usage/enhanced_context_capture.md) - Details on code diff extraction and tool sequencing
+- [Semantic Code Chunking](docs/usage/semantic_chunking.md) - Logic-preserving code chunking for meaningful retrieval
+- [Automated Chat Logging](docs/integration/automated_chat_logging.md) - Enriched chat history with bidirectional linking
 - [API Reference](docs/api_reference.md) - Available MCP tools and parameters
 
 ## License
