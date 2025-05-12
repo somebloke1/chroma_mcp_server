@@ -16,6 +16,7 @@ import sys
 import logging
 import os
 import time
+import tempfile  # Add tempfile import
 
 from mcp.server import Server
 from mcp.server.lowlevel.server import NotificationOptions
@@ -25,12 +26,25 @@ from mcp.server.stdio import stdio_server
 # In stdio mode, we must ensure NO logs go to stdout or stderr to avoid corrupting JSON
 
 # 1. Create log directory if it doesn't exist
-# Use a relative path that's safe on all platforms including GitHub Actions
+# Use a temporary directory that's guaranteed to be writable
 log_dir = os.getenv("CHROMA_LOG_DIR")
-if not log_dir:
-    # If not set, use a directory relative to current working directory
-    log_dir = os.path.join(os.getcwd(), "logs")
-os.makedirs(log_dir, exist_ok=True)
+try:
+    if not log_dir:
+        # If not set, first try a relative path in current directory
+        log_dir = os.path.join(os.getcwd(), "logs")
+
+    # Try to create the directory, catch permission errors
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except (PermissionError, OSError):
+        # If there's a permission error, fall back to a system temp directory
+        log_dir = os.path.join(tempfile.gettempdir(), "chroma_mcp_logs")
+        os.makedirs(log_dir, exist_ok=True)
+        print(f"WARNING: Using temporary log directory due to permission issues: {log_dir}", file=sys.stderr)
+except Exception as e:
+    # Last resort fallback to temp directory
+    log_dir = tempfile.gettempdir()
+    print(f"WARNING: Using system temp directory for logs due to error: {e}", file=sys.stderr)
 
 # 2. Configure a file handler for all logs (with timestamp in filename to avoid conflicts)
 timestamp = int(time.time())
