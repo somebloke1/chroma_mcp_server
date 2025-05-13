@@ -80,6 +80,9 @@ Add or modify `.cursor/mcp.json` in your project root:
 - **Enhanced Logging System:** Per-execution log files prevent contamination of JSON communication in stdio mode
 - **Embedding Function Management:** Tools to update collection metadata when changing embedding functions
 - **Collection Setup Command:** Simplifies creation of multiple collections with consistent configuration
+- **Auto-Promote Workflow:** Streamlined derived learning promotion with automatic handling of high-confidence entries
+- **Smart Defaults:** Interactive promotion with intelligent defaults for all fields based on context
+- **Low Confidence Warnings:** Visual indicators for entries that may need more careful review
 
 ## Documentation
 

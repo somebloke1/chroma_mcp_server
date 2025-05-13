@@ -1,0 +1,88 @@
+---
+description: 
+globs: *.py
+alwaysApply: false
+---
+# Rule: Testing and Build Guidelines
+
+**Description:** This rule provides essential instructions for testing and building the project correctly, avoiding common pitfalls with test environment management.
+
+## Testing Guidelines
+
+### Always Use Hatch for Running Tests
+
+Standard tests should **always** be run through Hatch or the provided test script, not directly with pytest:
+
+```bash
+# Preferred: Using the test script (runs test matrix, handles coverage)
+./scripts/test.sh
+
+# Alternative: Using Hatch directly
+hatch run test
+```
+
+### Common Test Commands
+
+```bash
+# Run all tests with coverage report
+./scripts/test.sh --coverage
+
+# Run tests with HTML coverage report
+./scripts/test.sh --html
+
+# Force environment rebuild before testing (when dependencies change)
+./scripts/test.sh --clean
+
+# Run specific tests within the Hatch environment
+hatch run test:run tests/path/to/test_file.py::TestClass::test_function
+```
+
+### Avoid Direct pytest Usage
+
+❌ **Incorrect:**
+
+```bash
+python -m pytest tests/
+```
+
+✅ **Correct:**
+
+```bash
+hatch run test
+```
+
+Using Hatch ensures:
+- The proper Python matrix is used
+- Dependencies are correctly resolved
+- Environment variables are properly set
+- Coverage reports are correctly generated
+
+## Build Guidelines
+
+Build the package using either:
+
+```bash
+# Using the provided script (cleans first)
+./scripts/build.sh
+
+# Or with Hatch directly
+hatch build
+```
+
+This generates the distributable files in the `dist/` directory.
+
+## Development Environment
+
+Remember to activate the Hatch environment before making changes:
+
+```bash
+# Using the script
+./scripts/develop.sh
+
+# Or directly with Hatch
+hatch shell
+```
+
+## Complete Documentation
+
+For comprehensive instructions, refer to the @Developer Guide.

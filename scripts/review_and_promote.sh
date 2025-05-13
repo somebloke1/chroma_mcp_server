@@ -12,6 +12,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${PROJECT_ROOT}"
 
+# Documentation on available parameters
+# --days-limit: How many days back to look for 'analyzed' entries (default: 7)
+# --fetch-limit: Maximum number of entries to fetch for review (default: 50)
+# --chat-collection-name: Name of the chat history collection (default: chat_history_v1)
+# --learnings-collection-name: Name of the learnings collection (default: derived_learnings_v1)
+# --modification-type: Filter by modification type (choices: all, refactor, bugfix, feature, documentation, etc.)
+# --min-confidence: Minimum confidence score threshold (0.0-1.0)
+# --sort-by-confidence: Sort entries by confidence score (default: true)
+# --no-sort-by-confidence: Don't sort entries by confidence score
+
 # Execute the command via hatch, passing all arguments
 # Use the module execution path for reliability within hatch run
 echo "Running interactive promoter via: hatch run python -m chroma_mcp_client.cli review-and-promote $@"

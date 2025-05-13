@@ -22,6 +22,9 @@ from chromadb.api.models.Collection import Collection
 
 # Helper to create mock args namespace
 def create_mock_args(**kwargs):
+    # Set default values for command-specific arguments if not provided
+    if kwargs.get("command") == "analyze-chat-history" and "prioritize_by_confidence" not in kwargs:
+        kwargs["prioritize_by_confidence"] = False
     return argparse.Namespace(**kwargs)
 
 
@@ -315,6 +318,7 @@ def test_analyze_chat_history_command_called(mock_sys_exit, mock_analyze, mock_g
         status_filter=status_filter,
         new_status=new_status,
         days_limit=days_limit,
+        prioritize_by_confidence=False,
     )
     mock_parser_instance.parse_args.return_value = mock_args
 
@@ -332,6 +336,7 @@ def test_analyze_chat_history_command_called(mock_sys_exit, mock_analyze, mock_g
         # limit=, # Add check for limit if applicable/passed
         status_filter=status_filter,
         new_status=new_status,
+        prioritize_by_confidence=False,
     )
     # Check that sys.exit was NOT called on success
     mock_sys_exit.assert_not_called()
@@ -442,6 +447,7 @@ def test_analyze_command_error(
         status_filter="captured",
         new_status="analyzed",
         days_limit=7,
+        prioritize_by_confidence=False,
     )
     mock_parser_instance.parse_args.return_value = mock_args
 
@@ -743,6 +749,7 @@ def test_promote_learning_success_no_source(mock_get_client_ef, mock_argparse, m
         "source_chat_id": None,
         "collection_name": "derived_learnings_v1",
         "chat_collection_name": "chat_history_v1",
+        "include_chat_context": True,
     }
     mock_parser_instance = mock_argparse.return_value
     mock_args = create_mock_args(**args_dict)
@@ -816,6 +823,7 @@ def test_promote_learning_success_with_source_update(mock_get_client_ef, mock_ar
         "source_chat_id": source_chat_id_to_update,
         "collection_name": "derived_learnings_v1",
         "chat_collection_name": "chat_history_v1",
+        "include_chat_context": True,
     }
     mock_parser_instance = mock_argparse.return_value
     mock_args = create_mock_args(**args_dict)
@@ -826,7 +834,7 @@ def test_promote_learning_success_with_source_update(mock_get_client_ef, mock_ar
 
     # Assertions
     # Check get_collection calls (once for learning, once for chat)
-    assert mock_client.get_collection.call_count == 2
+    assert mock_client.get_collection.call_count == 3
     mock_client.get_collection.assert_any_call(name="derived_learnings_v1", embedding_function=mock_ef)
     mock_client.get_collection.assert_any_call(name="chat_history_v1")
 
@@ -837,7 +845,11 @@ def test_promote_learning_success_with_source_update(mock_get_client_ef, mock_ar
     assert add_args["metadatas"][0]["source_chat_id"] == source_chat_id_to_update
 
     # Check get() call on chat collection
-    mock_chat_collection.get.assert_called_once_with(ids=[source_chat_id_to_update], include=["metadatas"])
+    assert mock_chat_collection.get.call_count == 2
+    # First call includes documents for context
+    mock_chat_collection.get.assert_any_call(ids=[source_chat_id_to_update], include=["metadatas", "documents"])
+    # Second call is for status update
+    mock_chat_collection.get.assert_any_call(ids=[source_chat_id_to_update], include=["metadatas"])
 
     # Check update() call on chat collection
     mock_chat_collection.update.assert_called_once()
@@ -894,6 +906,7 @@ def test_promote_learning_source_not_found(mock_get_client_ef, mock_argparse, mo
         "source_chat_id": source_chat_id_not_found,
         "collection_name": "derived_learnings_v1",
         "chat_collection_name": "chat_history_v1",
+        "include_chat_context": True,
     }
     mock_parser_instance = mock_argparse.return_value
     mock_args = create_mock_args(**args_dict)
@@ -910,7 +923,11 @@ def test_promote_learning_source_not_found(mock_get_client_ef, mock_argparse, mo
     assert mock_learning_collection.add.call_args.kwargs["ids"] == [expected_hyphenated_id]
 
     # Check get() call on chat collection
-    mock_chat_collection.get.assert_called_once_with(ids=[source_chat_id_not_found], include=["metadatas"])
+    assert mock_chat_collection.get.call_count == 2
+    # First call includes documents for context
+    mock_chat_collection.get.assert_any_call(ids=[source_chat_id_not_found], include=["metadatas", "documents"])
+    # Second call is for status update
+    mock_chat_collection.get.assert_any_call(ids=[source_chat_id_not_found], include=["metadatas"])
 
     # Check update() was NOT called on chat collection
     mock_chat_collection.update.assert_not_called()
@@ -944,6 +961,9 @@ def test_review_and_promote_command_called(
         fetch_limit=20,
         chat_collection_name="my_chats",
         learnings_collection_name="my_learnings",
+        modification_type="refactor",
+        min_confidence=0.7,
+        sort_by_confidence=True,
     )
     mock_parser_instance.parse_args.return_value = mock_args
 
@@ -964,6 +984,9 @@ def test_review_and_promote_command_called(
         fetch_limit=20,
         chat_collection_name="my_chats",
         learnings_collection_name="my_learnings",
+        modification_type_filter="refactor",
+        min_confidence=0.7,
+        sort_by_confidence=True,
     )
 
     # Assert sys.exit was not called (successful execution)
@@ -993,6 +1016,9 @@ def test_review_and_promote_command_defaults_called(
         fetch_limit=50,  # Default from cli.py
         chat_collection_name="chat_history_v1",  # Default from cli.py
         learnings_collection_name="derived_learnings_v1",  # Default from cli.py
+        modification_type="all",  # Default from cli.py
+        min_confidence=0.0,  # Default from cli.py
+        sort_by_confidence=True,  # Default from cli.py
     )
     mock_parser_instance.parse_args.return_value = mock_args
 
@@ -1007,6 +1033,9 @@ def test_review_and_promote_command_defaults_called(
         fetch_limit=50,
         chat_collection_name="chat_history_v1",
         learnings_collection_name="derived_learnings_v1",
+        modification_type_filter="all",
+        min_confidence=0.0,
+        sort_by_confidence=True,
     )
     mock_sys_exit.assert_not_called()
 

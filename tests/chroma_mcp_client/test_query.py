@@ -89,3 +89,42 @@ def test_query_codebase_query_error(mock_chroma_client, caplog):
 
     assert results is None
     assert "Failed to query collection" in stderr_output
+
+
+def test_query_codebase_embedding_function_mismatch(mock_chroma_client, caplog):
+    """Test handling when there is an embedding function mismatch with parseable error message."""
+    client, _ = mock_chroma_client
+    ef = MockEmbeddingFunction()
+    query = ["query with embedding mismatch"]
+    client.get_collection.side_effect = ValueError("Embedding function name mismatch: client_model != collection_model")
+
+    # Capture stderr to see error messages
+    with io.StringIO() as stderr_capture, redirect_stderr(stderr_capture):
+        results = query_codebase(client=client, embedding_function=ef, query_texts=query)
+        stderr_output = stderr_capture.getvalue()
+
+    assert results is None
+    assert "ERROR:" in stderr_output
+    assert "client_model" in stderr_output
+    assert "collection_model" in stderr_output
+    assert "embedding function" in stderr_output.lower()
+    assert "mismatch" in stderr_output.lower()
+
+
+def test_query_codebase_embedding_function_mismatch_parse_error(mock_chroma_client, caplog):
+    """Test handling when there is an embedding function mismatch with unparseable error message."""
+    client, _ = mock_chroma_client
+    ef = MockEmbeddingFunction()
+    query = ["query with unparseable embedding mismatch"]
+    # Error message doesn't contain expected format for parsing
+    client.get_collection.side_effect = ValueError("Embedding function name mismatch: unexpected format")
+
+    # Capture stderr to see error messages
+    with io.StringIO() as stderr_capture, redirect_stderr(stderr_capture):
+        results = query_codebase(client=client, embedding_function=ef, query_texts=query)
+        stderr_output = stderr_capture.getvalue()
+
+    assert results is None
+    assert "ERROR:" in stderr_output
+    assert "incompatible embedding model" in stderr_output
+    assert "embedding function mismatch" in stderr_output.lower()

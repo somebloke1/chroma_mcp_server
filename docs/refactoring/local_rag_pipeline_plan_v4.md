@@ -66,7 +66,7 @@
     - [X] **Implement `chroma-client setup-collections` command to check and create all required collections (`codebase_v1`, `chat_history_v1`, `derived_learnings_v1`, `thinking_sessions_v1`) if they don't exist.**
     - [X] Verify direct client connection (HTTP/Cloud via console script).
     - [X] Ensure security & secrets checklist followed (`.env` gitignored, etc.).
-    - [X] Add comprehensive unit tests for client logic (`tests/client/`, etc., current ~78% coverage, aim >=80%).
+    - [X] Add comprehensive unit tests for client logic (`tests/client/`, etc., 80% coverage).
 
 2. **Codebase Indexing with Contextual Chunking:**
     - [X] Ensure `codebase_v1` collection exists/is created by client.
@@ -106,7 +106,7 @@
       - [X] **Leverage the new rich context fields to identify high-value interactions**
       - [X] **Use confidence scores to prioritize entries for review**
       - [X] **Flag interactions that have significant code impact based on diff analysis**
-    - [ ] **Improve `review-and-promote` to implement a streamlined approval interface for candidate learnings.**
+    - [X] **Improve `review-and-promote` to implement a streamlined approval interface for candidate learnings.**
 
 **Phase 1 Verification:**
 
@@ -116,8 +116,8 @@
 - [X] **Test `analyze-chat-history` command thoroughly.** (Adapted from v3 [ ] 7.4)
 - [X] **Test `promote-learning` workflow and `derived_learnings_v1` creation.**
 - [X] Test All Console Scripts (`chroma-client` subcommands, `record-thought`).
-- [X] Run All Unit Tests (maintain/improve >=80% coverage).
-- [ ] **Quality Assessment:** Periodically evaluate usefulness/accuracy of `derived_learnings_v1` entries.
+- [X] Run All Unit Tests (maintain >=80% coverage).
+- [X] **Quality Assessment:** Periodically evaluate usefulness/accuracy of `derived_learnings_v1` entries.
 - [X] **Test enhanced context capture in `auto_log_chat` rule.**
 - [X] **Verify bi-directional links between code and chat history.**
 

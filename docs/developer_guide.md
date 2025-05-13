@@ -335,6 +335,9 @@ Tests are located in the `tests/` directory and use `pytest`. Run tests using th
 # Or run tests only for the default environment using Hatch
 hatch run test
 
+# If you want to see more verbose output, use the -v flag:
+./scripts/test.sh -v
+
 # Run tests across the matrix and generate coverage reports.
 # This runs tests first, then combines data, then generates:
 # 1. Terminal report (with missing lines)
@@ -521,12 +524,23 @@ To streamline the review and promotion process, use the `review-and-promote` com
     ```
 
     The script will:
-    * Fetch chat entries marked as `analyzed` within the specified time frame.
+    * Fetch chat entries marked as 'analyzed' within the specified time frame.
     * Display each entry's summary.
     * Query the `codebase_v1` collection for relevant code snippets based on the chat summary and display potential `code_ref` candidates.
     * Prompt you to **Promote (p)**, **Ignore (i)**, **Skip (s)**, or **Quit (q)**.
     * If promoting, guide you through entering the pattern, tags, confidence, and selecting/entering the `code_ref`.
     * Automatically update the source chat entry status to `promoted_to_learning` or `ignored`.
+
+3. **Enhanced Features (New):**
+    * **Auto-Promote:** Enable automatic promotion of high-confidence entries:
+
+      ```bash
+      hatch run review-promote --auto-promote --auto-promote-threshold 0.75
+      ```
+
+    * **Smart Defaults:** All fields now have intelligent defaults based on context, allowing you to just press Enter in most cases.
+    * **Low Confidence Warnings:** Visual warnings help identify entries that may need more careful review.
+    * **Enhanced Code Selection:** Better bidirectional linking makes code reference selection more accurate.
 
 This interactive command significantly simplifies the process of curating the `derived_learnings_v1` collection.
 

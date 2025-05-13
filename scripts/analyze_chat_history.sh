@@ -10,6 +10,15 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 echo "Running chat history analysis in $PROJECT_ROOT..."
 
+# Documentation on available parameters
+# --collection-name: Specify the ChromaDB collection name (default: chat_history_v1)
+# --repo-path: Path to Git repository (default: current directory)
+# --status-filter: Filter by metadata status value (default: captured)
+# --new-status: Set status after analysis (default: analyzed)
+# --days-limit: How many days back to look for entries (default: 7)
+# --prioritize-by-confidence: Sort entries by confidence score (default: false)
+# -v/--verbose: Increase logging verbosity
+
 # Change to project root directory
 cd "${PROJECT_ROOT}"
 

@@ -247,7 +247,7 @@ hatch run chroma-client setup-collections
 hatch run setup-collections
 ```
 
-### `review-and-promote`
+#### `review-and-promote`
 
 Starts an interactive workflow to review chat entries marked with the status 'analyzed' (typically by the `analyze-chat-history` command). It allows the user to:
 
@@ -259,7 +259,12 @@ Starts an interactive workflow to review chat entries marked with the status 'an
   - **Skip (s):** Skip the current entry and move to the next.
   - **Quit (q):** Exit the review process.
 
-This provides a more user-friendly way to curate derived learnings compared to manually using `promote-learning`.
+**Recent Enhancements:**
+
+- **Auto-Promote:** Automatically promote high confidence entries (≥0.8 by default), with customizable threshold.
+- **Smart Defaults:** Intelligent defaults for all fields based on context, allowing users to often just press Enter.
+- **Low Confidence Warnings:** Visual warnings when promoting entries with confidence below 0.5.
+- **Enhanced Code Selection:** Better bidirectional link support, auto-selecting the most relevant code reference.
 
 **Arguments:**
 
@@ -267,6 +272,11 @@ This provides a more user-friendly way to curate derived learnings compared to m
 - `--fetch-limit` (int, default: 50): Maximum number of entries to fetch for review in one go.
 - `--chat-collection-name` (str, default: "chat_history_v1"): Name of the chat history collection.
 - `--learnings-collection-name` (str, default: "derived_learnings_v1"): Name of the derived learnings collection.
+- `--modification-type` (str, default: "all"): Filter by modification type (choices: all, refactor, bugfix, feature, documentation, optimization, test, config, style, unknown).
+- `--min-confidence` (float, default: 0.0): Minimum confidence score threshold (0.0-1.0).
+- `--sort-by-confidence/--no-sort-by-confidence` (bool, default: True): Sort entries by confidence score.
+- `--auto-promote` (bool, default: False): Automatically promote high confidence entries without user review.
+- `--auto-promote-threshold` (float, default: 0.8): Custom confidence threshold for auto-promotion (0.0-1.0).
 
 **Example:**
 
@@ -276,7 +286,12 @@ hatch run chroma-client review-and-promote --days-limit 3
 
 # or using alias:
 hatch run review-promote --days-limit 3
+
+# Enable auto-promote with a custom threshold
+hatch run review-promote --auto-promote --auto-promote-threshold 0.75
 ```
+
+For more details, see the [review-and-promote.md](review-and-promote.md) documentation.
 
 ### Note on Usage with Hatch
 

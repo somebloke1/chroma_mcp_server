@@ -1,6 +1,6 @@
 ---
 description: This rule helps to avoid markdown linting errors
-globs: *.md
+globs: *.md,*.mdc
 alwaysApply: false
 ---
 # Markdown Linting Rules

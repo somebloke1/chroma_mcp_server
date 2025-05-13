@@ -10,6 +10,18 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 echo "Running promote-learning in $PROJECT_ROOT..."
 
+# Documentation on available parameters
+# --description: Natural language description of the learning (required)
+# --pattern: Core pattern identified (required)
+# --code-ref: Code reference illustrating the learning (required)
+# --tags: Comma-separated tags for categorization (required)
+# --confidence: Confidence score between 0.0 and 1.0 (required)
+# --source-chat-id: ID of the source entry in the chat history collection
+# --collection-name: Target collection for the new learning (default: derived_learnings_v1)
+# --chat-collection-name: Source chat history collection (default: chat_history_v1)
+# --include-chat-context: Include rich context from the source chat entry (default: true)
+# --no-include-chat-context: Don't include rich context from the source chat entry
+
 # Change to project root directory
 cd "${PROJECT_ROOT}"
 

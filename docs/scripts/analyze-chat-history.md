@@ -35,6 +35,7 @@ The script accepts several command-line arguments:
 - `--status-filter STATUS`: Filter entries by this metadata status (default: `captured`).
 - `--new-status STATUS`: Set entries to this status after analysis (default: `analyzed`).
 - `--days-limit DAYS`: How many days back to look for entries (default: 7).
+- `--prioritize-by-confidence`: Prioritize entries with higher confidence scores (flag, default: false).
 - `-v, --verbose`: Increase logging verbosity (`-v` for INFO, `-vv` for DEBUG). Default: INFO.
 
 ### Example Usage
@@ -45,23 +46,31 @@ The script accepts several command-line arguments:
 
 # Analyze entries with default settings
 ./scripts/analyze_chat_history.sh
+
+# Analyze entries and prioritize by confidence score
+./scripts/analyze_chat_history.sh --prioritize-by-confidence
 ```
+
+## Enhanced Context Features
+
+The analyze-chat-history command now supports enhanced context capture features:
+
+1. **Confidence Score Prioritization**: When using `--prioritize-by-confidence`, entries with higher confidence scores are analyzed first, focusing attention on potentially more valuable interactions.
+
+2. **Existing Code Context**: The command uses code context and diff summaries already captured during the interaction, avoiding the need to regenerate git diffs when possible.
+
+3. **Tool Sequence Analysis**: Tool usage patterns are analyzed to identify code modification activities, even without explicit diffs.
+
+4. **Bidirectional Links**: Related code chunks from bidirectional links are used to establish correlations between chat interactions and code changes.
 
 ## Expected Output
 
 Upon successful completion, the script (via the underlying `chroma-client` command) will log:
 
-1. Information about the entries being processed.
-2. The final count of processed and correlated entries.
-3. A list of entries whose status was successfully updated to the `--new-status` (default: `analyzed`), including their IDs and prompt summaries. This list is useful for identifying candidates for the `promote-learning` command.
+1. Information about the entries being processed, including confidence scores and modification types.
+2. Tool sequences used during the interactions.
+3. Whether existing code context or git diffs were used for analysis.
+4. The final count of processed and correlated entries.
+5. A summary of entries updated to `analyzed` status, sorted by confidence score.
 
-```text
-INFO:chroma_mcp_client.analysis:Analysis complete. Processed 19 entries. Found potential correlation in 2 entries.
-INFO:chroma_mcp_client.analysis:
---- Entries updated to 'analyzed' ---
-INFO:chroma_mcp_client.analysis:  ID: entry_id_1, Summary: Prompt summary for entry 1...
-INFO:chroma_mcp_client.analysis:  ID: entry_id_2, Summary: Prompt summary for entry 2...
-# ... and so on
-```
-
-If errors occur during processing, they will be logged to the console.
+The command prioritizes entries with rich context metadata, making it more effective at identifying valuable interactions that should be considered for promotion to derived learnings.
