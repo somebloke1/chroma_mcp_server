@@ -288,6 +288,17 @@ The system creates and maintains navigable connections between:
 
 This allows tracing feature evolution across both domains, providing deeper context for AI and developers. See the [Automated Chat Logging Guide](integration/automated_chat_logging.md) for implementation details.
 
+### Enhanced Interactive Promotion
+
+The interactive promoter workflow (`review-and-promote`) now includes several productivity enhancements:
+
+- **Auto-Promote Mode:** Automatically promote high-confidence entries (≥0.8) without manual review
+- **Smart Defaults:** Intelligent defaults for all fields based on entry context
+- **Low Confidence Warnings:** Visual indicators for entries that may need more careful review
+- **Enhanced Code Selection:** Better bidirectional link support for more accurate code references
+
+These improvements streamline the curation of derived learnings by allowing users to often just press Enter to accept sensible defaults. See the [Review and Promote Guide](scripts/review-and-promote.md) for details.
+
 ### Semantic Code Chunking
 
 Rather than using fixed-size chunks, the system preserves logical code structures (functions, classes, methods) when indexing code, ensuring more meaningful context retrieval. See the [Semantic Chunking Guide](usage/semantic_chunking.md) for more information.

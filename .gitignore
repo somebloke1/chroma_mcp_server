@@ -80,6 +80,7 @@ data/
 *.egg-info
 __pycache__/
 .pytest_cache/
+.ruff_cache/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -161,6 +161,11 @@ def main():
         default=7,
         help="How many days back to look for entries to analyze.",
     )
+    analyze_parser.add_argument(
+        "--prioritize-by-confidence",
+        action="store_true",
+        help="Prioritize entries with higher confidence scores for analysis.",
+    )
 
     # --- Update Collection EF Subparser ---
     update_ef_parser = subparsers.add_parser(
@@ -215,7 +220,41 @@ def main():
         default="derived_learnings_v1",
         help="Name of the collection to add derived learnings to.",
     )
-    # Add --repo-path later if needed for diffs
+    review_promote_parser.add_argument(
+        "--modification-type",
+        choices=[
+            "all",
+            "refactor",
+            "bugfix",
+            "feature",
+            "documentation",
+            "optimization",
+            "test",
+            "config",
+            "style",
+            "unknown",
+        ],
+        default="all",
+        help="Filter entries by modification type.",
+    )
+    review_promote_parser.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.0,
+        help="Minimum confidence score threshold (0.0-1.0).",
+    )
+    review_promote_parser.add_argument(
+        "--sort-by-confidence",
+        action="store_true",
+        default=True,
+        help="Sort entries by confidence score (highest first).",
+    )
+    review_promote_parser.add_argument(
+        "--no-sort-by-confidence",
+        action="store_false",
+        dest="sort_by_confidence",
+        help="Don't sort entries by confidence score.",
+    )
 
     # --- Promote Learning Subparser ---
     promote_parser = subparsers.add_parser(
@@ -262,6 +301,18 @@ def main():
         "--chat-collection-name",
         default="chat_history_v1",
         help="Name of the chat history collection to update status if source ID is provided.",
+    )
+    promote_parser.add_argument(
+        "--include-chat-context",
+        action="store_true",
+        default=True,
+        help="Include rich context from the source chat entry (code context, diff summary, etc.)",
+    )
+    promote_parser.add_argument(
+        "--no-include-chat-context",
+        action="store_false",
+        dest="include_chat_context",
+        help="Don't include rich context from the source chat entry",
     )
 
     # --- Log Chat Subparser ---
@@ -458,6 +509,7 @@ def main():
                 # limit=args.limit, # Assuming limit arg exists or is added
                 status_filter=args.status_filter,
                 new_status=args.new_status,
+                prioritize_by_confidence=args.prioritize_by_confidence,
             )
             logger.info("'analyze-chat-history' command finished. Processed=%d, Correlated=%d", processed, correlated)
             print("Chat history analysis finished.")  # Keep simple user output
@@ -545,7 +597,9 @@ def main():
                 fetch_limit=args.fetch_limit,
                 chat_collection_name=args.chat_collection_name,
                 learnings_collection_name=args.learnings_collection_name,
-                # repo_path=args.repo_path # Add if/when repo_path arg is added
+                modification_type_filter=args.modification_type,
+                min_confidence=args.min_confidence,
+                sort_by_confidence=args.sort_by_confidence,
             )
             logger.info("'review-and-promote' command finished.")
             print("Interactive review and promotion process complete.")
@@ -570,6 +624,7 @@ def main():
             learnings_collection_name=args.collection_name,  # from --collection-name
             source_chat_id=args.source_chat_id,
             chat_history_collection_name=args.chat_collection_name,
+            include_chat_context=args.include_chat_context,
         )
 
         if learning_id:

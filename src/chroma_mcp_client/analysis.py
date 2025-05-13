@@ -280,6 +280,7 @@ def analyze_chat_history(  # pylint: disable=too-many-locals,too-many-statements
     limit: int = 200,
     status_filter: str = "captured",
     new_status: str = "analyzed",
+    prioritize_by_confidence: bool = True,
 ):
     """
     Analyzes chat history entries, compares summaries with git diffs of mentioned files,
@@ -294,6 +295,7 @@ def analyze_chat_history(  # pylint: disable=too-many-locals,too-many-statements
         limit: Maximum number of entries to fetch initially.
         status_filter: The status to filter entries by (e.g., "captured").
         new_status: The status to set after successful analysis.
+        prioritize_by_confidence: Whether to prioritize entries by confidence score.
 
     Returns:
         Tuple[int, int]: Number of entries processed, number of correlations found.
@@ -334,6 +336,12 @@ def analyze_chat_history(  # pylint: disable=too-many-locals,too-many-statements
         logger.info("No matching entries found to analyze.")
         return 0, 0
 
+    # Sort entries by confidence score if enabled
+    if prioritize_by_confidence:
+        # Sort entries by confidence_score in descending order (highest first)
+        entries.sort(key=lambda entry: float(entry.get("metadata", {}).get("confidence_score", 0.0)), reverse=True)
+        logger.info("Entries sorted by confidence score (highest first).")
+
     # 2. Process each entry
     for entry in entries:
         entry_id = entry.get("id")
@@ -343,77 +351,97 @@ def analyze_chat_history(  # pylint: disable=too-many-locals,too-many-statements
         response_summary = metadata.get("response_summary", "")
         prompt_summary = metadata.get("prompt_summary", "")  # Get prompt summary too
 
+        # Get enhanced context fields if available
+        code_context = metadata.get("code_context", "")
+        diff_summary = metadata.get("diff_summary", "")
+        tool_sequence = metadata.get("tool_sequence", "")
+        confidence_score = metadata.get("confidence_score", 0.0)
+        modification_type = metadata.get("modification_type", "unknown")
+        related_code_chunks = metadata.get("related_code_chunks", "")
+
         if not all([entry_id, timestamp_str, involved_entities_str, response_summary]):
             logger.warning(f"Skipping entry {entry_id}: Missing required metadata.")
             continue
 
         logger.info(f"--- Processing Entry: {entry_id} ({timestamp_str}) ---")
+        logger.info(f"  Confidence Score: {confidence_score}, Modification Type: {modification_type}")
+        if tool_sequence:
+            logger.info(f"  Tool Sequence: {tool_sequence}")
+
         correlated_this_entry = False  # Flag for correlation within this specific entry
-        entities = [e.strip() for e in involved_entities_str.split(",")]
 
-        # 3. Get Git diff for involved files
-        resolved_repo_path = Path(repo_path).resolve()
-        for entity_path in entities:
-            if not entity_path:  # Skip empty strings resulting from split
-                continue
+        # Check if we have related code chunks via bidirectional links
+        if related_code_chunks:
+            code_chunk_ids = [chunk_id.strip() for chunk_id in related_code_chunks.split(",") if chunk_id.strip()]
+            if code_chunk_ids:
+                logger.info(f"  Found {len(code_chunk_ids)} related code chunks from bidirectional links")
+                correlated_this_entry = True
 
-            # Construct absolute path RELATIVE TO REPO PATH
-            try:
-                # Assume entity_path is relative to repo_root
-                file_path_abs = (resolved_repo_path / entity_path).resolve()
-            except Exception as e:
-                logger.warning(f"Skipping entity '{entity_path}': Error constructing path: {e}")
-                continue
+        # Check if we already have code context and diff summary
+        if code_context and diff_summary:
+            logger.info("  Using existing code context and diff summary from enhanced context")
+            # Directly use the captured diff summary for correlation
+            summary = prompt_summary + " " + response_summary
+            correlated_this_entry = True
+        elif not correlated_this_entry:
+            # Fall back to git diff analysis if no enhanced context available
+            entities = [e.strip() for e in involved_entities_str.split(",")]
 
-            # is_file check (using the constructed absolute path)
-            if not file_path_abs.is_file():
-                # Log the entity path AND the absolute path for debugging
-                logger.debug(f"Skipping entity '{entity_path}': Resolved path '{file_path_abs}' is not a valid file.")
-                continue
+            # 3. Get Git diff for involved files
+            resolved_repo_path = Path(repo_path).resolve()
+            for entity_path in entities:
+                if not entity_path:  # Skip empty strings resulting from split
+                    continue
 
-            # If all checks pass, proceed to get diff
-            logger.info(f"Checking Git history for file: {file_path_abs}")  # Log absolute path
-            # Pass the resolved repo_path and the absolute file path string
-            diff = get_git_diff_after_timestamp(resolved_repo_path, str(file_path_abs), timestamp_str)
+                # Construct absolute path RELATIVE TO REPO PATH
+                try:
+                    # Assume entity_path is relative to repo_root
+                    file_path_abs = (resolved_repo_path / entity_path).resolve()
+                except Exception as e:
+                    logger.warning(f"Skipping entity '{entity_path}': Error constructing path: {e}")
+                    continue
 
-            if diff:
-                logger.debug(f"Diff found for {entity_path}:\n{diff[:500]}...")  # Log snippet
-                # Use combined summary for correlation check
-                summary = prompt_summary + " " + response_summary
-                # 4. Correlate summary and diff
-                # <<< START DEBUG LOGGING >>>
-                # logger.critical(f"DEBUG TRACE: About to call correlate for entry {entry_id}, entity {entity_path}") # REMOVED
-                # Directly use the result in the if statement
-                if embedding_function and correlate_summary_with_diff(summary, diff, embedding_function):
-                    # logger.critical(f"DEBUG TRACE: Correlate call returned True for entry {entry_id}, entity {entity_path}") # REMOVED
-                    # logger.critical(f"DEBUG TRACE: Setting correlated_this_entry=True for entry {entry_id} due to entity {entity_path}") # REMOVED
-                    correlated_this_entry = True
-                    logger.info(f"Correlation found for entity: {entity_path}")
+                # is_file check (using the constructed absolute path)
+                if not file_path_abs.is_file():
+                    # Log the entity path AND the absolute path for debugging
+                    logger.debug(
+                        f"Skipping entity '{entity_path}': Resolved path '{file_path_abs}' is not a valid file."
+                    )
+                    continue
+
+                # If all checks pass, proceed to get diff
+                logger.info(f"Checking Git history for file: {file_path_abs}")  # Log absolute path
+                # Pass the resolved repo_path and the absolute file path string
+                diff = get_git_diff_after_timestamp(resolved_repo_path, str(file_path_abs), timestamp_str)
+
+                if diff:
+                    logger.debug(f"Diff found for {entity_path}:\n{diff[:500]}...")  # Log snippet
+                    # Use combined summary for correlation check
+                    summary = prompt_summary + " " + response_summary
+                    # 4. Correlate summary and diff
+                    if embedding_function and correlate_summary_with_diff(summary, diff, embedding_function):
+                        correlated_this_entry = True
+                        logger.info(f"Correlation found for entity: {entity_path}")
                 else:
-                    # Log if correlation didn't happen or returned False
-                    # logger.critical(f"DEBUG TRACE: Correlate call did NOT return True for entry {entry_id}, entity {entity_path}") # REMOVED
-                    pass  # No action needed if no correlation or no EF
+                    logger.debug(f"No relevant diff found for {entity_path} after {timestamp_str}")
 
-            else:
-                logger.debug(f"No relevant diff found for {entity_path} after {timestamp_str}")
-        # --- End of entity loop ---
-
-        # <<< START DEBUG LOGGING >>>
-        # logger.critical(f"DEBUG TRACE: After entity loop for entry {entry_id}, correlated_this_entry={correlated_this_entry}") # REMOVED
-        # <<< END DEBUG LOGGING >>>
+        # Analyze tool sequence patterns if available
+        if tool_sequence and not correlated_this_entry:
+            # If we have tool sequences that typically modify code, assume correlation
+            if any(pattern in tool_sequence for pattern in ["edit_file", "reapply", "run_terminal_cmd", "delete_file"]):
+                logger.info(f"Tool sequence indicates code modification: {tool_sequence}")
+                correlated_this_entry = True
 
         # Increment total correlation count if this entry was correlated
         if correlated_this_entry:
-            # <<< START DEBUG LOGGING >>>
-            # logger.critical(f"DEBUG TRACE: Incrementing correlated_count (current: {correlated_count}) for entry {entry_id}") # REMOVED
-            # <<< END DEBUG LOGGING >>>
             correlated_count += 1
 
         # 5. Update status (if processing was successful, regardless of correlation)
         if update_entry_status(client, collection_name, entry_id, new_status):
             processed_count += 1
             # Store info for printing later
-            updated_entries_info.append((entry_id, metadata.get("prompt_summary", "")))
+            confidence_str = f" (confidence: {confidence_score})" if confidence_score else ""
+            updated_entries_info.append((entry_id, metadata.get("prompt_summary", ""), confidence_score))
         else:
             logger.error(f"Failed to update status for {entry_id}. It might be reprocessed next time.")
 
@@ -426,8 +454,11 @@ def analyze_chat_history(  # pylint: disable=too-many-locals,too-many-statements
     # Print details of entries whose status was updated to 'analyzed'
     if updated_entries_info:
         logger.info("\n--- Entries updated to 'analyzed' ---")
-        for entry_id, summary in updated_entries_info:
-            logger.info(f"  ID: {entry_id}, Summary: {summary}")
+        # Sort output by confidence score
+        updated_entries_info.sort(key=lambda x: float(x[2]) if x[2] else 0.0, reverse=True)
+        for entry_id, summary, confidence in updated_entries_info:
+            confidence_str = f" (confidence: {confidence})" if confidence else ""
+            logger.info(f"  ID: {entry_id}, Summary: {summary}{confidence_str}")
     else:
         logger.info("No entries were updated to 'analyzed' in this run.")
 

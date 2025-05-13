@@ -14,6 +14,9 @@ on:
 
 jobs:
   test:
+    permissions:
+      contents: read
+      pull-requests: write    
     runs-on: ubuntu-latest
 
     steps:
@@ -24,17 +27,17 @@ jobs:
       with:
         python-version: '3.12' # Use a specific version, e.g., the latest
 
-    - name: Clean up runner disk space manually
-      run: |
-        echo "Initial disk space:"
-        df -h
-        sudo rm -rf /usr/share/dotnet || echo ".NET removal failed, continuing..."
-        sudo rm -rf /usr/local/lib/android || echo "Android removal failed, continuing..."
-        sudo rm -rf /opt/ghc || echo "Haskell removal failed, continuing..."
-        # Add || true or echo to commands to prevent workflow failure if dir doesn't exist
-        sudo apt-get clean
-        echo "Disk space after cleanup:"
-        df -h
+    # - name: Clean up runner disk space manually
+    #   run: |
+    #     echo "Initial disk space:"
+    #     df -h
+    #     sudo rm -rf /usr/share/dotnet || echo ".NET removal failed, continuing..."
+    #     sudo rm -rf /usr/local/lib/android || echo "Android removal failed, continuing..."
+    #     sudo rm -rf /opt/ghc || echo "Haskell removal failed, continuing..."
+    #     # Add || true or echo to commands to prevent workflow failure if dir doesn't exist
+    #     sudo apt-get clean
+    #     echo "Disk space after cleanup:"
+    #     df -h
 
     - name: Install hatch and coverage
       run: |

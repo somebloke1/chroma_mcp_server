@@ -8,9 +8,66 @@ import logging
 import uuid
 import time
 import chromadb
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Union
 
 logger = logging.getLogger(__name__)
+
+
+def fetch_source_chat_context(
+    client: chromadb.ClientAPI,
+    source_chat_id: str,
+    chat_history_collection_name: str = "chat_history_v1",
+) -> Dict[str, Any]:
+    """
+    Fetches rich context data from a source chat entry.
+
+    Args:
+        client: Initialized ChromaDB client.
+        source_chat_id: ID of the source entry in the chat history collection.
+        chat_history_collection_name: Name of the chat history collection.
+
+    Returns:
+        Dictionary containing rich context data from the source chat entry.
+    """
+    context_data = {
+        "code_context": "",
+        "diff_summary": "",
+        "tool_sequence": "",
+        "confidence_score": 0.0,
+        "modification_type": "unknown",
+        "related_code_chunks": "",
+        "prompt_summary": "",
+        "response_summary": "",
+    }
+
+    try:
+        chat_collection = client.get_collection(name=chat_history_collection_name)
+        results = chat_collection.get(ids=[source_chat_id], include=["metadatas", "documents"])
+
+        if not results or not results["ids"] or results["ids"][0] != source_chat_id:
+            logger.warning(f"Source chat ID {source_chat_id} not found when fetching context.")
+            return context_data
+
+        metadata = results["metadatas"][0] if results.get("metadatas") else {}
+        if not metadata:
+            logger.warning(f"No metadata found for source chat ID {source_chat_id}.")
+            return context_data
+
+        # Extract available context fields
+        for field in context_data.keys():
+            if field in metadata and metadata[field] is not None:
+                context_data[field] = metadata[field]
+
+        # Add prompt and response summaries
+        context_data["prompt_summary"] = metadata.get("prompt_summary", "")
+        context_data["response_summary"] = metadata.get("response_summary", "")
+
+        logger.info(f"Successfully fetched context data for chat ID {source_chat_id}.")
+
+    except Exception as e:
+        logger.error(f"Error fetching context for source chat ID {source_chat_id}: {e}", exc_info=True)
+
+    return context_data
 
 
 def promote_to_learnings_collection(
@@ -24,6 +81,7 @@ def promote_to_learnings_collection(
     learnings_collection_name: str = "derived_learnings_v1",
     source_chat_id: Optional[str] = None,
     chat_history_collection_name: str = "chat_history_v1",
+    include_chat_context: bool = True,
 ) -> Optional[str]:
     """
     Promotes a piece of information (e.g., from chat or manual input) to the derived learnings collection
@@ -40,6 +98,7 @@ def promote_to_learnings_collection(
         learnings_collection_name: Name of the collection to add the derived learning to.
         source_chat_id: Optional ID of the source entry in the chat history collection.
         chat_history_collection_name: Name of the chat history collection for status updates.
+        include_chat_context: Whether to include rich context from the source chat.
 
     Returns:
         The ID of the newly created learning entry if successful, None otherwise.
@@ -49,6 +108,7 @@ def promote_to_learnings_collection(
         learning_id = str(uuid.uuid4())
         logger.debug(f"Generated learning_id: {learning_id}")
 
+        # Initialize metadata with base fields
         metadata = {
             "learning_id": learning_id,
             "source_chat_id": source_chat_id if source_chat_id else "manual",
@@ -61,6 +121,40 @@ def promote_to_learnings_collection(
 
         if not 0.0 <= confidence <= 1.0:
             logger.warning(f"Confidence score {confidence} is outside the suggested 0.0-1.0 range.")
+
+        # If we have a source chat ID and include_chat_context is True, fetch and include rich context
+        source_context = {}
+        if source_chat_id and include_chat_context:
+            logger.info(f"Fetching rich context from source chat ID {source_chat_id}...")
+            source_context = fetch_source_chat_context(client, source_chat_id, chat_history_collection_name)
+
+            # Only override confidence if it's not explicitly provided
+            if confidence == 0.0 and source_context.get("confidence_score"):
+                try:
+                    metadata["confidence"] = float(source_context["confidence_score"])
+                    logger.info(f"Using confidence score {metadata['confidence']} from source chat.")
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Could not convert source confidence '{source_context.get('confidence_score')}' to float."
+                    )
+
+            # Add rich context fields if available
+            for field_name, context_value in [
+                ("code_context", source_context.get("code_context")),
+                ("diff_summary", source_context.get("diff_summary")),
+                ("tool_sequence", source_context.get("tool_sequence")),
+                ("modification_type", source_context.get("modification_type")),
+                ("related_code_chunks", source_context.get("related_code_chunks")),
+            ]:
+                if context_value:
+                    metadata[field_name] = context_value
+                    logger.debug(f"Included {field_name} from source chat.")
+
+            # Enhance description with context if it's minimal
+            if len(description) < 100 and source_context.get("diff_summary"):
+                original_description = description
+                description = f"{description}\n\nContext from source chat:\n{source_context.get('prompt_summary', '')}\n{source_context.get('response_summary', '')}\n\nCode changes:\n{source_context.get('diff_summary', '')}"
+                logger.info("Enhanced description with context from source chat.")
 
         logger.debug(f"Prepared metadata for learning: {metadata}")
 
@@ -79,7 +173,7 @@ def promote_to_learnings_collection(
 
         learning_collection.add(ids=[learning_id], documents=[description], metadatas=[metadata])
         logger.info(f"Successfully added learning {learning_id} to '{learnings_collection_name}'.")
-        print(f"Learning promoted with ID: {learning_id}")  # Keep some console feedback
+        print(f"Learning promoted with ID: {learning_id}")
 
         if source_chat_id:
             logger.info(
