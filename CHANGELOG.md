@@ -8,7 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.8] - 2025-05-13
 
 ### Added
-
 - Enhanced interactive promotion workflow with auto-promote mode
 - Smart defaults for all fields in promotion process
 - Low confidence warnings for quality control
@@ -17,50 +16,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation updates for new features
 
 ### Fixed
-
 - More robust logging system 
 - Test suite improvements and refactoring
 - Enhanced error handling in promotion workflow
 
 ## [0.2.6] - 2025-05-12
 
-### Added
-
+**Added:**
 - Memory integration with sequential thinking architecture
 - Improved integration with derived learnings module
 
 ## [0.2.4] - 2025-05-12
 
-### Added
-
+**Added:**
 - Enhanced developer documentation for testing workflow
 - Improved error handling for chat history analysis
 
 ## [0.2.3] - 2025-05-12
 
-### Fixed
-
+**Fixed:**
 - Test stability improvements for client library
 - Fixed logging configuration issues
 
 ## [0.2.2] - 2025-05-11
 
-### Added
-
+**Added:**
 - Additional embeddings support for different model types
 - Improved session handling for sequential thinking
 
 ## [0.2.1] - 2025-05-10
 
-### Fixed
-
+**Fixed:**
 - Documentation improvements for new features
 - Fixed version dependencies for Python 3.10-3.12 compatibility
 
 ## [0.2.0] - 2025-05-09
 
 ### Added
-
 - Restructured documentation for better navigation
 - Improved embedding function handling in indexer
 - Enhanced logging setup with better configuration
@@ -69,36 +61,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - More comprehensive test coverage
 
 ### Fixed
-
 - Fixed client-side logging configuration
 - Test suite stability improvements
 
 ## [0.1.119] - 2025-05-07
 
-### Added
-
+**Added:**
 - RAG plan v4 implementation
 - Improved Mermaid diagram documentation
 - Enhanced thinking tools for cognitive architecture
 
 ## [0.1.116] - 2025-05-06
 
-### Fixed
-
+**Fixed:**
 - Improved verbosity flag handling in CLI
 - Fixed command-line interface documentation
 
 ## [0.1.115] - 2025-05-05
 
-### Added
-
+**Added:**
 - Enhanced working memory modules with sequential thinking integration
 - Improved context management for thinking tools
 
 ## [0.1.114] - 2025-05-05
 
 ### Added
-
 - Updated Chroma to version 1.x
 - Enhanced working memory capabilities
 - Automated chat logging feature with rich context
@@ -107,149 +94,128 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved CLI verbosity controls
 
 ### Fixed
-
 - Release script for PyPI publishing
 - CLI log level consistency with environment variables
 - Post-commit path warnings
 
 ## [0.1.113] - 2025-05-04
 
-### Added
-
+**Added:**
 - Improved auto-chat logging feature with bidirectional linking
 - Entity extraction and linking for related concepts
 
 ## [0.1.112] - 2025-05-04
 
-### Fixed
-
+**Fixed:**
 - Fixed CLI log level handling to respect environment variables
 - Removed forced DEBUG level in indexing module
 
 ## [0.1.111] - 2025-05-03
 
-### Added
-
+**Added:**
 - Enhanced thinking tools for sequential reasoning
 - Fixed MCP CLI integration with new tools
 
 ## [0.1.109] - 2025-05-02
 
-### Fixed
-
+**Fixed:**
 - Improved test coverage to meet 80% target
 - Fixed post-commit hook reliability
 
 ## [0.1.106] - 2025-05-01
 
-### Added
-
+**Added:**
 - Improved thinking tools support with better embedding models
 - Enhanced sequential thinking architecture
 
 ## [0.1.105] - 2025-04-30
 
-### Added
-
+**Added:**
 - Client library for Chroma interactions with improved testing
 - Fixed test suite for Python 3.12 compatibility
 
 ## [0.1.102] - 2025-04-24
 
-### Added
-
+**Added:**
 - Support for Smithery integration and local execution
 - Updated RAG implementation plan for better performance
 
 ## [0.1.101] - 2025-04-23
 
-### Added
-
+**Added:**
 - Prepared local RAG implementation for embedding support
 - Improved documentation with architectural diagrams
 
 ## [0.1.100] - 2025-04-22
 
-### Added
-
+**Added:**
 - Added Windsurf rules support for AI assistants
 - Refactored AI rules for better maintainability
 
 ## [0.1.99] - 2025-04-18
 
-### Added
-
+**Added:**
 - Updated ChromaDB to version 1.x compatibility
 - Adjusted code and tests for new API structure
 
 ## [0.1.98] - 2025-04-14
 
-### Added
-
+**Added:**
 - Improved similar thoughts workflow
 - Fixed embedding issues in thinking tools
 - Added support for external embedding APIs
 
 ## [0.1.84] - 2025-04-13
 
-### Fixed
-
+**Fixed:**
 - Removed Optional[T] from tool arguments for compatibility
 - Improved refactoring plan with clearer architecture
 
 ## [0.1.82] - 2025-04-12
 
-### Fixed
-
+**Fixed:**
 - Increased test coverage and stability
 - Refactored types to avoid MCP client compatibility issues
 
 ## [0.1.65] - 2025-04-11
 
-### Added
-
+**Added:**
 - Enhanced debug logging for tool requests
 - Fixed peek_collection functionality
 
 ## [0.1.64] - 2025-04-11
 
-### Changed
-
+**Changed:**
 - Major refactoring for better compatibility with Cursor and GitHub CoPilot
 - Fixed failing tools and improved error handling
 
 ## [0.1.60] - 2025-04-09
 
-### Fixed
-
+**Fixed:**
 - Fixed collection creation and metadata handling
 - Added proper docstrings for all functions
 
 ## [0.1.54] - 2025-04-09
 
-### Changed
-
+**Changed:**
 - Refactored MCP to align to SDK standards
 - Improved metadata method handling and return values
 
 ## [0.1.45] - 2025-04-08
 
-### Fixed
-
+**Fixed:**
 - Fixed GitHub Actions workflow for testing
 - Added XML export for code coverage reporting
 
 ## [0.1.44] - 2025-04-07
 
-### Added
-
+**Added:**
 - Improved test coverage to 78%
 - Fixed MCP handling for stdio communications
 
 ## [0.1.43] - 2025-04-06
 
-### Changed
-
+**Changed:**
 - Cleaned up duplicate handlers
 - Improved scripts and documentation
 - Simplified README format
@@ -257,85 +223,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.40] - 2025-04-05
 
-### Fixed
-
+**Fixed:**
 - Fixed release script for PyPI publishing
 - Improved build process for testing with test.pypi.org
 
 ## [0.1.37] - 2025-04-04
 
-### Fixed
-
+**Fixed:**
 - Fixed coverage reporting for sub-folder tests
 - Added --clean parameter for test script
 
 ## [0.1.36] - 2025-04-01
 
-### Changed
-
+**Changed:**
 - Refactored build, test and publish process
 - Enhanced Hatch usage for consistent builds
 
 ## [0.1.31] - 2025-03-31
 
-### Added
-
+**Added:**
 - Refactored for PyPI publishing using Hatch build system
 - Improved documentation for installation
 
 ## [0.1.30] - 2025-03-30
 
-### Added
-
+**Added:**
 - Package build preparation
 - Simplified installation with uv(x)
 
 ## [0.1.25] - 2025-03-29
 
-### Fixed
-
+**Fixed:**
 - Updated email addresses and documentation
 - Improved README with correct test run badge
 
 ## [0.1.17] - 2025-03-29
 
-### Added
-
+**Added:**
 - Enhanced collection management tools
 - Improved documentation structure
 
 ## [0.1.15] - 2025-03-29
 
-### Added
-
+**Added:**
 - Document query capabilities
 - Improved test coverage
 
 ## [0.1.13] - 2025-03-29
 
-### Added
-
+**Added:**
 - Enhanced sequential thinking tools
 - Better error handling
 
 ## [0.1.12] - 2025-03-29
 
-### Added
-
+**Added:**
 - Improved collection management
 - Better testing infrastructure
 
 ## [0.1.4] - 2025-03-29
 
-### Added
-
+**Added:**
 - Basic testing structure
 - Improved documentation
 
 ## [0.1.3] - 2025-04-30
 
 ### Added
-
 - Client library for Chroma interactions
 - Thinking tools for sequential reasoning
 - First stable release with complete test suite
@@ -343,7 +297,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Development and usage documentation
 
 ### Changed
-
 - Improved MCP tool structure
 - Enhanced error handling and reporting
 - Better test coverage
@@ -351,7 +304,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.1] - 2025-03-29
 
 ### Added
-
 - Initial release of Chroma MCP Server
 - Collection management tools
 - Document operation tools
