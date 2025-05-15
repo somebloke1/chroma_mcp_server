@@ -5,6 +5,30 @@ All notable changes to the Chroma MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.10] - 2025-05-15
+
+**Changed:**
+
+- Updated license to MIT with Commons Clause extension to prevent direct competition
+- License now explicitly disallows selling Chroma MCP Server itself, offering it as a hosted service, or creating competing products based on Chroma MCP Server
+- Added clarification in README.md about allowed and disallowed uses of the software
+
+## [0.2.9] - 2025-05-14
+
+**Added:**
+
+- Comprehensive tool_usage_format.md documentation for standardized tool usage format
+- Enhanced test script with ability to specify test paths and Python versions
+- Improved MCP test flow documentation with updated tool parameters
+- Cross-references between log-chat.md and tool_usage_format.md
+
+**Fixed:**
+
+- Standardized tool_usage parameter format in auto_log_chat functionality
+- Enhanced auto_log_chat_impl.py for backwards compatibility
+- Updated IDE configuration files (.cursorrules, .windsurfrules, .github/.copilot-instructions.md) for consistency
+- Added reminder to manually reload MCP server in IDE after installation
+
 ## [0.2.8] - 2025-05-13
 
 **Added:**

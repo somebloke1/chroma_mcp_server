@@ -14,6 +14,17 @@ This document outlines a sequence of Model Context Protocol (MCP) tool calls to 
 
 - All tool implementations now raise `mcp.shared.exceptions.McpError` on failure (e.g., validation errors, collection not found, ChromaDB errors). Expect error responses to be structured accordingly, rather than returning `isError=True`.
 
+**Tool Usage Format Note:**
+
+- For tools that accept a `tool_usage` parameter (such as `chroma_log_chat`), the standard format requires each item to have a `name` key and an optional `args` object:
+
+  ```json
+  {"name": "tool_name", "args": {"param1": "value1", "param2": "value2"}}
+  ```
+
+- The legacy format with `tool` and `params` keys is deprecated but still supported for backward compatibility.
+- For complete details on tool usage format, see the [Tool Usage Format Specification](../usage/tool_usage_format.md).
+
 **Client-Side/Framework Limitations Note (Important):**
 
 - Testing has revealed that some MCP clients or the framework layer (particularly the test harness) might have limitations in correctly serializing or interpreting tool parameters, especially lists or values **explicitly provided** for parameters that were originally designed as optional.
@@ -180,10 +191,10 @@ print(default_api.chroma_get_all_documents(collection_name="mcp_flow_test_coll")
 
 Perform a semantic search. This tool now queries both the specified `collection_name` AND the `derived_learnings_v1` collection, merging the results.
 
-**Note:** The quality and specific ranking of results depend on the chosen embedding function and the content of both collections.
+**Note:** The quality and specific ranking of results depend on the chosen embedding function and the content of both collections. Each result item's metadata will include a `source_collection` field indicating its origin.
 
 ```tool_code
-print(default_api.mcp_chroma_dev_chroma_query_documents(
+print(default_api.chroma_query_documents(
     collection_name="mcp_flow_test_coll",
     query_texts=["Tell me about test documents"], # Required list, should work
     # n_results is optional (defaults to 10), include is optional
@@ -602,6 +613,92 @@ print(default_api.chroma_find_similar_sessions(
 ```
 
 *Expected Outcome:* A list of session IDs and summaries that are semantically similar to the query, depending on the threshold used during execution.
+
+---
+
+## Advanced: Auto Log Chat (Enhanced Chat Logging)
+
+This section demonstrates using the auto_log_chat functionality to log comprehensive chat summaries with rich context to the `chat_history_v1` ChromaDB collection.
+
+### LC1. Log Basic Chat
+
+Log a basic chat interaction with essential information:
+
+```tool_code
+print(default_api.chroma_log_chat(
+    prompt_summary="User asked about implementing JWT authentication",
+    response_summary="Provided code example for JWT implementation",
+    raw_prompt="How do I implement JWT authentication in my Express application?",
+    raw_response="Here's how to implement JWT authentication in Express: [code example]"
+    # The following parameters are optional and will use defaults:
+    # tool_usage, file_changes, involved_entities, session_id, collection_name
+))
+```
+
+*Expected Outcome:* Confirmation of successful logging with a generated chat_id (UUID).
+
+### LC2. Log Chat with Tool Usage (Standard Format)
+
+Log a chat interaction including the tool_usage parameter using the standard format:
+
+```tool_code
+print(default_api.chroma_log_chat(
+    prompt_summary="User asked for help debugging authentication error",
+    response_summary="Fixed incorrect parameter in JWT verification",
+    raw_prompt="My JWT verification is failing with 'invalid signature'",
+    raw_response="The issue is in your verification options. Here's the fix: [code]",
+    tool_usage=[
+        {"name": "codebase_search", "args": {"query": "JWT verification"}},
+        {"name": "read_file", "args": {"target_file": "auth.js"}},
+        {"name": "edit_file", "args": {"target_file": "auth.js"}}
+    ]
+))
+```
+
+*Expected Outcome:* Confirmation of successful logging with a generated chat_id.
+
+### LC3. Log Chat with File Changes
+
+Log a chat interaction that includes file changes:
+
+```tool_code
+print(default_api.chroma_log_chat(
+    prompt_summary="User requested optimization of database query",
+    response_summary="Added index and optimized query pattern",
+    raw_prompt="My database query is slow, can you help optimize it?",
+    raw_response="I've optimized your query by adding an index and restructuring the join.",
+    tool_usage=[
+        {"name": "read_file", "args": {"target_file": "database.js"}},
+        {"name": "edit_file", "args": {"target_file": "database.js"}}
+    ],
+    file_changes=[
+        {
+            "file_path": "database.js",
+            "before_content": "db.users.find({email: userEmail}).sort({created: -1})",
+            "after_content": "db.users.find({email: userEmail}).hint({email: 1}).sort({created: -1})"
+        }
+    ],
+    involved_entities="database.js,query optimization,MongoDB,indexing"
+))
+```
+
+*Expected Outcome:* Confirmation of successful logging with enhanced context and file changes.
+
+### LC4. Query Logged Chats
+
+Query the chat history for relevant entries:
+
+```tool_code
+print(default_api.chroma_query_documents(
+    collection_name="chat_history_v1",
+    query_texts=["JWT authentication implementation"],
+    n_results=3
+))
+```
+
+*Expected Outcome:* A result set containing chat entries related to JWT authentication, likely including the entries created in LC1 and LC2.
+
+**Note:** The chat history is also automatically included in the results of regular queries to document collections through the updated `chroma_query_documents` tool (which now queries both the specified collection AND the `derived_learnings_v1` collection).
 
 ---
 

@@ -99,4 +99,19 @@ Comprehensive documentation is available in the [docs directory](docs/):
 
 ## License
 
-MIT License (see [LICENSE](LICENSE))
+Chroma MCP Server is licensed under the MIT License with Commons Clause. This means you can:
+
+✅ **Allowed**:
+
+- Use Chroma MCP Server for any purpose (personal, commercial, academic)
+- Modify the code
+- Distribute copies
+- Create and sell products built using Chroma MCP Server
+
+❌ **Not Allowed**:
+
+- Sell Chroma MCP Server itself
+- Offer Chroma MCP Server as a hosted service
+- Create competing products based on Chroma MCP Server
+
+See the [LICENSE.md](LICENSE.md) file for the complete license text.

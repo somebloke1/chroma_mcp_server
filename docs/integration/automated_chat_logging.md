@@ -97,3 +97,23 @@ chroma-client log-chat \
 ```
 
 For further details on this command, see the [CLI Reference](../scripts/chroma-client.md#log-chat).
+
+## Tool Usage Format
+
+When logging chat interactions (either automatically or manually), the system expects tool usage information to follow a specific format:
+
+```json
+[
+  {"name": "read_file", "args": {"target_file": "src/config.js"}},
+  {"name": "edit_file", "args": {"target_file": "src/config.js", "instructions": "Update JWT settings"}}
+]
+```
+
+Each tool usage item must contain:
+
+- `name`: The name of the tool that was used
+- `args`: (Optional) An object containing the arguments passed to the tool
+
+For comprehensive details about the format, technical specifics, and examples, refer to the [Tool Usage Format Specification](../usage/tool_usage_format.md).
+
+For further details on the logging command, see the [CLI Reference](../scripts/chroma-client.md#log-chat).

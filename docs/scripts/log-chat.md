@@ -58,8 +58,26 @@ The script passes all arguments directly to the underlying `log-chat` subcommand
   --raw-response "I've added JWT authentication to your user model..." \
   --involved-entities "user.js,auth.js,JWT" \
   --file-changes '[{"file_path": "src/models/user.js", "diff_summary": "Added JWT methods"}]' \
-  --tool-usage '[{"tool": "edit_file", "params": {"target_file": "src/models/user.js"}}]'
+  --tool-usage '[{"name": "edit_file", "args": {"target_file": "src/models/user.js"}}]'
 ```
+
+### Tool Usage Format
+
+The `--tool-usage` parameter expects a JSON array of objects, where each object MUST contain:
+
+- `name`: The name of the tool that was used (e.g., "read_file", "edit_file")
+- `args`: (Optional) An object containing the arguments passed to the tool
+
+Example:
+
+```json
+[
+  {"name": "read_file", "args": {"target_file": "src/config.js"}},
+  {"name": "edit_file", "args": {"target_file": "src/config.js", "instructions": "Update JWT settings"}}
+]
+```
+
+> **Note:** For a complete specification of the tool_usage format, including advanced usage, programmatic examples, and technical details, see the [Tool Usage Format Specification](../usage/tool_usage_format.md).
 
 ## Expected Output
 
