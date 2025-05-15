@@ -353,6 +353,14 @@ hatch run test
 
 # Force environment rebuild before testing (useful if dependencies change)
 ./scripts/test.sh --clean
+
+# Run tests for specific files or directories
+./scripts/test.sh tests/tools/test_auto_log_chat_bridge.py
+./scripts/test.sh tests/chroma_mcp_client/
+
+# Run tests on a specific Python version only
+./scripts/test.sh --python 3.10  # or --py 3.10
+./scripts/test.sh --py 3.11 tests/tools/  # Run tools tests on Python 3.11 only
 ```
 
 Note that coverage reports (`terminal`, `XML`, `HTML`) are generated *after* all tests across all configured Python versions have completed.
@@ -411,10 +419,15 @@ Once configured on the website, clients should be able to find `chroma-mcp-serve
 
 The `release.sh` script provides a streamlined process for releasing a new version:
 
+0. **Before Release Preparation:**
+   * Update `CHANGELOG.md` with a new section documenting all notable changes in this version
+   * Ensure the version number is updated in `pyproject.toml`
+   * Verify all tests are passing with adequate coverage
+
 1. Prompts for the version number (if not provided via `--version`).
-2. Optionally builds and publishes to TestPyPI.
-3. Optionally tests local installation from TestPyPI.
-4. Builds and publishes to Production PyPI.
+2. Builds the package wheel.
+3. Uploads to TestPyPI first (unless `--prod-only` is specified).
+4. Uploads to Production PyPI (unless `--test-only` is specified).
 5. Installs the newly released version (from PyPI or TestPyPI based on `--update-target`) locally for use with the standard `uvx chroma-mcp-server` command.
 
 ```bash
@@ -426,8 +439,11 @@ The `release.sh` script provides a streamlined process for releasing a new versi
 
 # Run only TestPyPI steps for version 0.2.1
 ./scripts/release.sh --version 0.2.1 --test-only
+```
 
-# See script help for all options
+For all options:
+
+```bash
 ./scripts/release.sh --help
 ```
 

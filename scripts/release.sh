@@ -144,6 +144,13 @@ validate_version_format() {
 cd "$PROJECT_ROOT"
 echo "ℹ️ Changed working directory to project root: $PROJECT_ROOT"
 
+# CHANGELOG.md Reminder
+echo "🔔 REMINDER: Before proceeding with the release, ensure you have:"
+echo "   1. Verified all tests are passing with adequate coverage"
+echo "   2. Updated CHANGELOG.md with all notable changes in this version"
+echo "   3. Update of version number in pyproject.toml will be done automatically"
+echo ""
+
 # Argument parsing loop
 while [[ $# -gt 0 ]]; do
     key="$1"

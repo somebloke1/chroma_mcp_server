@@ -18,6 +18,14 @@ from mcp.types import TextContent
 logger = logging.getLogger(__name__)
 
 
+# Define ToolUsageItem model to enforce the required structure
+class ToolUsageItem(BaseModel):
+    """Model for a single tool usage item with required structure."""
+
+    name: str = Field(description="The name of the tool used.")
+    args: Dict[str, Any] = Field(description="The arguments passed to the tool.", default_factory=dict)
+
+
 # Define Pydantic input model for the tool
 class LogChatInput(BaseModel):
     """Input model for logging chat with enhanced context."""
@@ -26,8 +34,9 @@ class LogChatInput(BaseModel):
     response_summary: str = Field(description="Summary of the AI's response/solution.")
     raw_prompt: str = Field(description="Full text of the user's prompt.")
     raw_response: str = Field(description="Full text of the AI's response.")
-    tool_usage: List[Dict[str, Any]] = Field(
-        description="List of tools used during the interaction.", default_factory=list
+    tool_usage: List[ToolUsageItem] = Field(
+        description="List of tools used during the interaction. Each tool must have a 'name' and optional 'args'.",
+        default_factory=list,
     )
     file_changes: List[Dict[str, Any]] = Field(
         description="List of files modified with before/after content.", default_factory=list
@@ -85,6 +94,19 @@ def _do_log_chat(input_model: LogChatInput) -> str:
     file_changes = input_model.file_changes
     involved_entities = input_model.involved_entities
     session_id = input_model.session_id or None  # Convert empty string to None
+
+    # Add additional validation with helpful error messages
+    # (These are now mostly redundant due to the Pydantic model but serve as a defensive layer)
+    if tool_usage:
+        for i, tool in enumerate(tool_usage):
+            if not hasattr(tool, "name") or not tool.name:
+                raise ValueError(f"Tool usage item at index {i} is missing required 'name' field")
+
+            # Convert Pydantic model to dict for compatibility with the implementation
+            if hasattr(tool, "model_dump"):  # Pydantic v2
+                tool_usage[i] = tool.model_dump()
+            elif hasattr(tool, "dict"):  # Pydantic v1
+                tool_usage[i] = tool.dict()
 
     # Call the client implementation
     chat_id = log_chat_to_chroma(

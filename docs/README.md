@@ -15,6 +15,7 @@ Welcome to the Chroma MCP Server documentation. This guide provides comprehensiv
 - [Working Memory](#working-memory)
 - [Enhanced Context Capture](usage/enhanced_context_capture.md)
 - [Semantic Code Chunking](usage/semantic_chunking.md)
+- [Tool Usage Format Specification](usage/tool_usage_format.md)
 - [Automated Chat Logging](integration/automated_chat_logging.md)
 - [Memory Integration](rules/memory-integration-rules.md)
 
@@ -310,3 +311,22 @@ Rather than using fixed-size chunks, the system preserves logical code structure
 - [Getting Started with Second Brain](getting_started_second_brain.md) - Learn about the Second Brain concept
 - [Developer Guide](developer_guide.md) - Instructions for developers working on the codebase
 - [MCP Test Flow](mcp_test_flow.md) - A simulated workflow using the MCP tools
+
+## License
+
+Chroma MCP Server is licensed under the MIT License with Commons Clause. This means you can:
+
+✅ **Allowed**:
+
+- Use Chroma MCP Server for any purpose (personal, commercial, academic)
+- Modify the code
+- Distribute copies
+- Create and sell products built using Chroma MCP Server
+
+❌ **Not Allowed**:
+
+- Sell Chroma MCP Server itself
+- Offer Chroma MCP Server as a hosted service
+- Create competing products based on Chroma MCP Server
+
+See the [LICENSE.md](LICENSE.md) file for the complete license text.

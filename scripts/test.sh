@@ -20,6 +20,8 @@ COVERAGE=false
 VERBOSE_LEVEL=0 # 0: default, 1: -v, 2: -vv, 3: -vvv
 HTML=false
 CLEAN_ENV=false
+TEST_PATHS=()
+PYTHON_VERSION=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -50,10 +52,24 @@ while [[ $# -gt 0 ]]; do
             CLEAN_ENV=true
             shift
             ;;
-        *)
+        --python|--py)
+            if [[ -z "$2" || "$2" == -* ]]; then
+                echo "Error: --python requires a version argument (e.g., 3.10, 3.11, 3.12)"
+                exit 1
+            fi
+            PYTHON_VERSION="$2"
+            shift 2
+            ;;
+        -*)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--coverage|-c] [-v|-vv|-vvv] [--html] [--clean]"
+            echo "Usage: $0 [--coverage|-c] [-v|-vv|-vvv] [--html] [--clean] [--python VERSION] [test_path1 test_path2 ...]"
+            echo "  --python, --py VERSION    Run tests only on specified Python version (e.g., 3.10, 3.11, 3.12)"
             exit 1
+            ;;
+        *)
+            # Collect all non-option arguments as test paths
+            TEST_PATHS+=("$1")
+            shift
             ;;
     esac
 done
@@ -81,18 +97,42 @@ fi
 
 PYTEST_ARGS="$PYTEST_BASE_ARGS $VERBOSITY_FLAG"
 
-# Add test path
-PYTEST_ARGS="$PYTEST_ARGS tests/"
-
-# Determine the execution command based on coverage flag
-if [ "$COVERAGE" = true ]; then
-    echo "Running tests with Coverage enabled (Verbosity: $VERBOSE_LEVEL)..."
-    # Use the reliable coverage run method, include verbosity if requested
-    RUN_CMD="hatch run test:coverage run -m pytest $PYTEST_ARGS"
+# Add test paths if specified, otherwise use the default tests/ directory
+if [ ${#TEST_PATHS[@]} -gt 0 ]; then
+    echo "Running specified test path(s): ${TEST_PATHS[*]}"
+    PYTEST_ARGS="$PYTEST_ARGS ${TEST_PATHS[*]}"
 else
-    echo "Running tests without Coverage (Verbosity: $VERBOSE_LEVEL)..."
-    # Run directly via python -m pytest, include verbosity if requested
-    RUN_CMD="hatch run test:python -m pytest $PYTEST_ARGS"
+    echo "Running all tests in tests/ directory"
+    PYTEST_ARGS="$PYTEST_ARGS tests/"
+fi
+
+# Determine the execution command based on coverage flag and Python version
+if [ -n "$PYTHON_VERSION" ]; then
+    # Format the Python version into the hatch environment name (e.g., test.py3.10)
+    # First, ensure the version doesn't already start with "py"
+    if [[ "$PYTHON_VERSION" == py* ]]; then
+        PY_ENV="test.$PYTHON_VERSION"
+    else
+        PY_ENV="test.py$PYTHON_VERSION"
+    fi
+    echo "Limiting tests to Python version $PYTHON_VERSION (environment: $PY_ENV)"
+    
+    if [ "$COVERAGE" = true ]; then
+        echo "Running tests with Coverage enabled (Verbosity: $VERBOSE_LEVEL)..."
+        RUN_CMD="hatch -e $PY_ENV run coverage run -m pytest $PYTEST_ARGS"
+    else
+        echo "Running tests without Coverage (Verbosity: $VERBOSE_LEVEL)..."
+        RUN_CMD="hatch -e $PY_ENV run python -m pytest $PYTEST_ARGS"
+    fi
+else
+    # Run on all Python versions using the default test matrix
+    if [ "$COVERAGE" = true ]; then
+        echo "Running tests with Coverage enabled (Verbosity: $VERBOSE_LEVEL)..."
+        RUN_CMD="hatch run test:coverage run -m pytest $PYTEST_ARGS"
+    else
+        echo "Running tests without Coverage (Verbosity: $VERBOSE_LEVEL)..."
+        RUN_CMD="hatch run test:python -m pytest $PYTEST_ARGS"
+    fi
 fi
 
 # Execute the tests

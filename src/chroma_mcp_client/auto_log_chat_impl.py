@@ -56,7 +56,24 @@ def process_chat_for_logging(
         session_id = str(uuid.uuid4())
 
     # Extract tool sequence
-    tool_names = [tool["name"] for tool in tool_usage]
+    tool_names = []
+    for i, tool in enumerate(tool_usage):
+        if "name" in tool:
+            tool_names.append(tool["name"])
+        elif "tool" in tool:  # Handle the alternative format for backward compatibility
+            tool_names.append(tool["tool"])
+            # Log a warning to encourage using the standard format
+            logger.warning(
+                f"Tool usage item at index {i} uses deprecated 'tool' key instead of 'name'. "
+                f"Please update to use 'name' and 'args' keys: {tool}"
+            )
+        else:
+            # Log warning about missing keys
+            logger.warning(
+                f"Tool usage item at index {i} is missing required 'name' or 'tool' key. " f"Skipping this tool: {tool}"
+            )
+            continue
+
     tool_sequence = track_tool_sequence(tool_names)
 
     # Process file changes to extract context and diffs

@@ -1,6 +1,6 @@
-# .windsurfrules
+# .cursorrules
 
-## General rules to follow
+## General rules to follow in Cursor
 
 - When starting a new chat session, get familiar with the build and test guide (refer to docs/rules/testing-and-build-guide.md).
 - When starting a new task, first check which markdown plan we are currently working on (see docs/refactoring/README.md for more details). In case of doubt, ask the user for clarification on which plan to follow in current session.
@@ -37,14 +37,13 @@
 - Maintain test coverage at >= 80% in total and cover all relevant code paths to avoid runtime errors and regressions.
 - Always finish each output listing which rulesets have been applied in your implementation.
 
-## Rules to apply based on file types
+<available_instructions>
+Cursor rules are user provided instructions for the AI to follow to help work with the codebase.
+They may or may not be relevent to the task at hand. If they are, use the fetch_rules tool to fetch the full rule.
+Some rules may be automatically attached to the conversation if the user attaches a file that matches the rule's glob, and wont need to be fetched.
 
-- For markdown files (`*.md`, `*.mdc`): Apply rules from `docs/rules/markdown-rules.md`
-- For Python files (`*.py`): Apply rules from `docs/rules/python-github-rules.md`
+markdown-rules: This rule helps to avoid markdown linting errors
+python-github-rules: Development rules for python code and modules
+</available_instructions>
 
-## Always apply the following memory and logging rules
-
-- Session memory management: See docs/rules/memory-integration-rules.md
-- Automated chat logging: See docs/rules/auto_log_chat.md
-
-## Note: Each of these rule files contains detailed instructions that should be followed
+## Note: Detailed rule instructions are auto-attached from the .cursor/rules directory
