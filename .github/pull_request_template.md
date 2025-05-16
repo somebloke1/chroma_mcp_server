@@ -2,7 +2,13 @@
 
 Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context.
 
+New Features # (issue)
+
+- Feature A
+
 Fixes # (issue)
+
+- Fix 1
 
 ## Type of change
 
@@ -17,8 +23,8 @@ Please delete options that are not relevant.
 
 Please describe the tests that you ran to verify your changes. Provide instructions so we can reproduce. Please also list any relevant details for your test configuration.
 
-- [ ] Test A
-- [ ] Test B
+- [ ] Unit Tests Passing
+- [ ] Runtime Tests Passing
 
 ## Checklist
 
