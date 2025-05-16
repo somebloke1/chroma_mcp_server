@@ -81,7 +81,11 @@ data/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+
+# Auto-Capture-Workflow tests
 test-results.xml
+failed_tests_*.xml*
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

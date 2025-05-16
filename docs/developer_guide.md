@@ -375,29 +375,30 @@ Note that coverage reports (`terminal`, `XML`, `HTML`) are generated *after* all
 hatch run test:run tests/tools/test_collection_tools.py::TestCollectionTools::test_create_collection_success
 ```
 
-### Automated Test-Driven Learning
+### Automated Test Workflow
 
-The test.sh script supports automatic capture of test failures and transitions with the `--auto-capture-workflow` flag. This integrates with the automated test-driven learning workflow:
+The automated test-driven learning workflow captures test failures, monitors for fixes, and creates validation evidence when tests transition from failing to passing:
 
-1. **Setup:** Before using this feature, run the setup command:
+```bash
+# Set up the test workflow (creates Git hooks)
+chroma-client setup-test-workflow
 
-   ```bash
-   chroma-client setup-test-workflow --workspace-dir .
-   ```
+# This creates/modifies:
+# - pre-push hook: Runs tests with --auto-capture-workflow
+# - post-commit hook: Checks for test transitions after code changes
+# Note: The setup preserves existing post-commit hook content such as codebase indexing
 
-2. **Usage:** Run tests with the automated workflow flag:
+# Run tests with automatic workflow capture
+./scripts/test.sh -c -v --auto-capture-workflow
 
-   ```bash
-   ./scripts/test.sh -c -v --auto-capture-workflow
-   ```
+# Manually check for test transitions
+chroma-client check-test-transitions
 
-3. **Check for Transitions:** After making code changes and re-running tests:
+# Check and auto-promote valid transitions
+chroma-client check-test-transitions --auto-promote
+```
 
-   ```bash
-   chroma-client check-test-transitions --workspace-dir .
-   ```
-
-For more details, see the [Automated Test Workflow Guide](usage/automated_test_workflow.md).
+For full details, see the [Automated Test Workflow Guide](usage/automated_test_workflow.md).
 
 ## Building the Package
 

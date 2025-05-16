@@ -201,6 +201,53 @@ class TestTestWorkflowManager:
             is None
         )
 
+    def test_setup_git_hooks_preserves_existing_content(self, tmp_path):
+        """Test that setup_git_hooks preserves existing content in post-commit hook."""
+        # Setup mock workspace with .git/hooks
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        git_dir = workspace_dir / ".git"
+        git_dir.mkdir()
+        hooks_dir = git_dir / "hooks"
+        hooks_dir.mkdir()
+        
+        # Create existing post-commit hook
+        post_commit_path = hooks_dir / "post-commit"
+        existing_content = """#!/bin/bash
+# Existing hook content
+echo "Indexing files..."
+"""
+        with open(post_commit_path, "w") as f:
+            f.write(existing_content)
+        os.chmod(post_commit_path, 0o755)
+        
+        # Mock ChromaDB client
+        mock_client = MagicMock()
+        
+        # Initialize TestWorkflowManager with mocked client
+        manager = TestWorkflowManager(
+            workspace_dir=str(workspace_dir),
+            chroma_client=mock_client
+        )
+        
+        # Run the hook setup
+        result = manager.setup_git_hooks()
+        
+        # Verify the result
+        assert result is True
+        
+        # Read the updated hook content
+        with open(post_commit_path, "r") as f:
+            updated_content = f.read()
+        
+        # Verify existing content is preserved
+        assert "Existing hook content" in updated_content
+        assert "Indexing files..." in updated_content
+        
+        # Verify our addition is present
+        assert "Checking for test transitions" in updated_content
+        assert "python -m chroma_mcp_client.cli check-test-transitions" in updated_content
+
 
 @patch("chroma_mcp_client.validation.test_workflow.TestWorkflowManager")
 def test_setup_automated_workflow(mock_manager_class):
