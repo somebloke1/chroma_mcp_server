@@ -511,6 +511,31 @@ def main():
         help="Path to save the validation results as JSON.",
     )
 
+    # --- Check Test Transitions Subparser ---
+    check_transitions_parser = subparsers.add_parser(
+        "check-test-transitions",
+        help="Check for completed test-driven learning workflows and process transitions.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    check_transitions_parser.add_argument("--workspace-dir", default=".", help="Root directory of the workspace.")
+    check_transitions_parser.add_argument(
+        "--auto-promote",
+        action="store_true",
+        help="Automatically promote validated learnings from successful test transitions.",
+    )
+    check_transitions_parser.add_argument(
+        "--confidence-threshold", type=float, default=0.8, help="Confidence threshold for auto-promotion (0.0-1.0)."
+    )
+
+    # --- Setup Test Workflow Subparser ---
+    setup_workflow_parser = subparsers.add_parser(
+        "setup-test-workflow",
+        help="Set up the automated test-driven learning workflow.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    setup_workflow_parser.add_argument("--workspace-dir", default=".", help="Root directory of the workspace.")
+    setup_workflow_parser.add_argument("--force", action="store_true", help="Force overwrite of existing git hooks.")
+
     args = parser.parse_args()
 
     # --- Setup Logging Level based on verbosity ---
@@ -1029,6 +1054,49 @@ def main():
         except Exception as e:
             logger.error(f"An error occurred during chat history logging: {e}", exc_info=True)
             print(f"Error during logging: {e}")
+            sys.exit(1)
+
+    elif args.command == "check-test-transitions":
+        logger.info("Executing 'check-test-transitions' command...")
+        try:
+            # Import at runtime to avoid circular imports
+            from chroma_mcp_client.validation.test_workflow import check_for_completed_workflows, TestWorkflowManager
+
+            # Check for completed workflows
+            num_processed = check_for_completed_workflows()
+
+            if args.auto_promote:
+                # TODO: Add additional logic for auto-promotion
+                pass
+
+            logger.info(f"'check-test-transitions' command finished. Processed {num_processed} workflows")
+            print(f"Processed {num_processed} test transitions")
+
+        except Exception as e:
+            logger.error(f"An error occurred during checking test transitions: {e}", exc_info=True)
+            print(f"Error during checking test transitions: {e}")
+            sys.exit(1)
+
+    elif args.command == "setup-test-workflow":
+        logger.info("Executing 'setup-test-workflow' command...")
+        try:
+            # Import at runtime to avoid circular imports
+            from chroma_mcp_client.validation.test_workflow import setup_automated_workflow
+
+            # Set up the workflow
+            success = setup_automated_workflow(workspace_dir=args.workspace_dir)
+
+            if success:
+                logger.info("'setup-test-workflow' command finished successfully")
+                print("Test-driven learning workflow set up successfully")
+            else:
+                logger.error("Failed to set up test-driven learning workflow")
+                print("Failed to set up test-driven learning workflow")
+                sys.exit(1)
+
+        except Exception as e:
+            logger.error(f"An error occurred during setup of test workflow: {e}", exc_info=True)
+            print(f"Error during setup of test workflow: {e}")
             sys.exit(1)
 
     else:

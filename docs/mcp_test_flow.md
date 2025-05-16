@@ -4,6 +4,25 @@ This document outlines a sequence of Model Context Protocol (MCP) tool calls to 
 
 **Important Note on Tool Naming:** The tool call examples in this document use generic base tool names (e.g., `chroma_create_collection`, `chroma_get_server_version`). When executing these tests, you will need to **prepend the correct prefix for your specific Chroma MCP server instance** as defined in your MCP client configuration (e.g., if your server is named `my_chroma` in `.cursor/mcp.json`, a tool call would look like `default_api.my_chroma_chroma_create_collection(...)`).
 
+**Test-Driven Learning Automation:**
+
+For information on the automated test-driven learning workflow, including:
+
+- Setting up automated test failure and success tracking
+- Running tests with the `--auto-capture-workflow` flag
+- Detecting and promoting test transitions automatically
+- Creating validation evidence from test improvements
+
+See the [Automated Test Workflow Guide](usage/automated_test_workflow.md) and use the client commands:
+
+```bash
+# Setup test workflow automation
+chroma-client setup-test-workflow --workspace-dir /path/to/workspace
+
+# Check for test transitions after making changes
+chroma-client check-test-transitions --workspace-dir /path/to/workspace --auto-promote
+```
+
 **Assumptions:**
 
 - The `chroma-mcp-server` is running and accessible via the MCP client (e.g., through Cursor's `chroma_test` or `chroma` configuration).

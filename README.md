@@ -22,6 +22,7 @@ Key features:
 - **Semantic Code Chunking:** Preserve logical code structures for more meaningful context retrieval
 - **Working Memory Tools:** MCP commands for capturing and retrieving development context
 - **Validation System:** Evidence-based validation for code changes and learning promotions
+- **Automated Test-Driven Learning:** Fully automated workflow from test failure to verified fix and learning promotion
 
 See the [Getting Started with your Second Brain guide](docs/getting_started_second_brain.md) for more details.
 
@@ -84,6 +85,7 @@ Add or modify `.cursor/mcp.json` in your project root:
 - **Auto-Promote Workflow:** Streamlined derived learning promotion with automatic handling of high-confidence entries
 - **Smart Defaults:** Interactive promotion with intelligent defaults for all fields based on context
 - **Low Confidence Warnings:** Visual indicators for entries that may need more careful review
+- **Automated Test Workflow:** Fully automated capture of test failures, monitoring for fixes, and validated learning promotion
 
 ## Documentation
 
@@ -96,6 +98,7 @@ Comprehensive documentation is available in the [docs directory](docs/):
 - [Enhanced Context Capture](docs/usage/enhanced_context_capture.md) - Details on code diff extraction and tool sequencing
 - [Semantic Code Chunking](docs/usage/semantic_chunking.md) - Logic-preserving code chunking for meaningful retrieval
 - [Automated Chat Logging](docs/integration/automated_chat_logging.md) - Enriched chat history with bidirectional linking
+- [Automated Test Workflow](docs/usage/automated_test_workflow.md) - Test-driven learning with automatic validation
 - [API Reference](docs/api_reference.md) - Available MCP tools and parameters
 
 ## License

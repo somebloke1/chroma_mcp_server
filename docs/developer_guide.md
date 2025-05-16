@@ -361,6 +361,11 @@ hatch run test
 # Run tests on a specific Python version only
 ./scripts/test.sh --python 3.10  # or --py 3.10
 ./scripts/test.sh --py 3.11 tests/tools/  # Run tools tests on Python 3.11 only
+
+# Run tests with automated test workflow capture
+# This automatically tracks test failures and transitions to success
+./scripts/test.sh --auto-capture-workflow
+./scripts/test.sh -c -v --auto-capture-workflow  # With coverage and verbose output
 ```
 
 Note that coverage reports (`terminal`, `XML`, `HTML`) are generated *after* all tests across all configured Python versions have completed.
@@ -369,6 +374,31 @@ Note that coverage reports (`terminal`, `XML`, `HTML`) are generated *after* all
 # Run specific tests within the Hatch environment
 hatch run test:run tests/tools/test_collection_tools.py::TestCollectionTools::test_create_collection_success
 ```
+
+### Automated Test Workflow
+
+The automated test-driven learning workflow captures test failures, monitors for fixes, and creates validation evidence when tests transition from failing to passing:
+
+```bash
+# Set up the test workflow (creates Git hooks)
+chroma-client setup-test-workflow
+
+# This creates/modifies:
+# - pre-push hook: Runs tests with --auto-capture-workflow
+# - post-commit hook: Checks for test transitions after code changes
+# Note: The setup preserves existing post-commit hook content such as codebase indexing
+
+# Run tests with automatic workflow capture
+./scripts/test.sh -c -v --auto-capture-workflow
+
+# Manually check for test transitions
+chroma-client check-test-transitions
+
+# Check and auto-promote valid transitions
+chroma-client check-test-transitions --auto-promote
+```
+
+For full details, see the [Automated Test Workflow Guide](usage/automated_test_workflow.md).
 
 ## Building the Package
 

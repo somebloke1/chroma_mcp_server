@@ -41,9 +41,39 @@ hatch run test
 # or
 ./scripts/test.sh --py 3.11
 
+# Run tests with automated test failure/success tracking
+./scripts/test.sh --auto-capture-workflow
+# With coverage and verbose output
+./scripts/test.sh --coverage --verbose --auto-capture-workflow
+# or shorthand
+./scripts/test.sh -c -v --auto-capture-workflow
+
 # Combine options
 ./scripts/test.sh --coverage --python 3.12 tests/tools/
 ```
+
+### Automated Test-Driven Learning
+
+The `--auto-capture-workflow` flag enables the automated test-driven learning system which:
+
+1. Automatically captures test failures with context
+2. Monitors for transitions from failure to success after code changes
+3. Creates validation evidence linking failures, fixes, and chat history
+4. Promotes high-quality fixes to derived learnings
+
+**Setup required before first use:**
+
+```bash
+chroma-client setup-test-workflow --workspace-dir .
+```
+
+After running tests with fixes, check for completed workflows:
+
+```bash
+chroma-client check-test-transitions --workspace-dir .
+```
+
+For complete details, see the [Automated Test Workflow Guide](../../docs/usage/automated_test_workflow.md).
 
 ### Avoid Direct pytest Usage
 
@@ -60,6 +90,7 @@ hatch run test
 ```
 
 Using Hatch ensures:
+
 - The proper Python matrix is used
 - Dependencies are correctly resolved
 - Environment variables are properly set
@@ -89,7 +120,7 @@ Use this approach when you need all embedding models available and have configur
 
 ```bash
 # Replace <version> with the actual version built (e.g., 0.2.7)
-hatch build && hatch run pip uninstall chroma-mcp-server -y && hatch run pip install 'dist/chroma_mcp_server-<version>-py3-none-any.whl[full,dev]'
+hatch build && hatch run pip uncp-server -y && hatch run pip install 'dist/chroma_mcp_server-<version>-py3-none-any.whl[full,dev]'
 ```
 
 ### Smaller Version (default embeddings only)
@@ -115,6 +146,32 @@ Remember to activate the Hatch environment before making changes:
 hatch shell
 ```
 
+## Release Guidelines
+
+When preparing a new release or updating the version:
+
+1. **Update CHANGELOG.md** with the new version information:
+   - Add a new section at the top with the new version number and date
+   - Document all significant changes under "Added", "Fixed", "Changed", or "Removed" sections
+   - Use clear, concise language to describe each change
+
+    ```markdown
+    ## [0.2.x] - YYYY-MM-DD
+
+    **Added:**
+    - New feature description
+
+    **Fixed:**
+    - Bug fix description
+
+    **Changed:**
+    - Change description
+    ```
+
+2. Ensure the version number is updated in `pyproject.toml`
+3. Build the package and verify the correct version appears in the build artifacts
+4. Test the new version to ensure all changes work correctly
+
 ## Complete Documentation
 
-For comprehensive instructions, refer to the [Developer Guide](mdc:../../docs/developer_guide.md).
+For comprehensive instructions, refer to the [Developer Guide](../../docs/developer_guide.md).

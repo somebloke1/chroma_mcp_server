@@ -36,9 +36,39 @@ hatch run test
 # or
 ./scripts/test.sh --py 3.11
 
+# Run tests with automated test failure/success tracking
+./scripts/test.sh --auto-capture-workflow
+# With coverage and verbose output
+./scripts/test.sh --coverage --verbose --auto-capture-workflow
+# or shorthand
+./scripts/test.sh -c -v --auto-capture-workflow
+
 # Combine options
 ./scripts/test.sh --coverage --python 3.12 tests/tools/
 ```
+
+### Automated Test-Driven Learning
+
+The `--auto-capture-workflow` flag enables the automated test-driven learning system which:
+
+1. Automatically captures test failures with context
+2. Monitors for transitions from failure to success after code changes
+3. Creates validation evidence linking failures, fixes, and chat history
+4. Promotes high-quality fixes to derived learnings
+
+**Setup required before first use:**
+
+```bash
+chroma-client setup-test-workflow --workspace-dir .
+```
+
+After running tests with fixes, check for completed workflows:
+
+```bash
+chroma-client check-test-transitions --workspace-dir .
+```
+
+For complete details, see the [Automated Test Workflow Guide](../usage/automated_test_workflow.md).
 
 ### Avoid Direct pytest Usage
 
