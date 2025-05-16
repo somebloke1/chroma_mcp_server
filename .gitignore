@@ -81,6 +81,7 @@ data/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+test_results.xml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

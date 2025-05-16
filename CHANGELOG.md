@@ -5,6 +5,33 @@ All notable changes to the Chroma MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.13] - 2025-05-18
+
+**Added:**
+
+- Implemented test-driven learning flow with structured test result capture
+- Added JUnit XML integration for automatic test result processing
+- Created `test_results_v1` collection with schema for tracking test execution outcomes
+- Implemented bidirectional linking between test results, code chunks, and discussions
+- Added validation evidence framework with scoring system for quality measurement
+- Developed `log-test-results` CLI command for capturing test transitions
+- Enhanced `analyze-chat-history` to incorporate validation scores
+- Added failure-to-success transition tracking for concrete learning validation
+- Enhanced "Second Brain" documentation with comprehensive diagrams and explanations
+- Improved Mermaid diagrams with consistent styling and color schema across all documentation
+- Added detailed documentation for sequential thinking process and tools
+- Enhanced documentation for bidirectional linking between code and chat history
+- Added comprehensive explanation of test-driven learning workflow
+
+**Improved:**
+
+- Enhanced `test.sh` script to generate structured test results for analysis
+- Updated promotion workflow to prioritize learnings with test validation evidence
+- Refined learning validation with weighted scoring for different evidence types
+- Standardized all Mermaid diagrams to use dark theme and consistent color coding
+- Better visualization of the three key learning flows in the Second Brain ecosystem
+- More detailed explanations of knowledge capture mechanisms
+
 ## [0.2.10] - 2025-05-15
 
 **Changed:**

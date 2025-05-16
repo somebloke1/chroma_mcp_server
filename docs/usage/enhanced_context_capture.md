@@ -1,276 +1,513 @@
-# Enhanced Context Capture System
+# Enhanced Context Capture: Code and Chat Auto-Logging with Bidirectional Linking
 
-The Enhanced Context Capture system provides rich contextual information about code changes and AI interactions. It enables bidirectional linking between chat history and code chunks, allowing developers to understand the relationship between discussions and code modifications.
+## Introduction: Why Context Matters
 
-## Key Features
+In software development, understanding *why* and *how* code changes were made is often as important as the changes themselves. Traditional version control systems like Git track what changed, but they miss critical context:
 
-### 1. Code Context Extraction
+- The reasoning behind the change
+- The discussion that led to the solution
+- The alternatives that were considered and rejected
+- The sequence of tools and steps used to implement the change
+- The confidence level in the chosen approach
 
-The system automatically extracts relevant code snippets from before and after edits, showing the changes in a clear, diff-like format. This provides immediate visibility into what was modified without having to manually compare versions.
+The Chroma MCP Server's Enhanced Context Capture system addresses this by automatically logging rich contextual information about every AI-assisted code change, creating bidirectional links between code and discussions, and preserving this valuable metadata for future reference and learning.
 
-```diff
-CHANGED FILE:
-@@ -1,5 +1,5 @@
- def validate_token(token):
-     # Check if token is valid
-     if not token:
-         return False
--    # TODO: Check expiration
-+    # Check expiration
-+    return not is_token_expired(token)
+## Enhanced Context Capture Architecture
+
+The system consists of several integrated components that work together to create a comprehensive knowledge graph of code changes and their context:
+
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+flowchart TD
+    A[Developer] --> B[Question/Problem]
+    B --> C[AI Assistant]
+    
+    subgraph "Context Capture Process"
+        C --> D["Read Files/\nRetrieve Context"]
+        D --> E["Generate Solution"]
+        E --> F["Edit Files"]
+        F --> G["auto_log_chat Rule"]
+        G --> H["Context Extraction Module"]
+        
+        H --> I["Code Diff Extraction"]
+        H --> J["Tool Sequence Tracking"]
+        H --> K["Confidence Scoring"]
+        H --> L["Metadata Tagging"]
+        
+        I --> M[Formatted Context]
+        J --> M
+        K --> M
+        L --> M
+        
+        M --> N["chroma_log_chat MCP Call"]
+    end
+    
+    N --> O[(ChromaDB: chat_history_v1)]
+    N -- "Creates/Updates\nBidirectional Links" --> P[(ChromaDB: codebase_v1)]
+    
+    Q[Another Developer] --> R["Question: How did\nthis code evolve?"]
+    R --> S["Query with Code Context"]
+    S --> T["Retrieve Linked Discussions\nwith Rich Context"]
+    T --> Q
+
+    style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style B fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
+    style C fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style D fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style E fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style F fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style G fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style H fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style I fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style J fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style K fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style L fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style M fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style N fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style O fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style P fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style Q fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style R fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
+    style S fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style T fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
 ```
 
-### 2. Diff Summarization
+*Fig 1: Enhanced Context Capture Architecture - Automatically collecting and preserving rich context.*
 
-For each modified file, the system generates a human-readable summary of the changes, including:
+## Key Components of Enhanced Context Capture
 
-- Number of lines added and removed
-- Functions or classes added or removed
-- Overall modification type
+### 1. Auto Log Chat Rule
+
+The `auto_log_chat` rule is an IDE integration that automatically activates after every AI assistant response. It instructs the AI to:
+
+1. Summarize the user's prompt and its own response
+2. Extract contextual information about any code changes that were made
+3. Create bidirectional links between the chat and affected code chunks
+4. Log this information to the `chat_history_v1` collection via an MCP call
+
+The rule is designed to work silently in the background, ensuring that no valuable context is lost without requiring manual documentation efforts.
+
+### 2. Context Extraction Module
+
+The `context.py` module in the MCP server provides reusable functions for extracting rich context from interactions:
+
+#### Code Diff Extraction
+
+```python
+def extract_code_context(before_content, after_content, file_path):
+    """
+    Extract meaningful code context from before/after states of a file.
+    
+    Args:
+        before_content: Content of the file before changes
+        after_content: Content of the file after changes
+        file_path: Path to the modified file
+        
+    Returns:
+        Dict containing:
+            - diff: Unified diff of the changes
+            - before_snippet: Key snippet from before (surrounding context)
+            - after_snippet: Key snippet from after (surrounding context)
+            - modification_type: Detected type (refactor/bugfix/feature/docs)
+    """
+    # Implementation details...
+```
+
+This function analyzes the changes made to a file and extracts:
+
+- A unified diff showing exactly what changed
+- Key snippets from before and after, with surrounding context
+- The type of modification (refactoring, bug fix, feature addition, documentation)
+
+#### Tool Sequence Tracking
+
+```python
+def track_tool_sequence(tool_usage_list):
+    """
+    Analyze a sequence of tool usages to identify patterns.
+    
+    Args:
+        tool_usage_list: List of tool usage dictionaries
+        
+    Returns:
+        Dict containing:
+            - sequence_pattern: Simplified pattern (e.g., "read→edit→run")
+            - complexity: Estimated complexity of the operation
+            - repeated_patterns: Recurring sub-sequences
+    """
+    # Implementation details...
+```
+
+This function identifies patterns in how tools were used, which can indicate the complexity and nature of the changes made.
+
+#### Confidence Scoring
+
+```python
+def calculate_confidence_score(context_data):
+    """
+    Calculate a confidence score for an interaction based on context.
+    
+    Args:
+        context_data: Dictionary of extracted context
+        
+    Returns:
+        Float between 0.0 and 1.0 representing confidence
+    """
+    # Implementation details...
+```
+
+This function computes a confidence score based on factors like:
+
+- The specificity of the question and answer
+- The complexity of the code changes
+- The presence of test verification
+- Similarity to previously successful patterns
+
+### 3. Bidirectional Linking
+
+The Enhanced Context Capture system maintains links in both directions:
+
+1. **Chat to Code:** Each entry in `chat_history_v1` includes references to the affected code chunks via `related_code_chunks` metadata.
+2. **Code to Chat:** Each chunk in `codebase_v1` includes references to the chat entries that modified or discussed it via `related_chat_ids` metadata.
+
+This bidirectional linking enables developers to navigate seamlessly between code and discussions, answering questions like:
+
+- "Who changed this code and why?"
+- "What other parts of the codebase were affected by this discussion?"
+- "What's the history of changes to this function?"
+
+## Enhanced Chat History Schema
+
+The `chat_history_v1` collection has been enhanced with additional fields to store rich context:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `session_id` | `string` | Unique identifier for the chat session |
+| `timestamp` | `string` | When the interaction occurred |
+| `prompt_summary` | `string` | Summary of the user's query |
+| `response_summary` | `string` | Summary of the AI's response |
+| `involved_entities` | `string` | Comma-separated list of code entities mentioned |
+| `raw_prompt_hash` | `string` | Hash of the original prompt |
+| `raw_response_hash` | `string` | Hash of the original response |
+| `status` | `string` | Current status (e.g., "captured", "analyzed", "promoted_to_learning") |
+| `code_context` | `string` | JSON-encoded context including before/after snippets |
+| `diff_summary` | `string` | Summary of key changes made |
+| `tool_sequence` | `string` | Pattern of tools used (e.g., "read_file→edit_file→run_terminal_cmd") |
+| `modification_type` | `string` | Type of change (refactor/bugfix/feature/documentation) |
+| `confidence_score` | `float` | AI-assessed value from 0.0-1.0 |
+| `related_code_chunks` | `string` | Comma-separated list of chunk IDs from `codebase_v1` |
+| `validation_evidence` | `string` | JSON-encoded validation evidence (e.g., test results) |
+
+## The Enhanced Codebase Schema
+
+The `codebase_v1` collection has been enhanced to support bidirectional linking:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `file_path` | `string` | Path to the file relative to repository root |
+| `chunk_id` | `string` | Unique identifier for this code chunk |
+| `commit_sha` | `string` | Git commit hash when this chunk was indexed |
+| `content` | `string` | The actual code content |
+| `last_modified` | `string` | Timestamp of last modification |
+| `language` | `string` | Programming language |
+| `chunk_type` | `string` | Type of chunk (function, class, etc.) |
+| `related_chat_ids` | `string` | Comma-separated list of chat_history_v1 entry IDs that modified this code |
+| `related_test_ids` | `string` | Comma-separated list of test_results_v1 entry IDs relevant to this code |
+
+## A Complete Learning Cycle with Enhanced Context
+
+The enhanced context capture system enables a powerful learning cycle:
+
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+sequenceDiagram
+    actor D as Developer
+    participant AI as AI Assistant
+    participant L as auto_log_chat
+    participant DB as ChromaDB
+    participant A as analyze-chat-history
+    participant P as promote-learning
+    
+    D->>AI: "How do I fix this performance issue in our database query?"
+    AI->>DB: Query for context from codebase_v1
+    DB-->>AI: Return relevant code chunks
+    AI->>D: Suggests optimized query with explanation
+    
+    Note over D,AI: Developer implements the solution
+    
+    AI->>L: auto_log_chat rule activates
+    L->>L: Extract code diff, tool sequence, etc.
+    L->>DB: Store in chat_history_v1 with rich context
+    L->>DB: Update bidirectional links in codebase_v1
+    
+    Note over D,AI: Later (scheduled or manual)
+    
+    A->>DB: Analyze chat_history_v1
+    A->>A: Prioritize by confidence_score
+    A->>A: Identify high-value interactions
+    A->>P: Present candidates for promotion
+    
+    P->>DB: Promote to derived_learnings_v1
+    
+    Note over D,AI: Future benefit
+    
+    D->>AI: "I have a slow query that needs optimization"
+    AI->>DB: Query context + derived learnings
+    DB-->>AI: Return optimized solution pattern
+    AI->>D: Suggest pattern with context from previous success
+
+    style D fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style AI fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style L fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style DB fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style A fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style P fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+```
+
+*Fig 2: Complete Learning Cycle - From problem to solution to reusable knowledge.*
+
+## Practical Examples: The Enhanced Context in Action
+
+### Example 1: Fixing a Bug with Rich Context
+
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+flowchart TD
+    A["Bug: API returns 500\non null input"] --> B["Developer asks AI\nfor help debugging"]
+    
+    B --> C["AI Assistant\nReviews Code"]
+    
+    C --> D["AI: Null check missing\nin line 42"]
+    
+    D --> E["Developer implements fix\nwith AI guidance"]
+    
+    E --> F["auto_log_chat captures:\n• Before/after code snippets\n• Diff showing added null check\n• Tool sequence: read→edit→run\n• Type: bugfix\n• Confidence: 0.92"]
+    
+    F --> G["Bidirectional links created:\n• Chat → Code chunk\n• Code chunk → Chat"]
+    
+    H["Another developer\nreviews the code later"] --> I["Sees linked chat\nwith full context"]
+    
+    I --> J["Understands exactly why\nthe null check was added"]
+
+    style A fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
+    style B fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style C fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style D fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style E fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style F fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style G fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style H fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style I fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style J fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+```
+
+*Fig 3: Bug Fix with Rich Context - Capturing the full story of a bug resolution.*
+
+### Example 2: Refactoring for Performance
+
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+flowchart TD
+    A["Developer notices\nslow database query"] --> B["Asks AI for\noptimization advice"]
+    
+    B --> C["AI analyzes query pattern\nand suggests optimization"]
+    
+    C --> D["Developer implements\noptimized query"]
+    
+    D --> E["auto_log_chat captures:\n• Performance discussion\n• Before: O(n²) approach\n• After: O(n) approach\n• Type: refactor\n• Confidence: 0.95"]
+    
+    E --> F["analyze-chat-history\nidentifies high-value pattern"]
+    
+    F --> G["promote-learning elevates\nto derived_learnings_v1"]
+    
+    H["Later: Team member\nhas similar slow query"] --> I["AI retrieves validated\noptimization pattern"]
+    
+    I --> J["Same pattern applied to\nnew context, with attribution"]
+
+    style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style B fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style C fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style D fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style E fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style F fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style G fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style H fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style I fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style J fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+```
+
+*Fig 4: Refactoring with Knowledge Transfer - From one-time fix to reusable pattern.*
+
+## How to Configure and Use Enhanced Context Capture
+
+### Setup Requirements
+
+1. **Chroma MCP Server installed and configured** with your IDE
+2. **`auto_log_chat` rule** configured in your IDE settings
+3. **ChromaDB collections** set up using `chroma-client setup-collections`
+
+### Configure Custom Context Extraction
+
+You can customize how context is extracted by editing the `context.py` module:
+
+```python
+# Example: Custom scoring factors for different interaction types
+CONFIDENCE_WEIGHTS = {
+    "bugfix": {
+        "test_verified": 0.4,
+        "explanation_quality": 0.3,
+        "solution_complexity": 0.2,
+        "tool_sequence_coherence": 0.1
+    },
+    "refactor": {
+        "performance_improvement": 0.5,
+        "complexity_reduction": 0.3,
+        "explanation_quality": 0.1,
+        "tool_sequence_coherence": 0.1
+    },
+    # ... other types ...
+}
+```
+
+### Querying with Enhanced Context
+
+The enriched context enables powerful queries:
 
 ```bash
-Modified src/auth.py: 2 lines added, 1 lines removed. Added: is_token_expired function
+# Find all discussions that modified a specific file
+chroma-client query-chat-history --related-file src/database/query.py
+
+# Find high-confidence interactions (score > 0.9)
+chroma-client query-chat-history --min-confidence 0.9
+
+# Find all bug fixes with their context
+chroma-client query-chat-history --modification-type bugfix
+
+# Find refactorings that used a specific tool sequence
+chroma-client query-chat-history --tool-sequence "read_file→edit_file→run_terminal_cmd" --modification-type refactor
 ```
 
-### 3. Tool Sequence Tracking
-
-The system tracks the sequence of tools used during an interaction, revealing the problem-solving approach:
+### Navigating Bidirectional Links
 
 ```bash
-codebase_search→read_file→edit_file→run_terminal_cmd
+# Find all chats that modified a specific code chunk
+chroma-client query-chat-history --code-chunk <chunk_id>
+
+# Find all code chunks modified in a specific chat
+chroma-client query-codebase --chat-id <chat_id>
+
+# Get the full history of a file with all related discussions
+chroma-client get-file-history src/module/file.py
 ```
 
-Common patterns identified include:
+## Best Practices for Maximizing Enhanced Context
 
-- `MULTIPLE_READS`: Deep research into the codebase before making changes
-- `SEARCH_THEN_EDIT`: Finding and then modifying relevant code
-- `ITERATIVE_REFINEMENT`: Multiple edit-reapply cycles to perfect a change
-- `EXPLORATION`: Extensive searching without edits (information gathering)
-- `CODE_EXECUTION`: Running terminal commands to test or validate changes
+1. **Ask focused questions** with clear problem statements to improve context quality
+2. **Include error messages and expected behavior** in your prompts
+3. **Reference specific files and functions** to enhance bidirectional linking
+4. **Run tests after changes** to validate solutions (improving confidence scores)
+5. **Use the analysis tools regularly:**
 
-### 4. Modification Type Classification
+   ```bash
+   # Run weekly to analyze and prioritize learnings
+   chroma-client analyze-chat-history --prioritize-by confidence --since last-week
+   
+   # Review and promote high-value learnings
+   chroma-client review-and-promote
+   ```
 
-Changes are automatically categorized into standardized types:
+6. **Periodically review the knowledge graph** to identify common patterns:
 
-- `REFACTOR`: Improving existing functionality without changing behavior
-- `BUGFIX`: Correcting errors or unexpected behavior
-- `FEATURE`: Adding new capabilities or functionality
-- `DOCUMENTATION`: Improving comments or documentation
-- `OPTIMIZATION`: Performance improvements
-- `TEST`: Adding or updating tests
-- `CONFIG`: Configuration changes
-- `STYLE`: Code style or formatting changes
+   ```bash
+   # Generate knowledge graph visualization
+   chroma-client generate-knowledge-graph --min-confidence 0.8 --output graph.html
+   ```
 
-### 5. Confidence Scoring
+## Advanced Usage: Custom Context Integrations
 
-Each interaction receives a confidence score (0.0-1.0) based on:
+### Integration with CI/CD Pipelines
 
-- Complexity of the interaction (tool usage)
-- Number of files changed
-- Response length and detail
-- Tool patterns detected
+You can integrate the Enhanced Context Capture system with your CI/CD pipeline:
 
-Scores help identify high-value interactions:
+```yaml
+# Example GitHub Actions workflow
+name: Code Intelligence
 
-- 0.9-1.0: High-value, comprehensive solution with clear impact
-- 0.7-0.9: Solid solution with good explanation and implementation
-- 0.5-0.7: Adequate solution that addresses the core problem
-- 0.3-0.5: Partial solution with some uncertainty
-- 0.0-0.3: Exploratory discussion or uncertain solution
+on:
+  pull_request:
+    branches: [ main ]
 
-### 6. Bidirectional Linking
-
-The most powerful feature is bidirectional linking between chat history and code chunks:
-
-- Each chat entry that modifies code stores references to the affected code chunks
-- Each code chunk stores references to the chat entries that modified it
-
-This creates a navigable history of changes and discussions:
-
-- See which discussions led to specific code changes
-- Find all code affected by a particular discussion
-- Trace the evolution of a feature or bug fix across multiple conversations
-
-## Semantic Code Chunking
-
-To improve bidirectional linking, the system uses semantic boundaries (functions, classes) when chunking code files. This results in more meaningful code chunks that align with logical code structures, making it easier to understand the connection between discussions and specific code components.
-
-## Usage
-
-### Manually Logging Chat Interactions
-
-For manually logging chat interactions with enhanced context, use the `log-chat` command:
-
-```bash
-# Log a chat interaction with basic information
-chroma-client log-chat --prompt-summary "User's question about API design" --response-summary "Explanation of REST principles"
-
-# Log with full context including raw text and tool usage
-chroma-client log-chat --prompt-summary "Debug request" --response-summary "Fixed null pointer" \
-  --raw-prompt "Why is my function returning null?" --raw-response "You need to initialize the variable" \
-  --tool-usage-file ./tool_usage.json --modification-type bugfix --confidence-score 0.85
+jobs:
+  analyze-context:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install chroma-mcp-server[client]
+      - name: Analyze changed files
+        run: |
+          chroma-client analyze-pr-context \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --repository ${{ github.repository }} \
+            --output pr-analysis.md
+      - name: Comment on PR
+        uses: actions/github-script@v5
+        with:
+          script: |
+            const fs = require('fs');
+            const analysis = fs.readFileSync('pr-analysis.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: analysis
+            });
 ```
 
-The command supports various parameters to capture rich context:
+### Visual Studio Code Extension Integration
 
-- `--prompt-summary`: Brief summary of the user's question (required)
-- `--response-summary`: Brief summary of the AI's response (required)
-- `--raw-prompt`: Full text of the user's prompt
-- `--raw-response`: Full text of the AI's response
-- `--tool-usage-file`: JSON file containing tool usage information
-- `--modification-type`: Type of change (refactor, bugfix, feature, etc.)
-- `--confidence-score`: Confidence in the value of the interaction (0.0-1.0)
-- `--involved-entities`: Comma-separated list of files, functions, or concepts discussed
-- `--code-context`: JSON file containing before/after code snippets
-- `--diff-summary`: Summary of code changes made
+The Enhanced Context Capture system can be integrated with IDE extensions:
 
-### Viewing Enhanced Context in Chat History
-
-Enhanced context is automatically captured by the `auto_log_chat` rule and stored in the `chat_history_v1` collection. To view it:
-
-```bash
-# Query the chat history collection
-chroma-client query --collection chat_history_v1 --query "your search term"
+```javascript
+// Example VS Code extension that adds "View Change Context" command
+vscode.commands.registerCommand('extension.viewChangeContext', async () => {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+  
+  const filePath = editor.document.uri.fsPath;
+  const position = editor.selection.active;
+  
+  // Call the Chroma MCP Server to get context
+  const context = await getChangeContext(filePath, position.line);
+  
+  // Show context in webview panel
+  const panel = vscode.window.createWebviewPanel(
+    'changeContext',
+    'Change Context',
+    vscode.ViewColumn.Beside,
+    {}
+  );
+  
+  panel.webview.html = formatContextAsHtml(context);
+});
 ```
 
-### Finding Related Chat Discussions for Code
+## Conclusion: From Code Changes to Knowledge Network
 
-To find chat discussions related to a specific file:
+The Enhanced Context Capture system transforms isolated code changes and discussions into a rich, interconnected knowledge network. By automatically preserving the context behind every change, it:
 
-```bash
-# Query the codebase collection with a file path
-chroma-client query --collection codebase_v1 --query "file:path/to/file.py"
+1. **Eliminates knowledge silos** by connecting code and discussions
+2. **Preserves institutional memory** that would otherwise be lost
+3. **Enables AI tools** to provide more relevant, contextual assistance
+4. **Accelerates onboarding** by making the "why" of code changes explicit
+5. **Identifies valuable patterns** that can be promoted to curated learnings
 
-# Extract chat IDs from the related_chat_ids field
-# Then query chat history using those IDs
-```
+This creates a virtuous cycle where each interaction enriches the overall knowledge base, making future development more efficient and informed.
 
-### Finding Code Changes from Chat History
+---
 
-To find code chunks modified by a specific chat:
-
-```bash
-# First get the chat entry ID
-chroma-client query --collection chat_history_v1 --query "your discussion topic"
-
-# Then look at the related_code_chunks field in the metadata
-# Use those chunk IDs to query the codebase collection
-```
-
-## Analyzing High-Value Interactions
-
-The enhanced context system helps identify particularly valuable interactions:
-
-```bash
-# Find high-confidence interactions
-chroma-client query --collection chat_history_v1 --where '{"confidence_score": {"$gt": 0.8}}'
-
-# Find specific modification types
-chroma-client query --collection chat_history_v1 --where '{"modification_type": "feature"}'
-```
-
-## Implementation Details
-
-The enhanced context capture functionality is implemented in several modules:
-
-1. `src/chroma_mcp_client/context.py`: Core context extraction and analysis functions
-2. `src/chroma_mcp_client/auto_log_chat_impl.py`: Integration with the chat logging system
-3. `src/chroma_mcp_client/indexing.py`: Semantic chunking and bidirectional linking support
-
-For detailed API documentation, see [context_module.md](./context_module.md).
-
-## Best Practices
-
-1. **Use clear commit messages and PR descriptions**: These improve the quality of context extraction
-2. **Make focused changes**: Smaller, more targeted edits result in better context capture
-3. **Include rationales in chat**: Explaining your reasoning helps build a better knowledge base
-4. **Review high-confidence interactions**: These are prime candidates for promoting to derived learnings
-5. **Leverage bidirectional links**: When fixing bugs or adding features, check for related discussions first
-
-## Enhanced Context Capture: Error-Driven Learning
-
-## The Problem: Learning Without Validation
-
-Our current approach to capturing and promoting "learnings" has a significant limitation: **we're promoting code changes without verifying they represent true learning moments**. Simply capturing chat summaries and code changes doesn't guarantee the changes represent valuable knowledge or solutions to actual problems.
-
-### An Enhanced Approach: Error-Driven Learning
-
-Real learning typically occurs through the error-correction cycle:
-
-1. Code is written with incorrect assumptions
-2. Tests or runtime execution reveals errors
-3. Code is fixed to address those errors
-4. The difference between incorrect and correct implementations becomes a valuable learning
-
-This document proposes enhancements to our context capture system to focus on this error-driven learning process.
-
-### Key Components of Error-Driven Learning Capture
-
-#### 1. Test Result Integration
-
-As outlined in the `local_rag_pipeline_plan_v4.md`, we'll implement test result tracking with:
-
-- A `test_results_v1` collection storing structured test results
-- Bidirectional linking between test results, code chunks, and chat history
-- Tracking of test success/failure transitions
-
-#### 2. Error Log Capture
-
-We should extend our system to capture runtime errors:
-
-- Create mechanisms to log application errors to ChromaDB
-- Link these errors to the associated code chunks
-- Track when errors first appear and when they're resolved
-
-#### 3. Complete Learning Lifecycle
-
-For true learning value, we need to capture the full lifecycle:
-
-- Initial implementation → Failing test/error → Fix implementation → Passing test/resolved error
-- Before/after code comparison for the fix
-- Root cause analysis (from chat discussion or explicit documentation)
-
-#### 4. Learning Validation Criteria
-
-We should only promote learnings that meet specific validation criteria:
-
-- Code changes that fixed failing tests
-- Solutions that resolved runtime errors
-- Refactorings that measurably improved quality metrics (complexity, performance, etc.)
-- Changes with clear evidence of correcting misconceptions or addressing edge cases
-
-### Implementation Plan
-
-#### Phase 1: Test Result Integration
-
-1. Implement the `test_results_v1` collection as described in `local_rag_pipeline_plan_v4.md`
-2. Modify `log-test-results` to track test transitions (failing → passing)
-3. Update the promotion workflow to prioritize changes that fix failing tests
-
-#### Phase 2: Runtime Error Integration
-
-1. Create an error logging mechanism
-2. Implement bidirectional linking between errors and code
-3. Extend the promotion workflow to include error resolution criteria
-
-#### Phase 3: Enhanced Learning Promotion
-
-1. Update `analyze-chat-history` to identify validated learning moments
-2. Modify `review-and-promote` to show validation evidence
-3. Add quality metrics to strengthen validation criteria
-
-### Expected Benefits
-
-This approach will transform our "derived_learnings" from a collection of arbitrary code changes to validated solutions with proven value. It will:
-
-- Increase the signal-to-noise ratio in our learning collection
-- Provide concrete evidence of learning value
-- Capture the context of why changes were made
-- Create a more useful resource for both developers and AI assistants
-
-### Next Steps
-
-1. Complete the test result integration as a foundation
-2. Develop the validation criteria for learning promotion
-3. Update the promotion workflow to incorporate these criteria
-4. Design the runtime error capture mechanism
+*For detailed API references and additional examples, see the API documentation in this repository.*
