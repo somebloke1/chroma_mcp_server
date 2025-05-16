@@ -361,6 +361,11 @@ hatch run test
 # Run tests on a specific Python version only
 ./scripts/test.sh --python 3.10  # or --py 3.10
 ./scripts/test.sh --py 3.11 tests/tools/  # Run tools tests on Python 3.11 only
+
+# Run tests with automated test workflow capture
+# This automatically tracks test failures and transitions to success
+./scripts/test.sh --auto-capture-workflow
+./scripts/test.sh -c -v --auto-capture-workflow  # With coverage and verbose output
 ```
 
 Note that coverage reports (`terminal`, `XML`, `HTML`) are generated *after* all tests across all configured Python versions have completed.
@@ -369,6 +374,30 @@ Note that coverage reports (`terminal`, `XML`, `HTML`) are generated *after* all
 # Run specific tests within the Hatch environment
 hatch run test:run tests/tools/test_collection_tools.py::TestCollectionTools::test_create_collection_success
 ```
+
+### Automated Test-Driven Learning
+
+The test.sh script supports automatic capture of test failures and transitions with the `--auto-capture-workflow` flag. This integrates with the automated test-driven learning workflow:
+
+1. **Setup:** Before using this feature, run the setup command:
+
+   ```bash
+   chroma-client setup-test-workflow --workspace-dir .
+   ```
+
+2. **Usage:** Run tests with the automated workflow flag:
+
+   ```bash
+   ./scripts/test.sh -c -v --auto-capture-workflow
+   ```
+
+3. **Check for Transitions:** After making code changes and re-running tests:
+
+   ```bash
+   chroma-client check-test-transitions --workspace-dir .
+   ```
+
+For more details, see the [Automated Test Workflow Guide](usage/automated_test_workflow.md).
 
 ## Building the Package
 

@@ -31,6 +31,12 @@
      ./scripts/test.sh -c -v --python 3.11 tests/tools/
      ```
 
+     To automatically track test failures and transitions for validation evidence:
+
+     ```bash
+     ./scripts/test.sh -c -v --auto-capture-workflow
+     ```
+
   4. Verify all tests pass and coverage meets or exceeds 80%
   5. Fix any issues and repeat steps 1-4 until all tests pass
   6. For MCP server changes, remind the user to manually reload the MCP server in their IDE before continuing with any MCP tools usage

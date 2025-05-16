@@ -5,7 +5,7 @@ All notable changes to the Chroma MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.13] - 2025-05-18
+## [0.2.14] - 2025-05-18
 
 **Added:**
 
@@ -17,11 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Developed `log-test-results` CLI command for capturing test transitions
 - Enhanced `analyze-chat-history` to incorporate validation scores
 - Added failure-to-success transition tracking for concrete learning validation
+- Implemented automated test-driven learning workflow with TestWorkflowManager
+- Added `setup-test-workflow` command to automatically create Git hooks for test tracking
+- Added `check-test-transitions` command to detect and promote successful test transitions
+- Enhanced `test.sh` script with `--auto-capture-workflow` flag for seamless integration
+- Created comprehensive unit tests for the new test workflow functionality
 - Enhanced "Second Brain" documentation with comprehensive diagrams and explanations
 - Improved Mermaid diagrams with consistent styling and color schema across all documentation
 - Added detailed documentation for sequential thinking process and tools
 - Enhanced documentation for bidirectional linking between code and chat history
 - Added comprehensive explanation of test-driven learning workflow
+- Created detailed `automated_test_workflow.md` guide for the new functionality
 
 **Improved:**
 

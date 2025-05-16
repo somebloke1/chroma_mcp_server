@@ -523,6 +523,10 @@ This error-driven learning integration will transform our derived learnings coll
 - [X] **Create `docs/usage/test_result_integration.md` explaining the test result tracking system and its integration with the RAG workflow.**
 - [X] **Update test.sh documentation to include information about the new JUnit XML output and result logging.**
 - [X] **Add section to developer guide on interpreting test metrics and correlating them with RAG effectiveness.**
+- [X] **Create `docs/usage/automated_test_workflow.md` documenting the automated test-driven learning workflow, setup, and usage.**
+- [X] **Update `.cursorrules` document with guidance for the `--auto-capture-workflow` flag.**
+- [X] **Update `.windsurfrules` document with guidance for the `--auto-capture-workflow` flag.**
+- [X] **Update `.github/.copilot-instructions.md` document with guidance for the `--auto-capture-workflow` flag.**
 - [ ] **Create `docs/usage/roi_measurement.md` documenting the metrics, tools, and processes for measuring RAG effectiveness.**
 
 ---
@@ -600,6 +604,12 @@ This error-driven learning integration will transform our derived learnings coll
 - [X] Unit tests for context capture logic.
 - [X] End-to-end tests for enhanced `auto_log_chat` functionality.
 - [X] Tests for bidirectional linking between code and chat history.
+- [X] Unit tests for validation schemas (RuntimeErrorEvidence, CodeQualityEvidence, TestTransitionEvidence)
+- [X] Unit tests for validation scoring system
+- [X] Tests for parsing and processing test results
+- [X] Unit tests for TestWorkflowManager with comprehensive coverage for setup, failure capture, and transitions
+- [X] Unit tests for CLI integration of test workflow commands
+- [ ] Integration tests for the complete validation pipeline
 
 *Documentation:*
 
@@ -614,6 +624,11 @@ This error-driven learning integration will transform our derived learnings coll
 - [X] Unit tests for validation schemas (RuntimeErrorEvidence, CodeQualityEvidence, TestTransitionEvidence)
 - [X] Unit tests for validation scoring system
 - [X] Tests for parsing and processing test results
+- [X] Unit tests for TestWorkflowManager with comprehensive coverage for setup, failure capture, and transitions
+- [X] Unit tests for CLI integration of test workflow commands
+- [X] Create comprehensive documentation for the automated test workflow in `docs/usage/automated_test_workflow.md`
+- [X] Update `.cursorrules` to include `--auto-capture-workflow` flag guidance
+- [X] Update all relevant documentation to include links to the automated test workflow documentation
 - [ ] **Next Steps:** Integration tests for the complete validation pipeline
 
 *Next Immediate Tasks:*
@@ -661,8 +676,28 @@ This error-driven learning integration will transform our derived learnings coll
     - [ ] Add `chroma-client validate-evidence` for calculating and displaying validation scores
     - [ ] Update `chroma-client score-learning` to incorporate evidence-based scoring
     - [ ] Add validation reporting options to existing CLI tools
-17. [ ] **Documentation updates for validation:**
-    - [ ] Update `docs/usage/derived_learnings.md` to include validation scoring information
-    - [ ] Create `docs/usage/validation_evidence.md` describing the evidence types and scoring system
-    - [ ] Add schema diagrams showing relationships between evidence types
-    - [ ] Document CLI commands for validation-related operations
+17. [X] **Automate the Test-Driven Learning Workflow:**
+    - [X] **Enhance `test.sh` for full automation:**
+      - [X] Add `--auto-capture-workflow` flag to enable automatic test workflow capture
+      - [X] Automatically save failing test results on initial failure
+      - [X] Implement git hook integration to detect when tests start passing after edits
+      - [X] Add post-success validation to automatically compare before/after results
+    - [X] **Create bidirectional linking with chat history:**
+      - [X] Auto-detect which chat sessions influenced code that fixed tests
+      - [X] Store references to chat IDs in test results
+      - [X] Add test results as evidence in chat history entries
+    - [X] **Implement automatic promotion workflow:**
+      - [X] Create `setup-test-workflow` command to configure the Git hooks
+      - [X] Create `check-test-transitions` command that identifies high-quality fixes
+      - [X] Add configurable threshold for auto-promotion based on validation score
+      - [X] Preserve failing→passing transitions with comprehensive context
+    - [ ] **Build monitoring dashboard:**
+      - [ ] Create CLI view for test transition metrics
+      - [ ] Implement quality trend visualization over time
+      - [ ] Track correlation between AI assistance and test improvements
+
+18. [X] **Documentation updates for validation:**
+    - [X] Update `docs/usage/derived_learnings.md` to include validation scoring information
+    - [X] Create `docs/usage/validation_evidence.md` describing the evidence types and scoring system
+    - [X] Add schema diagrams showing relationships between evidence types
+    - [X] Document the automated test-driven learning workflow in `docs/usage/automated_test_workflow.md`

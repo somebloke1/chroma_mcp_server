@@ -21,6 +21,7 @@ Welcome to the Chroma MCP Server documentation. This guide provides comprehensiv
 - [Error-Driven Learning](usage/enhanced_context_capture.md#error-driven-learning)
 - [Learning Validation Workflow](refactoring/learning_validation_workflow.md)
 - [ROI Measurement Framework](usage/roi_measurement.md)
+- [Automated Test Workflow](usage/automated_test_workflow.md)
 
 ## Overview
 
@@ -32,6 +33,7 @@ The Chroma MCP Server allows you to connect AI applications with Chroma through 
 - **Bidirectional Linking:** Creates navigable connections between chat discussions and code changes, allowing tracing of feature evolution.
 - **Automated Chat Logging:** IDE rules (like `auto_log_chat` for Cursor) facilitate automatic summarization and logging of AI chat interactions into a separate Chroma collection.
 - **Working Memory Tools:** Specialized MCP commands for capturing and retrieving structured thoughts and development context.
+- **Automated Test-Driven Learning:** Captures test failures and successes, links them to code changes and discussions, and automatically promotes validated learning.
 
 This enables AI models to:
 
@@ -41,6 +43,7 @@ This enables AI models to:
 - Support RAG (Retrieval Augmented Generation) workflows
 - Track the evolution of code through discussions and modifications
 - Maintain context across multiple development sessions
+- Learn from test-driven development processes
 
 **Current Implementation Status:** The foundational features of the "Second Brain" concept (Phase 1 in `docs/refactoring/local_rag_pipeline_plan_v4.md`) have been largely implemented, including automated indexing with semantic chunking, enhanced chat logging with rich context capture, bidirectional linking, working memory, and derived learnings promotion. The CLI tools for analysis and promotion are being enhanced to fully leverage this rich metadata. More advanced features (Phases 2 and 3) involving LoRA fine-tuning and automated reinforcement learning are under active development.
 
@@ -53,8 +56,21 @@ The "Second Brain" concept offers compelling benefits:
 3. **Validated Learning Collection**: Store only code changes with proven learning value based on evidence like test transitions and error resolution.
 4. **Measurable ROI**: Track concrete metrics showing the impact of your RAG system on development efficiency and code quality.
 5. **Continuous Improvement**: The system naturally adapts to focus on high-value solutions.
+6. **Automated Test-Driven Learning**: Captures the complete lifecycle from test failure to fix, creating evidence-based validation for promoted learnings.
 
 ## Key Enhanced Features
+
+### Automated Test-Driven Learning
+
+The system includes a fully automated test-driven learning workflow that:
+
+- Automatically captures test failures and their context
+- Monitors for subsequent test successes after code changes
+- Creates validation evidence with bidirectional links to code and chat history
+- Promotes high-quality fixes to derived learnings
+- Integrates with Git hooks for seamless operation
+
+See the [Automated Test Workflow Guide](usage/automated_test_workflow.md) for implementation details.
 
 ### Error-Driven Learning
 

@@ -171,6 +171,19 @@ See the [chroma-client script documentation](scripts/chroma-client.md) for detai
 **Note on Timestamp Consistency:**
 The server enforces consistent timestamp handling by automatically overriding any AI-provided timestamps with server-generated values. This ensures that all documents stored in ChromaDB collections have accurate system timestamps, addressing potential issues where AI models might use their training cutoff dates instead of the actual system time.
 
+**Automated Test Workflow Configuration:**
+To set up the automated test-driven learning workflow, you can use the `setup-test-workflow` command from the CLI:
+
+```bash
+# Set up automated test workflow Git hooks and configuration
+chroma-client setup-test-workflow --workspace-dir /path/to/workspace
+
+# Run tests with automatic test failure/success tracking
+./scripts/test.sh -c -v --auto-capture-workflow
+```
+
+This will create Git hooks that automatically track test executions and transitions from failure to success. For more details, see the [Automated Test Workflow Guide](usage/automated_test_workflow.md).
+
 Cursor uses `.cursor/mcp.json` to configure server launch commands:
 
 ```json

@@ -13,6 +13,7 @@ from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 import argparse
 import logging
 import uuid
+from io import StringIO
 
 # Module to test
 from chroma_mcp_client import cli
@@ -1529,3 +1530,89 @@ def test_log_quality_check_command(mock_get_client_ef, mock_argparse, mock_uuid,
         assert "Before value: 25" in captured.out
         assert "After value: 15" in captured.out
         assert "Improvement: 40.00%" in captured.out
+
+
+@patch("chroma_mcp_client.validation.test_workflow.check_for_completed_workflows")
+def test_cli_check_test_transitions(mock_check_workflows, monkeypatch):
+    """Test the check-test-transitions CLI command."""
+    # Setup mocks
+    mock_check_workflows.return_value = 3  # 3 workflows processed
+
+    # Run command
+    monkeypatch.setattr(
+        sys, "argv", ["chroma-client", "check-test-transitions", "--workspace-dir", "/test/workspace", "--auto-promote"]
+    )
+
+    # Capture stdout
+    with patch("sys.stdout", new=StringIO()) as fake_out:
+        with patch("sys.exit") as mock_exit:
+            # Run the command
+            main()
+
+            # Check exit wasn't called with error code
+            mock_exit.assert_not_called()
+
+    # Verify check_for_completed_workflows was called properly
+    mock_check_workflows.assert_called_once()
+
+    # Test error scenario
+    mock_check_workflows.side_effect = Exception("Test error")
+    monkeypatch.setattr(sys, "argv", ["chroma-client", "check-test-transitions"])
+
+    with patch("sys.stderr", new=StringIO()) as fake_err:
+        with patch("sys.exit") as mock_exit:
+            # Run the command
+            main()
+
+            # Check exit was called with error code
+            mock_exit.assert_called_once_with(1)
+
+
+@patch("chroma_mcp_client.validation.test_workflow.setup_automated_workflow")
+def test_cli_setup_test_workflow(mock_setup_workflow, monkeypatch):
+    """Test the setup-test-workflow CLI command."""
+    # Setup mocks
+    mock_setup_workflow.return_value = True
+
+    # Run command with custom workspace dir and force flag
+    monkeypatch.setattr(
+        sys, "argv", ["chroma-client", "setup-test-workflow", "--workspace-dir", "/test/workspace", "--force"]
+    )
+
+    # Capture stdout
+    with patch("sys.stdout", new=StringIO()) as fake_out:
+        with patch("sys.exit") as mock_exit:
+            # Run the command
+            main()
+
+            # Check exit wasn't called with error code
+            mock_exit.assert_not_called()
+
+    # Verify setup_automated_workflow was called with correct workspace dir
+    mock_setup_workflow.assert_called_once_with(workspace_dir="/test/workspace")
+
+    # Test failure case
+    mock_setup_workflow.return_value = False
+    monkeypatch.setattr(sys, "argv", ["chroma-client", "setup-test-workflow"])
+
+    with patch("sys.stdout", new=StringIO()) as fake_out:
+        with patch("sys.exit") as mock_exit:
+            # Run the command
+            main()
+
+            # Check exit was called with error code
+            mock_exit.assert_called_once_with(1)
+
+    # Verify default workspace dir was used
+    mock_setup_workflow.assert_called_with(workspace_dir=".")
+
+    # Test error scenario
+    mock_setup_workflow.side_effect = Exception("Test error")
+
+    with patch("sys.stderr", new=StringIO()) as fake_err:
+        with patch("sys.exit") as mock_exit:
+            # Run the command
+            main()
+
+            # Check exit was called with error code
+            mock_exit.assert_called_with(1)

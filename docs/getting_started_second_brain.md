@@ -4,9 +4,9 @@
 
 Modern software projects generate a wealth of knowledge: design decisions, bug fixes, best practices, architectural notes, and lessons learned. Yet, traditionally, this crucial information gets scattered across markdown files, code comments, commit messages, chat logs, and issue trackers. Retrieving the right piece of context when needed often involves tedious manual searching (grep, Ctrl+F, digging through history), hindering productivity and increasing the risk of repeating past mistakes.
 
-**Chroma MCP Server and its ecosystem** offer a transformative solution: an integrated, persistent, semantically searchable, and *evolving* knowledge base built directly into your development workflow. This document explains the unique value proposition and how this ecosystem acts as a powerful "second brain" for developers and AI assistants alike, especially when following the evolutionary path laid out in our `local_rag_pipeline_plan_v4.md`.
+**Chroma MCP Server and its ecosystem** offer a transformative solution: an integrated, persistent, semantically searchable, and *evolving* knowledge base built directly into your development workflow. This document explains the unique value proposition and how this ecosystem acts as a powerful "second brain" for developers and AI assistants alike, especially when following the evolutionary path laid out in our [local_rag_pipeline_plan_v4.md](refactoring/local_rag_pipeline_plan_v4.md).
 
-**Current Implementation Status:** The "Second Brain" concept is being implemented through a phased approach defined in `docs/refactoring/local_rag_pipeline_plan_v4.md`. The foundational capabilities outlined in Phase 1 have been largely implemented, including:
+**Current Implementation Status:** The "Second Brain" concept is being implemented through a phased approach defined in [local_rag_pipeline_plan_v4.md](refactoring/local_rag_pipeline_plan_v4.md). The foundational capabilities outlined in Phase 1 have been largely implemented, including:
 
 - ✓ Automated code indexing with semantic code chunking
 - ✓ Enhanced chat logging with rich context capture (code diffs, tool sequences)
@@ -183,7 +183,7 @@ This enhanced workflow is powered by:
 
 ## Unique Selling Proposition (USP): The Integrated, Evolving "Second Brain"
 
-The traditional development workflow forces developers to be digital archaeologists, constantly digging through scattered, often outdated, fragments of information. AI assistants in such environments operate with one hand tied behind their back, lacking deep, current project context. The Chroma MCP Server ecosystem, as envisioned in the `local_rag_pipeline_plan_v4.md`, offers a radical improvement: **a unified, automated, and evolving "Second Brain" that grows with your project and actively enhances both developer and AI performance.**
+The traditional development workflow forces developers to be digital archaeologists, constantly digging through scattered, often outdated, fragments of information. AI assistants in such environments operate with one hand tied behind their back, lacking deep, current project context. The Chroma MCP Server ecosystem, as envisioned in the [local_rag_pipeline_plan_v4.md](refactoring/local_rag_pipeline_plan_v4.md), offers a radical improvement: **a unified, automated, and evolving "Second Brain" that grows with your project and actively enhances both developer and AI performance.**
 
 **How is it Different and Why is it Better?**
 
@@ -192,10 +192,10 @@ The traditional development workflow forces developers to be digital archaeologi
     - **Chroma MCP Solution & WHY it's better:**
         - **Code (`codebase_v1`):** The Git hook **automatically indexes every change on commit** using semantic chunking that preserves logical code structures. Your codebase context is *always fresh* without a single manual indexing command.
 
-          -*HOW:** `chroma-client index --changed` runs silently in the background using semantic code boundaries.
+          - **HOW:** `chroma-client index --changed` runs silently in the background using semantic code boundaries.
         - **Dialogues (`chat_history_v1`):** The enhanced `auto_log_chat` rule **automatically captures the essence of every AI interaction plus rich contextual information** (code diffs, tool sequences, confidence scores). No more "Where did we discuss that bug?" – it's logged, linked to related code changes, and semantically searchable.
 
-          -*HOW:** AI extracts context, generates diffs, tracks tool usage, and calls an MCP tool.
+          - **HOW:** AI extracts context, generates diffs, tracks tool usage, and calls an MCP tool.
         - **Bidirectional Linking:** Code changes and discussions are automatically connected, allowing you to trace feature evolution across both domains.
         - This automated context capture alone is a massive productivity boost over manual methods.
 
@@ -203,24 +203,24 @@ The traditional development workflow forces developers to be digital archaeologi
     - **Traditional Pain:** Information silos. Code is in the repo, design docs elsewhere, quick fixes in chat, error solutions in commit messages. Finding related pieces is a nightmare.
     - **Chroma MCP Solution & WHY it's better:** `codebase_v1`, `chat_history_v1`, `derived_learnings_v1`, and `thinking_sessions_v1` all reside in ChromaDB, accessible via the same semantic search capabilities. You can ask "Show me code related to X AND discussions where we fixed Y using X." With bidirectional linking, you can then navigate from code to related discussions or from discussions to affected code.
 
-      -*HOW:** MCP tools query across these collections, providing multifaceted context and leveraging connection metadata.
+      - **HOW:** MCP tools query across these collections, providing multifaceted context and leveraging connection metadata.
 
 3. **Explicit Knowledge Curation & Refinement (Empowers Precision - Phase 1 implemented):**
     - **Traditional Pain:** Tacit knowledge is lost. Useful snippets from chats or temporary solutions are forgotten. No easy way to flag "this is a golden solution."
     - **Chroma MCP Solution & WHY it's better:** The `derived_learnings_v1` collection allows developers to **explicitly promote and structure validated solutions and best practices.** This curated knowledge becomes a high-signal resource for both humans and AI, significantly boosting RAG quality. The `review-and-promote` tool provides a streamlined interface for reviewing and approving candidate learnings.
 
-      -*HOW:** `promote-learning` CLI or interactive `review-and-promote` creates structured entries in `derived_learnings_v1` with linkages to source discussions and code.
+      - **HOW:** `promote-learning` CLI or interactive `review-and-promote` creates structured entries in `derived_learnings_v1` with linkages to source discussions and code.
 
 4. **Evolutionary Learning & Adaptation (Transforms AI from Tool to Partner - Phases 2 & 3 in development):**
     - **Traditional Pain:** AI assistants are static tools. They don't learn from your project's specific nuances, coding style, or past corrections beyond the immediate conversation.
     - **Chroma MCP Solution & WHY it's better:**
         - **Phase 2 (Optional LoRA - In Development):** Developers can **manually fine-tune LoRA adapters** using high-quality data from `chat_history_v1` / `derived_learnings_v1`. This allows AI to be *specialized* for specific, recurring project tasks.
 
-          -*HOW:** Export reward data, train LoRA, use on-demand in IDE.
+          - **HOW:** Export reward data, train LoRA, use on-demand in IDE.
 
         - **Phase 3 (Automated RL - In Development):** The system **automatically analyzes interactions, generates training data, and retrains LoRA models.** The "Second Brain" doesn't just store information; it *learns and adapts*, continuously improving its understanding and the relevance of its suggestions.
 
-          -*HOW:** Scheduled scripts automate the analysis, training, and deployment cycle.
+          - **HOW:** Scheduled scripts automate the analysis, training, and deployment cycle.
 
         - **This makes the AI a continuously improving partner that understands your project's evolving context deeply.**
 
@@ -233,13 +233,13 @@ The traditional development workflow forces developers to be digital archaeologi
     - **Chroma MCP Solution & WHY it's better:** Comprehensive metrics framework including:
         - **Test Result Integration:** Automatically logs test executions with pass/fail/skip status, duration, and bidirectional links to related code and discussions, creating quantifiable evidence of code quality improvements.
 
-          -*HOW:** Enhanced `test.sh` generates JUnit XML, `log-test-results` processes and stores in `test_results_v1`.
+          - **HOW:** Enhanced `test.sh` generates JUnit XML, `log-test-results` processes and stores in `test_results_v1`.
         - **Development Efficiency Metrics:** Tracks time savings, code reuse frequency, and reduced duplication to demonstrate productivity improvements.
 
-          -*HOW:** Enhanced metadata in `chat_history_v1` with timestamps, categorization, and result tracking.
+          - **HOW:** Enhanced metadata in `chat_history_v1` with timestamps, categorization, and result tracking.
         - **Business Impact Analysis:** Measures time-to-market improvements, reduced technical debt, and decreased maintenance effort.
 
-          -*HOW:** Interactive dashboards and reports showing trends in development velocity and code quality.
+          - **HOW:** Interactive dashboards and reports showing trends in development velocity and code quality.
         - This quantification transforms the "Second Brain" from a purely knowledge management tool to a strategic asset with provable ROI.
 
 ## Key Benefits: A Phased Transformation of Your Daily Work
@@ -573,29 +573,35 @@ flowchart TD
 
 #### How Test-Driven Learning Works
 
-1. **Test Result Capture**
+1. **Automated Test Workflow**
+   - The `setup-test-workflow` command creates Git hooks that automatically track test executions
+   - The enhanced `test.sh` script can now run with the `--auto-capture-workflow` flag to automatically handle failure capture
+   - The `check-test-transitions` command detects when failed tests start passing and creates validation evidence
+   - For full details, see the [Automated Test Workflow Guide](usage/automated_test_workflow.md)
+
+2. **Test Result Capture**
    - The enhanced `test.sh` script generates JUnit XML output during test execution.
    - The `log-test-results` CLI tool processes this XML and stores structured data in `test_results_v1`.
    - Each test result includes status (pass/fail/skip), duration, error messages for failures, and links to relevant code chunks and chat history entries.
 
-2. **Failure-to-Success Tracking**
+3. **Failure-to-Success Tracking**
    - When a test fails, the developer might seek AI assistance to debug and fix it.
    - After implementing the fix, tests are re-run and hopefully pass.
    - The system captures this transition from failure to success as concrete evidence of a valuable solution.
    - This creates a `TestTransitionEvidence` record linking the initial failure, the fix discussion, and the eventual success.
 
-3. **Error Logging and Correlation**
+4. **Error Logging and Correlation**
    - Runtime errors can be logged using the `log-error` CLI command.
    - These are structured as `RuntimeErrorEvidence` with context, affected code, and resolution status.
    - Both test transitions and error resolutions contribute to validation scores.
 
-4. **Validation-Driven Learning Promotion**
+5. **Validation-Driven Learning Promotion**
    - The `analyze-chat-history` tool now incorporates validation evidence.
    - It ranks chat entries by validation score, prioritizing those with concrete evidence of improvement.
    - The `review-and-promote` interface displays validation evidence during review.
    - Solutions that resolved test failures or fixed errors receive higher priority for promotion.
 
-5. **Evidence-Based RAG Enhancement**
+6. **Evidence-Based RAG Enhancement**
    - The `derived_learnings_v1` collection now includes validation scores and evidence.
    - RAG queries can prioritize solutions with stronger validation evidence.
    - This ensures that returned solutions have proven track records of resolving similar issues.
@@ -687,7 +693,8 @@ This integrated approach creates a truly comprehensive "Second Brain" that captu
 
 1. **Phase 1 - Build the Foundation (Available Now):**
     - **Setup:** Configure your `.env`, install `chroma-mcp-server[full,client,dev]`, set up the `post-commit` hook (see [Automating Codebase Indexing with Git Hooks](./automation/git_hooks.md)), and configure the `auto_log_chat` rule in your IDE (see [Automated Chat History Logging Guide](./integration/automated_chat_logging.md)).
-    - **Daily Workflow:** Commit your changes (auto-indexing). Interact with your AI (auto-logging with rich context). Use `record-thought` for key decisions. Query `codebase_v1` and `chat_history_v1` via MCP tools. Start curating `derived_learnings_v1` using the `review-and-promote` interface.
+    - **Automated Test Workflow:** Configure the automated test-driven learning workflow with `chroma-client setup-test-workflow` to automatically track test failures and successes (see [Automated Test Workflow Guide](./usage/automated_test_workflow.md)).
+    - **Daily Workflow:** Commit your changes (auto-indexing). Interact with your AI (auto-logging with rich context). Use `record-thought` for key decisions. Query `codebase_v1` and `chat_history_v1` via MCP tools. Start curating `derived_learnings_v1` using the `review-and-promote` interface. Run tests with `--auto-capture-workflow` to automatically track test transitions.
     - **ROI Measurement (Planned):** When implemented, enable test result tracking to establish baseline metrics for code quality, then use the reports and dashboards to monitor improvements as you leverage the knowledge base.
 
 2. **Phase 2 - Specialize Your AI (Coming Soon):**
@@ -709,7 +716,7 @@ This integrated approach creates a truly comprehensive "Second Brain" that captu
 
 ## Conclusion: Your Project's Living, Learning Memory
 
-The Chroma MCP Server ecosystem, especially when evolving through the phases outlined in `local_rag_pipeline_plan_v4.md`, is more than just a database or a set of tools. It's a fundamental shift from scattered, static project artifacts to a **dynamic, integrated, and continuously learning "second brain."**
+The Chroma MCP Server ecosystem, especially when evolving through the phases outlined in [local_rag_pipeline_plan_v4.md](refactoring/local_rag_pipeline_plan_v4.md), is more than just a database or a set of tools. It's a fundamental shift from scattered, static project artifacts to a **dynamic, integrated, and continuously learning "second brain."**
 
 By **automating the critical capture of code evolution and developer-AI dialogues with rich context from day one (Phase 1)**, it immediately elevates your ability to find information and provides AI with relevant context. As you optionally progress to **specializing your AI with LoRA (Phase 2)** and then **fully automating the learning loop (Phase 3)**, this "second brain" transforms into an intelligent partner that adapts and grows alongside your project and team. This isn't just about better RAG; it's about creating a smarter, more efficient, and ultimately more rewarding development experience.
 

@@ -24,6 +24,7 @@ TEST_PATHS=()
 PYTHON_VERSION=""
 LOG_RESULTS=false  # Added flag for logging results to validation system
 BEFORE_XML=""  # Path to before XML for comparison
+AUTO_CAPTURE_WORKFLOW=false  # Flag for automatic test workflow capture
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -58,6 +59,11 @@ while [[ $# -gt 0 ]]; do
             LOG_RESULTS=true
             shift
             ;;
+        --auto-capture-workflow)
+            AUTO_CAPTURE_WORKFLOW=true
+            LOG_RESULTS=true  # Auto-capture implies logging results
+            shift
+            ;;
         --before-xml)
             if [[ -z "$2" || "$2" == -* ]]; then
                 echo "Error: --before-xml requires a path to JUnit XML file"
@@ -76,10 +82,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         -*)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--coverage|-c] [-v|-vv|-vvv] [--html] [--clean] [--python VERSION] [--log-results] [--before-xml FILE] [test_path1 test_path2 ...]"
+            echo "Usage: $0 [--coverage|-c] [-v|-vv|-vvv] [--html] [--clean] [--python VERSION] [--log-results] [--before-xml FILE] [--auto-capture-workflow] [test_path1 test_path2 ...]"
             echo "  --python, --py VERSION    Run tests only on specified Python version (e.g., 3.10, 3.11, 3.12)"
             echo "  --log-results             Log test results to the validation system"
             echo "  --before-xml FILE         Path to JUnit XML from before changes for comparison"
+            echo "  --auto-capture-workflow   Automatically capture and process test workflow (failures & fixes)"
             exit 1
             ;;
         *)
@@ -167,8 +174,68 @@ EXIT_CODE=$?
 if [ -f "${XML_OUTPUT_PATH}" ]; then
     echo "📊 Test results XML generated: ${XML_OUTPUT_PATH}"
     
-    # Log test results if requested
-    if [ "$LOG_RESULTS" = true ]; then
+    # Determine if tests failed
+    TESTS_FAILED=false
+    if [ $EXIT_CODE -ne 0 ]; then
+        TESTS_FAILED=true
+    fi
+    
+    # Handle automatic workflow capture
+    if [ "$AUTO_CAPTURE_WORKFLOW" = true ]; then
+        echo "🔄 Automatic test workflow capture enabled"
+        
+        # Save the run time for this test execution
+        TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+        
+        if [ "$TESTS_FAILED" = true ]; then
+            # Save failing test results for future comparison
+            FAILURE_XML="failed_tests_${TIMESTAMP}.xml"
+            cp "${XML_OUTPUT_PATH}" "${FAILURE_XML}"
+            echo "❌ Tests failed - saved results to ${FAILURE_XML} for future comparison"
+            
+            # Store the failure in validation system
+            echo "📋 Registering test failure in workflow system..."
+            python -m chroma_mcp_client.cli log-test-results "${XML_OUTPUT_PATH}"
+            
+            # Save commit hash for the failure
+            echo "${CURRENT_COMMIT}" > "${FAILURE_XML}.commit"
+            
+            # Create a workflow state file
+            echo "{\"status\": \"failed\", \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\", \"xml_path\": \"${FAILURE_XML}\", \"commit\": \"${CURRENT_COMMIT}\"}" > "test_workflow_${TIMESTAMP}.json"
+            echo "🔍 Created workflow state file: test_workflow_${TIMESTAMP}.json"
+        else
+            # Tests passed - look for previous failures to compare with
+            echo "✅ Tests passed - checking for previous failures to detect transitions"
+            
+            # Find the most recent workflow state file
+            LATEST_WORKFLOW=$(ls -t test_workflow_*.json 2>/dev/null | head -n 1)
+            
+            if [ -n "$LATEST_WORKFLOW" ]; then
+                echo "🔍 Found previous workflow state: ${LATEST_WORKFLOW}"
+                
+                # Extract the failure XML path from the workflow state
+                FAILURE_XML=$(grep -o '"xml_path": "[^"]*"' "${LATEST_WORKFLOW}" | cut -d'"' -f4)
+                FAILURE_COMMIT=$(grep -o '"commit": "[^"]*"' "${LATEST_WORKFLOW}" | cut -d'"' -f4)
+                
+                if [ -f "${FAILURE_XML}" ]; then
+                    echo "🧪 Comparing with previous failure: ${FAILURE_XML}"
+                    
+                    # Run test transition detection with the found failure XML
+                    echo "📊 Analyzing test transitions..."
+                    python -m chroma_mcp_client.cli log-test-results "${XML_OUTPUT_PATH}" --before-xml "${FAILURE_XML}" --commit-before "${FAILURE_COMMIT}" --commit-after "${CURRENT_COMMIT}"
+                    
+                    # Mark workflow as complete
+                    echo "{\"status\": \"transitioned\", \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\", \"before_xml\": \"${FAILURE_XML}\", \"after_xml\": \"${XML_OUTPUT_PATH}\", \"before_commit\": \"${FAILURE_COMMIT}\", \"after_commit\": \"${CURRENT_COMMIT}\"}" > "test_workflow_complete_${TIMESTAMP}.json"
+                    echo "✅ Created completed workflow record: test_workflow_complete_${TIMESTAMP}.json"
+                else
+                    echo "⚠️ Previous failure XML not found: ${FAILURE_XML}"
+                fi
+            else
+                echo "ℹ️ No previous test failures found to compare with"
+            fi
+        fi
+    # Standard log results mode    
+    elif [ "$LOG_RESULTS" = true ]; then
         echo "🔍 Logging test results to validation system..."
         
         # Base log command
