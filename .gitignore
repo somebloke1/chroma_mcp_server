@@ -85,7 +85,7 @@ __pycache__/
 # Auto-Capture-Workflow tests
 test-results.xml
 failed_tests_*.xml*
-
+test_workflow_*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -438,6 +438,7 @@ LOG_LEVEL="INFO"
    - [X] **Verify proper evidence collection and storage**
    - [X] **Validate promotion criteria effectiveness**
    - [X] **Measure quality of promoted learnings vs. previous approach**
+   - [X] **Test git hook preservation with existing codebase indexing functionality**
 
 This error-driven learning integration will transform our derived learnings collection from a repository of arbitrary code changes to a curated collection of validated solutions with proven impact.
 
@@ -626,8 +627,11 @@ This error-driven learning integration will transform our derived learnings coll
 - [X] Tests for parsing and processing test results
 - [X] Unit tests for TestWorkflowManager with comprehensive coverage for setup, failure capture, and transitions
 - [X] Unit tests for CLI integration of test workflow commands
+- [X] Unit tests for git hook preservation in TestWorkflowManager
 - [X] Create comprehensive documentation for the automated test workflow in `docs/usage/automated_test_workflow.md`
 - [X] Update `.cursorrules` to include `--auto-capture-workflow` flag guidance
+- [X] Update `.windsurfrules` to include `--auto-capture-workflow` flag guidance
+- [X] Update `.github/.copilot-instructions.md` to include `--auto-capture-workflow` flag guidance
 - [X] Update all relevant documentation to include links to the automated test workflow documentation
 - [ ] **Next Steps:** Integration tests for the complete validation pipeline
 
@@ -671,11 +675,11 @@ This error-driven learning integration will transform our derived learnings coll
     - [X] Define schema for test_results_v1 collection
     - [X] Implement basic version of log-test-results command
     - [X] Add unit tests for test result parsing and storage
-16. [ ] **CLI for the validation pipeline:**
-    - [ ] Create `chroma-client log-error` for capturing runtime errors using our schema
-    - [ ] Add `chroma-client validate-evidence` for calculating and displaying validation scores
-    - [ ] Update `chroma-client score-learning` to incorporate evidence-based scoring
-    - [ ] Add validation reporting options to existing CLI tools
+16. [X] **CLI for the validation pipeline:**
+    - [X] Create `chroma-client log-error` for capturing runtime errors using our schema
+    - [X] Add `chroma-client validate-evidence` for calculating and displaying validation scores
+    - [X] Update CLI commands to incorporate evidence-based scoring
+    - [X] Add validation reporting options to existing CLI tools
 17. [X] **Automate the Test-Driven Learning Workflow:**
     - [X] **Enhance `test.sh` for full automation:**
       - [X] Add `--auto-capture-workflow` flag to enable automatic test workflow capture
@@ -687,7 +691,7 @@ This error-driven learning integration will transform our derived learnings coll
       - [X] Store references to chat IDs in test results
       - [X] Add test results as evidence in chat history entries
     - [X] **Implement automatic promotion workflow:**
-      - [X] Create `setup-test-workflow` command to configure the Git hooks
+      - [X] Create `setup-test-workflow` command to configure the Git hooks (preserves existing hooks)
       - [X] Create `check-test-transitions` command that identifies high-quality fixes
       - [X] Add configurable threshold for auto-promotion based on validation score
       - [X] Preserve failing→passing transitions with comprehensive context
@@ -701,3 +705,10 @@ This error-driven learning integration will transform our derived learnings coll
     - [X] Create `docs/usage/validation_evidence.md` describing the evidence types and scoring system
     - [X] Add schema diagrams showing relationships between evidence types
     - [X] Document the automated test-driven learning workflow in `docs/usage/automated_test_workflow.md`
+
+19. [X] **TestWorkflowManager Enhancements:**
+    - [X] Add robust Git hook content preservation to maintain existing functionality
+    - [X] Implement automatic correlation between code changes and chat history
+    - [X] Add unit tests to verify hook preservation behavior
+    - [X] Update CLI integration with proper workspace directory handling
+    - [X] Create comprehensive documentation for workflow setup and usage

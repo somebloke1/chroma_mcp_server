@@ -1537,16 +1537,16 @@ def test_cli_check_test_transitions(mock_check_workflows, monkeypatch):
     """Test the check-test-transitions CLI command."""
     # Setup mocks
     mock_check_workflows.return_value = 3  # 3 workflows processed
-    
+
     # Mock the client and embedding function to prevent actual downloads
     mock_client = MagicMock()
     mock_ef = MagicMock()
-    
+
     # Run command
     monkeypatch.setattr(
         sys, "argv", ["chroma-client", "check-test-transitions", "--workspace-dir", "/test/workspace", "--auto-promote"]
     )
-    
+
     # Capture stdout
     with patch("sys.stdout", new=StringIO()) as fake_out:
         with patch("sys.exit") as mock_exit:
@@ -1554,23 +1554,23 @@ def test_cli_check_test_transitions(mock_check_workflows, monkeypatch):
             with patch("chroma_mcp_client.cli.get_client_and_ef", return_value=(mock_client, mock_ef)):
                 # Run the command
                 main()
-                
+
                 # Check exit wasn't called with error code
                 mock_exit.assert_not_called()
-    
+
     # Verify check_for_completed_workflows was called properly
     mock_check_workflows.assert_called_once()
-    
+
     # Test error scenario
     mock_check_workflows.side_effect = Exception("Test error")
     monkeypatch.setattr(sys, "argv", ["chroma-client", "check-test-transitions"])
-    
+
     with patch("sys.stderr", new=StringIO()) as fake_err:
         with patch("sys.exit") as mock_exit:
             with patch("chroma_mcp_client.cli.get_client_and_ef", return_value=(mock_client, mock_ef)):
                 # Run the command
                 main()
-                
+
                 # Check exit was called with error code
                 mock_exit.assert_called_once_with(1)
 
@@ -1580,7 +1580,7 @@ def test_cli_setup_test_workflow(mock_setup_workflow, monkeypatch):
     """Test the setup-test-workflow CLI command."""
     # Setup mocks
     mock_setup_workflow.return_value = True
-    
+
     # Mock the client and embedding function to prevent actual downloads
     mock_client = MagicMock()
     mock_ef = MagicMock()
