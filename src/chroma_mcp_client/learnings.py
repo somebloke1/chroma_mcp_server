@@ -9,6 +9,7 @@ import uuid
 import time
 import chromadb
 from typing import Optional, Dict, Any, List, Union
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -82,133 +83,177 @@ def promote_to_learnings_collection(
     source_chat_id: Optional[str] = None,
     chat_history_collection_name: str = "chat_history_v1",
     include_chat_context: bool = True,
+    validation_evidence_id: Optional[str] = None,
+    validation_score: Optional[float] = None,
 ) -> Optional[str]:
     """
-    Promotes a piece of information (e.g., from chat or manual input) to the derived learnings collection
-    and optionally updates the status of the source chat entry.
+    Promote an analyzed chat insight or manual finding to derived learnings.
 
     Args:
-        client: Initialized ChromaDB client.
-        embedding_function: Embedding function for the learnings collection.
-        description: Natural language description of the learning (will be embedded).
-        pattern: Core pattern identified (e.g., code snippet, regex, textual description).
-        code_ref: Code reference illustrating the learning (e.g., chunk_id 'path:sha:index').
-        tags: Comma-separated tags for categorization.
-        confidence: Confidence score for this learning (0.0 to 1.0).
-        learnings_collection_name: Name of the collection to add the derived learning to.
-        source_chat_id: Optional ID of the source entry in the chat history collection.
-        chat_history_collection_name: Name of the chat history collection for status updates.
-        include_chat_context: Whether to include rich context from the source chat.
+        client: ChromaDB client instance
+        embedding_function: EF to use for the derived learning
+        description: Natural language description of the learning
+        pattern: Core pattern identified (code, regex, etc.)
+        code_ref: Code reference (e.g., chunk_id from codebase_v1)
+        tags: Comma-separated tags for categorization
+        confidence: Confidence score for this learning (0.0 to 1.0)
+        learnings_collection_name: Collection to add learning to
+        source_chat_id: Optional ID of source entry in chat history
+        chat_history_collection_name: Chat collection name
+        include_chat_context: Include chat context in learning
+        validation_evidence_id: Optional ID of validation evidence
+        validation_score: Optional validation score (0.0 to 1.0)
 
     Returns:
-        The ID of the newly created learning entry if successful, None otherwise.
+        ID of the promoted learning if successful, else None
     """
-    logger.info(f"Attempting to promote learning to '{learnings_collection_name}'...")
     try:
+        # Generate a unique ID for this learning
         learning_id = str(uuid.uuid4())
-        logger.debug(f"Generated learning_id: {learning_id}")
 
-        # Initialize metadata with base fields
+        # Prepare the base metadata
         metadata = {
-            "learning_id": learning_id,
-            "source_chat_id": source_chat_id if source_chat_id else "manual",
-            "pattern": pattern,
-            "example_code_reference": code_ref,
             "tags": tags,
             "confidence": confidence,
-            "promotion_timestamp_utc": time.time(),
+            "code_ref": code_ref,
+            "promotion_type": "manual" if not source_chat_id else "from_chat",
         }
 
-        if not 0.0 <= confidence <= 1.0:
-            logger.warning(f"Confidence score {confidence} is outside the suggested 0.0-1.0 range.")
+        # Check if there's validation evidence to include
+        if validation_evidence_id or validation_score is not None:
+            metadata["validation"] = {}
 
-        # If we have a source chat ID and include_chat_context is True, fetch and include rich context
-        source_context = {}
-        if source_chat_id and include_chat_context:
-            logger.info(f"Fetching rich context from source chat ID {source_chat_id}...")
-            source_context = fetch_source_chat_context(client, source_chat_id, chat_history_collection_name)
+            # Add validation score if provided directly
+            if validation_score is not None:
+                metadata["validation"]["score"] = validation_score
 
-            # Only override confidence if it's not explicitly provided
-            if confidence == 0.0 and source_context.get("confidence_score"):
+            # Add evidence ID if available
+            if validation_evidence_id:
+                metadata["validation"]["evidence_id"] = validation_evidence_id
+
+                # Attempt to retrieve validation evidence if ID provided
                 try:
-                    metadata["confidence"] = float(source_context["confidence_score"])
-                    logger.info(f"Using confidence score {metadata['confidence']} from source chat.")
-                except (ValueError, TypeError):
-                    logger.warning(
-                        f"Could not convert source confidence '{source_context.get('confidence_score')}' to float."
-                    )
+                    from chroma_mcp_client.validation.promotion import LearningPromoter
 
-            # Add rich context fields if available
-            for field_name, context_value in [
-                ("code_context", source_context.get("code_context")),
-                ("diff_summary", source_context.get("diff_summary")),
-                ("tool_sequence", source_context.get("tool_sequence")),
-                ("modification_type", source_context.get("modification_type")),
-                ("related_code_chunks", source_context.get("related_code_chunks")),
-            ]:
-                if context_value:
-                    metadata[field_name] = context_value
-                    logger.debug(f"Included {field_name} from source chat.")
+                    promoter = LearningPromoter(client)
+                    evidence = promoter.get_validation_evidence(validation_evidence_id)
 
-            # Enhance description with context if it's minimal
-            if len(description) < 100 and source_context.get("diff_summary"):
-                original_description = description
-                description = f"{description}\n\nContext from source chat:\n{source_context.get('prompt_summary', '')}\n{source_context.get('response_summary', '')}\n\nCode changes:\n{source_context.get('diff_summary', '')}"
-                logger.info("Enhanced description with context from source chat.")
+                    if evidence:
+                        # Use the evidence score if direct score not provided
+                        if validation_score is None:
+                            metadata["validation"]["score"] = evidence.score
 
-        logger.debug(f"Prepared metadata for learning: {metadata}")
+                        # Add evidence types
+                        metadata["validation"]["evidence_types"] = [et.value for et in evidence.evidence_types]
 
-        try:
-            learning_collection = client.get_collection(
-                name=learnings_collection_name,
-                embedding_function=embedding_function,
-            )
-            logger.debug(f"Accessed learning collection: {learnings_collection_name}")
-        except Exception as e:
-            logger.error(f"Failed to get learning collection '{learnings_collection_name}': {e}", exc_info=True)
-            # Consider if creating the collection here is desired if it doesn't exist
-            # For now, assume it should exist.
-            print(f"Error: Could not access collection '{learnings_collection_name}'. Does it exist?", file=sys.stderr)
-            return None
+                        # Set meets_threshold flag
+                        metadata["validation"]["meets_threshold"] = evidence.meets_threshold()
 
-        learning_collection.add(ids=[learning_id], documents=[description], metadatas=[metadata])
-        logger.info(f"Successfully added learning {learning_id} to '{learnings_collection_name}'.")
-        print(f"Learning promoted with ID: {learning_id}")
+                        # Add evidence counts
+                        evidence_counts = {}
+                        if evidence.test_transitions:
+                            evidence_counts["test_transitions"] = len(evidence.test_transitions)
+                        if evidence.runtime_errors:
+                            evidence_counts["runtime_errors"] = len(evidence.runtime_errors)
+                        if evidence.code_quality_improvements:
+                            evidence_counts["code_quality"] = len(evidence.code_quality_improvements)
+                        metadata["validation"]["evidence_counts"] = evidence_counts
+                except Exception as e:
+                    logger.warning(f"Failed to retrieve validation evidence {validation_evidence_id}: {str(e)}")
 
+        # Bidirectional linking setup
         if source_chat_id:
-            logger.info(
-                f"Attempting to update status for source chat ID: {source_chat_id} in '{chat_history_collection_name}'"
-            )
+            metadata["source_chat_id"] = source_chat_id
+
+            # Attempt to get rich context from the source chat entry
+            if include_chat_context:
+                try:
+                    chat_collection = client.get_collection(name=chat_history_collection_name)
+                    result = chat_collection.get(ids=[source_chat_id], include=["metadatas", "documents"])
+
+                    if result and result["metadatas"] and len(result["metadatas"]) > 0:
+                        chat_metadata = result["metadatas"][0]
+
+                        # Extract code context if available
+                        if "code_context" in chat_metadata:
+                            metadata["code_context"] = chat_metadata["code_context"]
+
+                        # Extract confidence score details if available
+                        if "confidence_score" in chat_metadata:
+                            metadata["source_confidence"] = chat_metadata["confidence_score"]
+
+                        # Extract diff summary if available
+                        if "diff_summary" in chat_metadata:
+                            metadata["diff_summary"] = chat_metadata["diff_summary"]
+
+                        # Extract code changes if available (simplified version)
+                        if "code_changes" in chat_metadata:
+                            metadata["code_changes"] = chat_metadata["code_changes"]
+
+                        # Extract modification type if available
+                        if "modification_type" in chat_metadata:
+                            metadata["modification_type"] = chat_metadata["modification_type"]
+
+                        # Extract tool sequence if available
+                        if "tool_sequence" in chat_metadata:
+                            metadata["tool_sequence"] = chat_metadata["tool_sequence"]
+                except Exception as e:
+                    logger.warning(f"Failed to extract context from source chat entry: {e}")
+
+        # Get or create the derived learnings collection
+        learnings_collection = client.get_or_create_collection(
+            name=learnings_collection_name, embedding_function=embedding_function
+        )
+
+        # Add the learning to the collection
+        learnings_collection.add(
+            ids=[learning_id],
+            documents=[description],
+            metadatas=[metadata],
+        )
+
+        logger.info(f"Added derived learning with ID {learning_id}")
+
+        # Update the source chat entry status if provided
+        if source_chat_id:
             try:
                 chat_collection = client.get_collection(name=chat_history_collection_name)
-                results = chat_collection.get(ids=[source_chat_id], include=["metadatas"])
+                result = chat_collection.get(ids=[source_chat_id], include=["metadatas"])
 
-                if results and results["ids"] and results["ids"][0] == source_chat_id:
-                    existing_metadata = results["metadatas"][0] if results["metadatas"] else {}
-                    if existing_metadata is None:  # Should not happen if ID exists, but good practice
-                        existing_metadata = {}
+                if result and result["metadatas"] and len(result["metadatas"]) > 0:
+                    chat_metadata = result["metadatas"][0]
+                    chat_metadata["status"] = "promoted"
+                    chat_metadata["derived_learning_id"] = learning_id
 
-                    existing_metadata["status"] = "promoted_to_learning"
-                    existing_metadata["promoted_learning_id"] = learning_id
+                    # Update the metadata
+                    chat_collection.update(ids=[source_chat_id], metadatas=[chat_metadata])
 
-                    chat_collection.update(ids=[source_chat_id], metadatas=[existing_metadata])
-                    logger.info(f"Successfully updated status for chat ID {source_chat_id} to 'promoted_to_learning'.")
-                    print(f"Updated status for source chat ID: {source_chat_id}")
+                    logger.info(f"Updated source chat entry {source_chat_id} status to 'promoted'")
                 else:
-                    logger.warning(
-                        f"Source chat ID {source_chat_id} not found in '{chat_history_collection_name}'. Cannot update status."
-                    )
-                    print(f"Warning: Source chat ID {source_chat_id} not found. Status not updated.")
+                    logger.warning(f"Source chat entry {source_chat_id} not found")
             except Exception as e:
-                logger.error(
-                    f"Failed to update status for chat ID {source_chat_id} in '{chat_history_collection_name}': {e}",
-                    exc_info=True,
-                )
-                print(f"Warning: Failed to update status for source chat ID {source_chat_id}. See logs.")
+                logger.warning(f"Failed to update source chat entry status: {e}")
+
+        # Success! Print a nice message
+        print(f"Promoted to derived learning with ID: {learning_id}")
+        print(f"Description: {description}")
+        print(f"Tags: {tags}")
+        print(f"Confidence: {confidence}")
+
+        # Print validation info if available
+        if validation_evidence_id or validation_score is not None:
+            if validation_score is not None:
+                print(f"Validation Score: {validation_score:.2f}")
+            if validation_evidence_id:
+                print(f"Validation Evidence ID: {validation_evidence_id}")
+
+            # Print if it meets threshold
+            if "validation" in metadata and "meets_threshold" in metadata["validation"]:
+                print(f"Meets Promotion Threshold: {metadata['validation']['meets_threshold']}")
 
         return learning_id
 
     except Exception as e:
-        logger.error(f"Failed to promote learning: {e}", exc_info=True)
-        print(f"Error: Could not promote learning. See logs for details.", file=sys.stderr)
+        logger.error(f"Failed to promote to derived learning: {e}", exc_info=True)
+        print(f"Error: Failed to promote to derived learning: {e}")
         return None

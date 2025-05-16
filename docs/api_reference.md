@@ -1045,3 +1045,135 @@ JSON object containing a list of `similar_sessions` (each potentially including 
 ```
 
 ## Other Tools
+
+### Setup Collections Command
+
+```bash
+chroma-client setup-collections [-v]
+```
+
+Sets up all required collections for the Chroma MCP Server. This is useful for new installations or ensuring all collections exist.
+
+Options:
+
+- `-v`, `--verbose`: Increase verbosity (use multiple times for more detailed logs: -v, -vv)
+
+#### Promote Learning Command
+
+```bash
+chroma-client promote-learning DESCRIPTION [--pattern PATTERN] [--code-ref CODE_REF] 
+                              [--tags TAGS] [--confidence CONFIDENCE] 
+                              [--source-chat-id ID] [--collection-name NAME] 
+                              [--include-chat-context] [--require-validation]
+                              [--validation-evidence-id ID] [--validation-score SCORE]
+                              [--validation-threshold THRESHOLD]
+```
+
+Promotes a learning to the derived learnings collection.
+
+Arguments:
+
+- `DESCRIPTION`: Text description of the derived learning
+
+Options:
+
+- `--pattern`: Sample code pattern this learning applies to
+- `--code-ref`: Reference to code that demonstrates the learning (format: "path:commit:line")
+- `--tags`: Comma-separated tags for categorizing the learning
+- `--confidence`: Confidence score between 0 and 1 (defaults to 0.5)
+- `--source-chat-id`: Optional ID of source chat for context
+- `--collection-name`: Name of the target collection (defaults to "derived_learnings_v1")
+- `--chat-collection-name`: Name of the chat history collection (defaults to "chat_history_v1")
+- `--include-chat-context`: Include full chat context when linking to source chat
+- `--require-validation`: Require validation evidence for promotion
+- `--validation-evidence-id`: ID of validation evidence to associate with the learning
+- `--validation-score`: Manual validation score (0.0-1.0) if no evidence ID provided
+- `--validation-threshold`: Minimum required validation score (defaults to 0.7)
+
+#### Log Error Command
+
+```bash
+chroma-client log-error --error-type TYPE --error-message MSG
+                       [--stacktrace TRACE] [--affected-files FILES]
+                       [--resolution RES] [--resolution-verified]
+                       [--collection-name NAME]
+```
+
+Logs a runtime error for validation evidence.
+
+Required:
+
+- `--error-type`: Type of the error (e.g., ValueError, TypeError)
+- `--error-message`: Error message content
+
+Options:
+
+- `--stacktrace`: Full stacktrace of the error
+- `--affected-files`: Comma-separated list of affected file paths
+- `--resolution`: Description of how the error was resolved
+- `--resolution-verified`: Flag indicating the resolution has been verified
+- `--collection-name`: Name of the collection to store evidence (defaults to "validation_evidence_v1")
+
+#### Log Test Results Command
+
+```bash
+chroma-client log-test-results XML_PATH [--before-xml PATH]
+                              [--commit-before HASH] [--commit-after HASH]
+                              [--collection-name NAME]
+```
+
+Logs test results from JUnit XML files for validation evidence.
+
+Arguments:
+
+- `XML_PATH`: Path to the JUnit XML test results file
+
+Options:
+
+- `--before-xml`: Path to a previous JUnit XML file for comparison
+- `--commit-before`: Git commit hash for the "before" state
+- `--commit-after`: Git commit hash for the "after" state
+- `--collection-name`: Name of the collection to store evidence (defaults to "test_results_v1")
+
+#### Log Quality Check Command
+
+```bash
+chroma-client log-quality-check --tool TOOL --after-output PATH
+                              [--before-output PATH] [--metric-type TYPE]
+                              [--collection-name NAME]
+```
+
+Logs code quality metrics for validation evidence.
+
+Required:
+
+- `--tool`: Quality tool name (e.g., "pylint", "ruff", "flake8")
+- `--after-output`: Path to the output file of the tool after changes
+
+Options:
+
+- `--before-output`: Path to the output file of the tool before changes (for comparison)
+- `--metric-type`: Type of metric (defaults to "error_count", options: "linting", "complexity", "coverage")
+- `--collection-name`: Name of the collection to store evidence (defaults to "validation_evidence_v1")
+
+#### Validate Evidence Command
+
+```bash
+chroma-client validate-evidence [--evidence-file PATH] [--test-transitions IDS]
+                              [--runtime-errors IDS] [--code-quality IDS]
+                              [--threshold NUM] [--output-file PATH]
+```
+
+Validates evidence for learning promotion.
+
+At least one of these evidence sources must be provided:
+
+- `--evidence-file`: Path to a JSON file containing validation evidence
+- `--test-transitions`: Comma-separated list of test transition evidence IDs
+- `--runtime-errors`: Comma-separated list of runtime error evidence IDs
+- `--code-quality`: Comma-separated list of code quality evidence IDs
+
+Options:
+
+- `--threshold`: Validation score threshold for promotion eligibility (defaults to 0.7)
+- `--output-file`: Path to save the validation results as JSON

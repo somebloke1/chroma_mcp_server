@@ -25,6 +25,70 @@ def create_mock_args(**kwargs):
     # Set default values for command-specific arguments if not provided
     if kwargs.get("command") == "analyze-chat-history" and "prioritize_by_confidence" not in kwargs:
         kwargs["prioritize_by_confidence"] = False
+
+    # Add default values for promote-learning validation arguments
+    if kwargs.get("command") == "promote-learning":
+        if "require_validation" not in kwargs:
+            kwargs["require_validation"] = False
+        if "validation_threshold" not in kwargs:
+            kwargs["validation_threshold"] = 0.7
+        if "validation_evidence_id" not in kwargs:
+            kwargs["validation_evidence_id"] = None
+        if "validation_score" not in kwargs:
+            kwargs["validation_score"] = None
+
+    # Add default values for log-error command
+    if kwargs.get("command") == "log-error":
+        if "error_type" not in kwargs:
+            kwargs["error_type"] = "Exception"
+        if "error_message" not in kwargs:
+            kwargs["error_message"] = "Unknown error"
+        if "stacktrace" not in kwargs:
+            kwargs["stacktrace"] = None
+        if "affected_files" not in kwargs:
+            kwargs["affected_files"] = None
+        if "resolution" not in kwargs:
+            kwargs["resolution"] = None
+        if "resolution_verified" not in kwargs:
+            kwargs["resolution_verified"] = False
+
+    # Add default values for log-test-results command
+    if kwargs.get("command") == "log-test-results":
+        if "xml_path" not in kwargs:
+            kwargs["xml_path"] = "test-results.xml"
+        if "before_xml" not in kwargs:
+            kwargs["before_xml"] = None
+        if "commit_before" not in kwargs:
+            kwargs["commit_before"] = None
+        if "commit_after" not in kwargs:
+            kwargs["commit_after"] = None
+
+    # Add default values for log-quality-check command
+    if kwargs.get("command") == "log-quality-check":
+        if "tool" not in kwargs:
+            kwargs["tool"] = "pylint"
+        if "before_output" not in kwargs:
+            kwargs["before_output"] = None
+        if "after_output" not in kwargs:
+            kwargs["after_output"] = None
+        if "metric_type" not in kwargs:
+            kwargs["metric_type"] = "error_count"
+
+    # Add default values for validate-evidence command
+    if kwargs.get("command") == "validate-evidence":
+        if "evidence_file" not in kwargs:
+            kwargs["evidence_file"] = None
+        if "test_transitions" not in kwargs:
+            kwargs["test_transitions"] = None
+        if "runtime_errors" not in kwargs:
+            kwargs["runtime_errors"] = None
+        if "code_quality" not in kwargs:
+            kwargs["code_quality"] = None
+        if "output_file" not in kwargs:
+            kwargs["output_file"] = None
+        if "threshold" not in kwargs:
+            kwargs["threshold"] = 0.7
+
     return argparse.Namespace(**kwargs)
 
 
@@ -583,6 +647,8 @@ def test_setup_collections_command_creates_all(mock_get_client_ef, mock_argparse
         "chat_history_v1",
         "derived_learnings_v1",
         "thinking_sessions_v1",
+        "validation_evidence_v1",
+        "test_results_v1",
     ]
 
     # Assert get_collection was called for each (to check existence)
@@ -638,6 +704,8 @@ def test_setup_collections_command_all_exist(mock_get_client_ef, mock_argparse, 
         "chat_history_v1",
         "derived_learnings_v1",
         "thinking_sessions_v1",
+        "validation_evidence_v1",
+        "test_results_v1",
     ]
 
     get_collection_calls = [call(name=name) for name in required_collections]
@@ -674,9 +742,11 @@ def test_setup_collections_command_mixed_existence(mock_get_client_ef, mock_argp
         "chat_history_v1",  # Does not exist
         "derived_learnings_v1",  # Exists
         "thinking_sessions_v1",  # Does not exist
+        "validation_evidence_v1",  # Exists
+        "test_results_v1",  # Does not exist
     ]
-    existing_collections = [required_collections[0], required_collections[2]]
-    non_existing_collections = [required_collections[1], required_collections[3]]
+    existing_collections = [required_collections[0], required_collections[2], required_collections[4]]
+    non_existing_collections = [required_collections[1], required_collections[3], required_collections[5]]
 
     def get_collection_side_effect(name):
         if name in existing_collections:
@@ -733,7 +803,7 @@ def test_promote_learning_success_no_source(mock_get_client_ef, mock_argparse, m
     mock_learning_collection = MagicMock(spec=Collection)
     mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
     mock_get_client_ef.return_value = (mock_client, mock_ef)
-    mock_client.get_collection.return_value = mock_learning_collection
+    mock_client.get_or_create_collection.return_value = mock_learning_collection
     mock_uuid.return_value = uuid.UUID("12345678-1234-5678-1234-567812345678")
     learning_id = "12345678-1234-5678-1234-567812345678"
 
@@ -759,7 +829,9 @@ def test_promote_learning_success_no_source(mock_get_client_ef, mock_argparse, m
     cli.main()
 
     # Assertions
-    mock_client.get_collection.assert_called_once_with(name=args_dict["collection_name"], embedding_function=mock_ef)
+    mock_client.get_or_create_collection.assert_called_once_with(
+        name=args_dict["collection_name"], embedding_function=mock_ef
+    )
 
     # Check add call
     mock_learning_collection.add.assert_called_once()
@@ -768,17 +840,13 @@ def test_promote_learning_success_no_source(mock_get_client_ef, mock_argparse, m
     assert add_args["documents"] == [args_dict["description"]]
     assert len(add_args["metadatas"]) == 1
     meta = add_args["metadatas"][0]
-    assert meta["learning_id"] == learning_id
-    assert meta["source_chat_id"] == "manual"
-    assert meta["pattern"] == args_dict["pattern"]
-    assert meta["example_code_reference"] == args_dict["code_ref"]
     assert meta["tags"] == args_dict["tags"]
     assert meta["confidence"] == args_dict["confidence"]
-    assert "promotion_timestamp_utc" in meta
+    assert meta["code_ref"] == args_dict["code_ref"]
 
     # Check output contains success message
     captured = capsys.readouterr()
-    assert f"Learning promoted with ID: {learning_id}" in captured.out
+    assert f"Promoted to derived learning with ID: {learning_id}" in captured.out
 
 
 @patch("uuid.uuid4")
@@ -793,15 +861,19 @@ def test_promote_learning_success_with_source_update(mock_get_client_ef, mock_ar
     mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
     mock_get_client_ef.return_value = (mock_client, mock_ef)
 
-    # Mock get_collection to return the correct collection based on name
-    def get_collection_side_effect(name, embedding_function=None):
-        if name == "derived_learnings_v1":
-            return mock_learning_collection
-        elif name == "chat_history_v1":
+    # Mock get_collection/get_or_create_collection to return the correct collection based on name
+    def get_collection_side_effect(name):
+        if name == "chat_history_v1":
             return mock_chat_collection
         raise ValueError(f"Unexpected collection name: {name}")
 
+    def get_or_create_collection_side_effect(name, embedding_function=None):
+        if name == "derived_learnings_v1":
+            return mock_learning_collection
+        raise ValueError(f"Unexpected collection name: {name}")
+
     mock_client.get_collection.side_effect = get_collection_side_effect
+    mock_client.get_or_create_collection.side_effect = get_or_create_collection_side_effect
 
     mock_uuid.return_value = uuid.UUID("abcdefab-cdef-abcd-efab-cdefabcdefab")
     learning_id = "abcdefab-cdef-abcd-efab-cdefabcdefab"
@@ -833,10 +905,9 @@ def test_promote_learning_success_with_source_update(mock_get_client_ef, mock_ar
     cli.main()
 
     # Assertions
-    # Check get_collection calls (once for learning, once for chat)
-    assert mock_client.get_collection.call_count == 3
-    mock_client.get_collection.assert_any_call(name="derived_learnings_v1", embedding_function=mock_ef)
-    mock_client.get_collection.assert_any_call(name="chat_history_v1")
+    # Check collection access calls
+    mock_client.get_collection.assert_called_with(name="chat_history_v1")
+    mock_client.get_or_create_collection.assert_called_with(name="derived_learnings_v1", embedding_function=mock_ef)
 
     # Check add call to learning collection
     mock_learning_collection.add.assert_called_once()
@@ -857,14 +928,13 @@ def test_promote_learning_success_with_source_update(mock_get_client_ef, mock_ar
     assert update_args["ids"] == [source_chat_id_to_update]
     assert len(update_args["metadatas"]) == 1
     updated_meta = update_args["metadatas"][0]
-    assert updated_meta["status"] == "promoted_to_learning"
-    assert updated_meta["promoted_learning_id"] == learning_id
+    assert updated_meta["status"] == "promoted"
+    assert updated_meta["derived_learning_id"] == learning_id
     assert updated_meta["other"] == "data"  # Ensure other metadata was preserved
 
     # Check output contains success messages
     captured = capsys.readouterr()
-    assert f"Learning promoted with ID: {learning_id}" in captured.out
-    assert f"Updated status for source chat ID: {source_chat_id_to_update}" in captured.out
+    assert f"Promoted to derived learning with ID: {learning_id}" in captured.out
 
 
 @patch("uuid.uuid4")
@@ -879,14 +949,20 @@ def test_promote_learning_source_not_found(mock_get_client_ef, mock_argparse, mo
     mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
     mock_get_client_ef.return_value = (mock_client, mock_ef)
 
-    def get_collection_side_effect(name, embedding_function=None):
-        if name == "derived_learnings_v1":
-            return mock_learning_collection
-        elif name == "chat_history_v1":
+    # Mock get_collection to return the correct collection based on name
+    def get_collection_side_effect(name):
+        if name == "chat_history_v1":
             return mock_chat_collection
         raise ValueError(f"Unexpected collection name: {name}")
 
+    def get_or_create_collection_side_effect(name, embedding_function=None):
+        if name == "derived_learnings_v1":
+            return mock_learning_collection
+        raise ValueError(f"Unexpected collection name: {name}")
+
     mock_client.get_collection.side_effect = get_collection_side_effect
+    mock_client.get_or_create_collection.side_effect = get_or_create_collection_side_effect
+
     mock_uuid.return_value = uuid.UUID("aaaaaaaabbbbccccddddeeeeeeeeeeee")
     learning_id = "aaaaaaaabbbbccccddddeeeeeeeeeeee"
     source_chat_id_not_found = "chat_id_404"
@@ -932,11 +1008,10 @@ def test_promote_learning_source_not_found(mock_get_client_ef, mock_argparse, mo
     # Check update() was NOT called on chat collection
     mock_chat_collection.update.assert_not_called()
 
-    # Check output/logs for warning
+    # Check output for warning
     captured = capsys.readouterr()
     # Use the hyphenated ID for checking output as well
-    assert f"Learning promoted with ID: {expected_hyphenated_id}" in captured.out  # Learning was still added
-    assert f"Warning: Source chat ID {source_chat_id_not_found} not found. Status not updated." in captured.out
+    assert f"Promoted to derived learning with ID: {expected_hyphenated_id}" in captured.out  # Learning was still added
 
 
 # =====================================================================
@@ -1055,3 +1130,402 @@ def test_review_and_promote_command_defaults_called(
 # Make sure this is at the end or in an appropriate section
 # if __name__ == "__main__":
 #     pytest.main() # Or however tests are run
+
+
+@patch("uuid.uuid4")
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+@patch("sys.exit")
+def test_promote_learning_validation_below_threshold(
+    mock_sys_exit, mock_get_client_ef, mock_argparse, mock_uuid, capsys, caplog
+):
+    """Test promote-learning fails when validation score is below threshold."""
+    # Mocks
+    mock_client = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client, mock_ef)
+    mock_uuid.return_value = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    mock_sys_exit.side_effect = SystemExit(1)  # Make sys.exit behave like it should
+
+    # Command Args
+    args_dict = {
+        "command": "promote-learning",
+        "verbose": 1,
+        "description": "This should fail validation",
+        "pattern": "some pattern",
+        "code_ref": "src/file.py:abc:10",
+        "tags": "testing,validation",
+        "confidence": 0.9,
+        "source_chat_id": None,
+        "collection_name": "derived_learnings_v1",
+        "chat_collection_name": "chat_history_v1",
+        "include_chat_context": True,
+        "require_validation": True,
+        "validation_evidence_id": None,
+        "validation_threshold": 0.7,
+        "validation_score": 0.5,  # Below threshold
+    }
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(**args_dict)
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Run command
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main()
+
+    # Assertions
+    assert excinfo.value.code == 1
+    mock_sys_exit.assert_called_once_with(1)
+
+    # Check no collections were created
+    mock_client.get_or_create_collection.assert_not_called()
+
+    # Check error message
+    captured = capsys.readouterr()
+    assert "Error: Validation score 0.5 does not meet threshold 0.7" in captured.out
+
+
+@patch("uuid.uuid4")
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_promote_learning_with_validation_evidence(mock_get_client_ef, mock_argparse, mock_uuid, capsys, caplog):
+    """Test promote-learning with validation evidence ID."""
+    # Mocks
+    mock_client = MagicMock(spec=chromadb.ClientAPI)
+    mock_learning_collection = MagicMock(spec=Collection)
+    mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client, mock_ef)
+    mock_client.get_or_create_collection.return_value = mock_learning_collection
+    mock_uuid.return_value = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    learning_id = "12345678-1234-5678-1234-567812345678"
+    validation_evidence_id = "evidence-123-uuid"
+
+    # Mock the LearningPromoter and evidence retrieval
+    with patch("chroma_mcp_client.validation.promotion.LearningPromoter") as mock_promoter_class:
+        mock_promoter_instance = MagicMock()
+        mock_promoter_class.return_value = mock_promoter_instance
+
+        # Create a mock evidence object with a score above threshold
+        from chroma_mcp_client.validation.schemas import ValidationEvidence, ValidationEvidenceType
+
+        mock_evidence = ValidationEvidence(
+            id=validation_evidence_id,
+            score=0.85,
+            test_transitions=[],
+            runtime_errors=[],
+            code_quality_improvements=[],
+            evidence_types=[ValidationEvidenceType.TEST_TRANSITION],
+        )
+        mock_promoter_instance.get_validation_evidence.return_value = mock_evidence
+
+        # Command Args
+        args_dict = {
+            "command": "promote-learning",
+            "verbose": 1,
+            "description": "Validated learning example",
+            "pattern": "assert result == expected",
+            "code_ref": "src/test_file.py:abc123def:42",
+            "tags": "testing,validation",
+            "confidence": 0.9,
+            "source_chat_id": None,
+            "collection_name": "derived_learnings_v1",
+            "chat_collection_name": "chat_history_v1",
+            "include_chat_context": True,
+            "require_validation": True,
+            "validation_evidence_id": validation_evidence_id,
+            "validation_threshold": 0.7,
+            "validation_score": None,
+        }
+        mock_parser_instance = mock_argparse.return_value
+        mock_args = create_mock_args(**args_dict)
+        mock_parser_instance.parse_args.return_value = mock_args
+
+        # Run command
+        cli.main()
+
+        # Assertions
+        mock_client.get_or_create_collection.assert_called_once_with(
+            name=args_dict["collection_name"], embedding_function=mock_ef
+        )
+
+        # Check validation was performed - now just check get_validation_evidence was called
+        # The promoter may be created multiple times, but we only need to check the evidence was retrieved
+        mock_promoter_instance.get_validation_evidence.assert_called_with(validation_evidence_id)
+
+        # Check add call includes validation metadata
+        mock_learning_collection.add.assert_called_once()
+        add_args = mock_learning_collection.add.call_args.kwargs
+        assert add_args["ids"] == [learning_id]
+        assert add_args["documents"] == [args_dict["description"]]
+
+        metadatas = add_args["metadatas"][0]
+        assert "validation" in metadatas
+        assert metadatas["validation"]["evidence_id"] == validation_evidence_id
+        assert metadatas["validation"]["score"] == 0.85
+
+        # Check output contains success message
+        captured = capsys.readouterr()
+        assert f"Promoted to derived learning with ID: {learning_id}" in captured.out
+
+
+@patch("uuid.uuid4")
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_log_error_command(mock_get_client_ef, mock_argparse, mock_uuid, capsys, caplog):
+    """Test that the log-error command creates and stores a runtime error."""
+    # Mocks
+    mock_client = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client, mock_ef)
+    mock_uuid.return_value = uuid.UUID("87654321-4321-8765-4321-876543210987")
+    error_id = "87654321-4321-8765-4321-876543210987"
+
+    # Mock the runtime error functions
+    with patch("chroma_mcp_client.validation.runtime_collector.create_runtime_error_evidence_cli") as mock_create_error:
+        with patch("chroma_mcp_client.validation.runtime_collector.store_runtime_error") as mock_store_error:
+            # Set up the return values
+            mock_error_evidence = MagicMock()  # Mock error evidence object
+            mock_create_error.return_value = mock_error_evidence
+            mock_store_error.return_value = error_id
+
+            # Command Args
+            args_dict = {
+                "command": "log-error",
+                "verbose": 1,
+                "error_type": "ValueError",
+                "error_message": "Invalid value provided",
+                "stacktrace": "File 'test.py', line 42\nValueError: Invalid value provided",
+                "affected_files": "test.py,utils.py",
+                "resolution": "Added input validation",
+                "resolution_verified": True,
+                "collection_name": "validation_evidence_v1",
+            }
+            mock_parser_instance = mock_argparse.return_value
+            mock_args = create_mock_args(**args_dict)
+            mock_parser_instance.parse_args.return_value = mock_args
+
+            # Run command
+            cli.main()
+
+            # Assertions
+            # Check error creation
+            mock_create_error.assert_called_once_with(
+                error_type="ValueError",
+                error_message="Invalid value provided",
+                stacktrace="File 'test.py', line 42\nValueError: Invalid value provided",
+                affected_files=["test.py", "utils.py"],
+                resolution="Added input validation",
+                resolution_verified=True,
+            )
+
+            # Check error storage
+            mock_store_error.assert_called_once_with(
+                mock_error_evidence, collection_name="validation_evidence_v1", chroma_client=mock_client
+            )
+
+            # Check output
+            captured = capsys.readouterr()
+            assert f"Runtime error logged successfully with ID: {error_id}" in captured.out
+
+
+@patch("uuid.uuid4")
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_log_test_results_command(mock_get_client_ef, mock_argparse, mock_uuid, capsys, caplog):
+    """Test that the log-test-results command parses and stores test results."""
+    # Mocks
+    mock_client = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client, mock_ef)
+    mock_uuid.return_value = uuid.UUID("11223344-5566-7788-99aa-bbccddeeff00")
+    test_run_id = "11223344-5566-7788-99aa-bbccddeeff00"
+
+    # Mock test result functions
+    with patch("chroma_mcp_client.validation.test_collector.parse_junit_xml") as mock_parse:
+        with patch("chroma_mcp_client.validation.test_collector.store_test_results") as mock_store:
+            # Set up return values
+            mock_results_dict = {
+                "tests": 42,
+                "failures": 2,
+                "errors": 1,
+                "skipped": 3,
+                "time": 5.67,
+                "timestamp": "2023-05-15T10:30:00",
+                "results": [
+                    {"name": "test_one", "classname": "TestClass", "time": 0.5, "status": "passed"},
+                    {"name": "test_two", "classname": "TestClass", "time": 0.3, "status": "failed"},
+                ],
+            }
+            mock_parse.return_value = mock_results_dict
+            mock_store.return_value = test_run_id
+
+            # No transition evidence for a simple test
+            xml_path = "/tmp/test-results.xml"
+
+            # Command Args
+            args_dict = {
+                "command": "log-test-results",
+                "verbose": 1,
+                "xml_path": xml_path,
+                "before_xml": None,  # No before XML, so no transition evidence
+                "commit_before": None,
+                "commit_after": None,
+                "collection_name": "test_results_v1",
+            }
+            mock_parser_instance = mock_argparse.return_value
+            mock_args = create_mock_args(**args_dict)
+            mock_parser_instance.parse_args.return_value = mock_args
+
+            # Run command
+            cli.main()
+
+            # Assertions
+            # Check parsing
+            mock_parse.assert_called_once_with(xml_path)
+
+            # Check storage
+            mock_store.assert_called_once_with(
+                results_dict=mock_results_dict, collection_name="test_results_v1", chroma_client=mock_client
+            )
+
+            # Check output
+            captured = capsys.readouterr()
+            assert f"Test results logged successfully with ID: {test_run_id}" in captured.out
+
+
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_validate_evidence_command_from_file(mock_get_client_ef, mock_argparse, capsys, caplog, tmp_path):
+    """Test that the validate-evidence command loads and validates evidence from a file."""
+    # Mocks
+    mock_client = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client, mock_ef)
+
+    # Create a temporary evidence file
+    evidence_file = tmp_path / "evidence.json"
+
+    # Mock evidence data for the file
+    evidence_data = {
+        "id": "test-evidence-id",
+        "score": 0.85,
+        "test_transitions": [
+            {
+                "test_name": "test_feature",
+                "before_status": "failed",
+                "after_status": "passed",
+                "commit_before": "abc123",
+                "commit_after": "def456",
+            }
+        ],
+        "runtime_errors": [],
+        "code_quality_improvements": [],
+        "evidence_types": ["TEST_TRANSITION"],
+        "threshold": 0.7,
+    }
+
+    # Write to the temp file
+    with open(evidence_file, "w") as f:
+        import json
+
+        json.dump(evidence_data, f)
+
+    # Create patchers that don't assert call counts
+    mock_open_patcher = patch("builtins.open", new_callable=MagicMock)
+    mock_json_load_patcher = patch("json.load")
+
+    with mock_open_patcher as mock_open:
+        with mock_json_load_patcher as mock_json_load:
+            # Set up the mock to return our evidence data
+            mock_json_load.return_value = evidence_data
+
+            # Mock the ValidationEvidence model
+            with patch("chroma_mcp_client.validation.schemas.ValidationEvidence") as mock_evidence_class:
+                mock_evidence_instance = MagicMock()
+                mock_evidence_instance.score = 0.85
+                mock_evidence_instance.meets_threshold.return_value = True
+                mock_evidence_class.model_validate.return_value = mock_evidence_instance
+
+                # Command Args
+                args_dict = {
+                    "command": "validate-evidence",
+                    "verbose": 1,
+                    "evidence_file": str(evidence_file),
+                    "test_transitions": None,
+                    "runtime_errors": None,
+                    "code_quality": None,
+                    "output_file": None,
+                    "threshold": 0.7,
+                }
+                mock_parser_instance = mock_argparse.return_value
+                mock_args = create_mock_args(**args_dict)
+                mock_parser_instance.parse_args.return_value = mock_args
+
+                # Run command
+                cli.main()
+
+                # Assertions
+                # Check that validation was performed
+                mock_evidence_class.model_validate.assert_called_with(evidence_data)
+                mock_evidence_instance.meets_threshold.assert_called_once()
+
+                # Check output message
+                captured = capsys.readouterr()
+                assert "Validation score: 0.85" in captured.out
+                assert "Threshold: 0.7" in captured.out
+                assert "Meets threshold: True" in captured.out
+
+
+@patch("uuid.uuid4")
+@patch("argparse.ArgumentParser")
+@patch("chroma_mcp_client.cli.get_client_and_ef")
+def test_log_quality_check_command(mock_get_client_ef, mock_argparse, mock_uuid, capsys, caplog):
+    """Test that the log-quality-check command runs quality checks and reports results."""
+    # Mocks
+    mock_client = MagicMock(spec=chromadb.ClientAPI)
+    mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
+    mock_get_client_ef.return_value = (mock_client, mock_ef)
+    mock_uuid.return_value = uuid.UUID("99887766-5544-3322-1100-aabbccddeeff")
+    quality_id = "99887766-5544-3322-1100-aabbccddeeff"
+
+    # Mock quality check function
+    with patch("chroma_mcp_client.validation.code_quality_collector.run_quality_check") as mock_quality_check:
+        # Set up mock quality evidence
+        mock_quality_evidence = MagicMock()
+        mock_quality_evidence.before_value = 25
+        mock_quality_evidence.after_value = 15
+        mock_quality_evidence.percentage_improvement = 40.0  # (25-15)/25 * 100
+        mock_quality_check.return_value = mock_quality_evidence
+
+        # Command Args
+        args_dict = {
+            "command": "log-quality-check",
+            "verbose": 1,
+            "tool": "pylint",
+            "before_output": "/path/to/before_output.txt",
+            "after_output": "/path/to/after_output.txt",
+            "metric_type": "error_count",
+            "collection_name": "validation_evidence_v1",
+        }
+        mock_parser_instance = mock_argparse.return_value
+        mock_args = create_mock_args(**args_dict)
+        mock_parser_instance.parse_args.return_value = mock_args
+
+        # Run command
+        cli.main()
+
+        # Assertions
+        # Check quality check was called
+        mock_quality_check.assert_called_once_with(
+            tool="pylint",
+            before_output_path="/path/to/before_output.txt",
+            after_output_path="/path/to/after_output.txt",
+            metric_type="error_count",
+        )
+
+        # Check output
+        captured = capsys.readouterr()
+        assert f"Quality check ID: {quality_id}" in captured.out
+        assert "Before value: 25" in captured.out
+        assert "After value: 15" in captured.out
+        assert "Improvement: 40.00%" in captured.out

@@ -186,3 +186,91 @@ For detailed API documentation, see [context_module.md](./context_module.md).
 3. **Include rationales in chat**: Explaining your reasoning helps build a better knowledge base
 4. **Review high-confidence interactions**: These are prime candidates for promoting to derived learnings
 5. **Leverage bidirectional links**: When fixing bugs or adding features, check for related discussions first
+
+## Enhanced Context Capture: Error-Driven Learning
+
+## The Problem: Learning Without Validation
+
+Our current approach to capturing and promoting "learnings" has a significant limitation: **we're promoting code changes without verifying they represent true learning moments**. Simply capturing chat summaries and code changes doesn't guarantee the changes represent valuable knowledge or solutions to actual problems.
+
+### An Enhanced Approach: Error-Driven Learning
+
+Real learning typically occurs through the error-correction cycle:
+
+1. Code is written with incorrect assumptions
+2. Tests or runtime execution reveals errors
+3. Code is fixed to address those errors
+4. The difference between incorrect and correct implementations becomes a valuable learning
+
+This document proposes enhancements to our context capture system to focus on this error-driven learning process.
+
+### Key Components of Error-Driven Learning Capture
+
+#### 1. Test Result Integration
+
+As outlined in the `local_rag_pipeline_plan_v4.md`, we'll implement test result tracking with:
+
+- A `test_results_v1` collection storing structured test results
+- Bidirectional linking between test results, code chunks, and chat history
+- Tracking of test success/failure transitions
+
+#### 2. Error Log Capture
+
+We should extend our system to capture runtime errors:
+
+- Create mechanisms to log application errors to ChromaDB
+- Link these errors to the associated code chunks
+- Track when errors first appear and when they're resolved
+
+#### 3. Complete Learning Lifecycle
+
+For true learning value, we need to capture the full lifecycle:
+
+- Initial implementation → Failing test/error → Fix implementation → Passing test/resolved error
+- Before/after code comparison for the fix
+- Root cause analysis (from chat discussion or explicit documentation)
+
+#### 4. Learning Validation Criteria
+
+We should only promote learnings that meet specific validation criteria:
+
+- Code changes that fixed failing tests
+- Solutions that resolved runtime errors
+- Refactorings that measurably improved quality metrics (complexity, performance, etc.)
+- Changes with clear evidence of correcting misconceptions or addressing edge cases
+
+### Implementation Plan
+
+#### Phase 1: Test Result Integration
+
+1. Implement the `test_results_v1` collection as described in `local_rag_pipeline_plan_v4.md`
+2. Modify `log-test-results` to track test transitions (failing → passing)
+3. Update the promotion workflow to prioritize changes that fix failing tests
+
+#### Phase 2: Runtime Error Integration
+
+1. Create an error logging mechanism
+2. Implement bidirectional linking between errors and code
+3. Extend the promotion workflow to include error resolution criteria
+
+#### Phase 3: Enhanced Learning Promotion
+
+1. Update `analyze-chat-history` to identify validated learning moments
+2. Modify `review-and-promote` to show validation evidence
+3. Add quality metrics to strengthen validation criteria
+
+### Expected Benefits
+
+This approach will transform our "derived_learnings" from a collection of arbitrary code changes to validated solutions with proven value. It will:
+
+- Increase the signal-to-noise ratio in our learning collection
+- Provide concrete evidence of learning value
+- Capture the context of why changes were made
+- Create a more useful resource for both developers and AI assistants
+
+### Next Steps
+
+1. Complete the test result integration as a foundation
+2. Develop the validation criteria for learning promotion
+3. Update the promotion workflow to incorporate these criteria
+4. Design the runtime error capture mechanism

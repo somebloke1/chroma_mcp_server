@@ -314,6 +314,26 @@ def main():
         dest="include_chat_context",
         help="Don't include rich context from the source chat entry",
     )
+    promote_parser.add_argument(
+        "--validation-evidence-id",
+        help="ID of validation evidence to associate with this learning.",
+    )
+    promote_parser.add_argument(
+        "--validation-score",
+        type=float,
+        help="Optional validation score (0.0 to 1.0) for this learning.",
+    )
+    promote_parser.add_argument(
+        "--require-validation",
+        action="store_true",
+        help="If set, promotion will fail if validation score does not meet threshold.",
+    )
+    promote_parser.add_argument(
+        "--validation-threshold",
+        type=float,
+        default=0.7,
+        help="Threshold for validation score (0.0 to 1.0) when --require-validation is set.",
+    )
 
     # --- Log Chat Subparser ---
     log_chat_parser = subparsers.add_parser(
@@ -356,6 +376,139 @@ def main():
         "--collection-name",
         default="chat_history_v1",
         help="Name of the ChromaDB collection to log to.",
+    )
+
+    # --- Log Error Subparser ---
+    log_error_parser = subparsers.add_parser(
+        "log-error",
+        help="Log runtime errors for validation evidence.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    log_error_parser.add_argument(
+        "--error-type",
+        required=True,
+        help="Type of error (e.g., 'TypeError', 'FileNotFoundError').",
+    )
+    log_error_parser.add_argument(
+        "--error-message",
+        required=True,
+        help="Error message content.",
+    )
+    log_error_parser.add_argument(
+        "--stacktrace",
+        help="Full stacktrace of the error.",
+    )
+    log_error_parser.add_argument(
+        "--affected-files",
+        help="Comma-separated list of affected file paths.",
+    )
+    log_error_parser.add_argument(
+        "--resolution",
+        help="Description of how the error was resolved.",
+    )
+    log_error_parser.add_argument(
+        "--resolution-verified",
+        action="store_true",
+        help="Whether the resolution has been verified.",
+    )
+    log_error_parser.add_argument(
+        "--collection-name",
+        default="validation_evidence_v1",
+        help="Name of the ChromaDB collection to store errors.",
+    )
+
+    # --- Log Test Results Subparser ---
+    log_test_parser = subparsers.add_parser(
+        "log-test-results",
+        help="Log test results from JUnit XML for validation evidence.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    log_test_parser.add_argument(
+        "xml_path",
+        help="Path to the JUnit XML file with test results.",
+    )
+    log_test_parser.add_argument(
+        "--before-xml",
+        help="Optional path to a JUnit XML file from before code changes.",
+    )
+    log_test_parser.add_argument(
+        "--commit-before",
+        help="Optional git commit hash from before the change.",
+    )
+    log_test_parser.add_argument(
+        "--commit-after",
+        help="Optional git commit hash from after the change.",
+    )
+    log_test_parser.add_argument(
+        "--collection-name",
+        default="test_results_v1",
+        help="Name of the ChromaDB collection to store test results.",
+    )
+
+    # --- Log Code Quality Subparser ---
+    log_quality_parser = subparsers.add_parser(
+        "log-quality-check",
+        help="Log code quality metrics for validation evidence.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    log_quality_parser.add_argument(
+        "--tool",
+        required=True,
+        choices=["ruff", "flake8", "pylint", "coverage"],
+        help="Quality tool that generated the output.",
+    )
+    log_quality_parser.add_argument(
+        "--before-output",
+        help="Path to the tool output file from before changes.",
+    )
+    log_quality_parser.add_argument(
+        "--after-output",
+        required=True,
+        help="Path to the tool output file from after changes.",
+    )
+    log_quality_parser.add_argument(
+        "--metric-type",
+        default="linting",
+        choices=["linting", "complexity", "coverage", "maintainability"],
+        help="Type of metric being measured.",
+    )
+    log_quality_parser.add_argument(
+        "--collection-name",
+        default="validation_evidence_v1",
+        help="Name of the ChromaDB collection to store quality metrics.",
+    )
+
+    # --- Validate Evidence Subparser ---
+    validate_parser = subparsers.add_parser(
+        "validate-evidence",
+        help="Calculate validation score for evidence and determine promotion eligibility.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    validate_parser.add_argument(
+        "--evidence-file",
+        help="Path to JSON file with validation evidence.",
+    )
+    validate_parser.add_argument(
+        "--test-transitions",
+        help="IDs of test transitions to include in validation.",
+    )
+    validate_parser.add_argument(
+        "--runtime-errors",
+        help="IDs of runtime errors to include in validation.",
+    )
+    validate_parser.add_argument(
+        "--code-quality",
+        help="IDs of code quality evidence to include in validation.",
+    )
+    validate_parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.7,
+        help="Validation score threshold for promotion eligibility (0.0-1.0).",
+    )
+    validate_parser.add_argument(
+        "--output-file",
+        help="Path to save the validation results as JSON.",
     )
 
     args = parser.parse_args()
@@ -549,6 +702,8 @@ def main():
             "chat_history_v1",
             "derived_learnings_v1",
             "thinking_sessions_v1",
+            "validation_evidence_v1",  # New collection for validation evidence
+            "test_results_v1",  # New collection for test results
         ]
         collections_created = 0
         collections_existing = 0
@@ -611,6 +766,49 @@ def main():
     elif args.command == "promote-learning":
         logger.info(f"Executing 'promote-learning' command...")
 
+        # Check validation requirements if set
+        if args.require_validation:
+            if args.validation_evidence_id is None and args.validation_score is None:
+                logger.error("Validation required but no validation evidence or score provided")
+                print("Error: --require-validation set but no validation evidence or score provided")
+                sys.exit(1)
+
+            if args.validation_score is not None and args.validation_score < args.validation_threshold:
+                logger.error(f"Validation score {args.validation_score} is below threshold {args.validation_threshold}")
+                print(
+                    f"Error: Validation score {args.validation_score} does not meet threshold {args.validation_threshold}"
+                )
+                sys.exit(1)
+
+            # If we have evidence ID but no score, we need to validate
+            if args.validation_evidence_id and args.validation_score is None:
+                logger.info(
+                    f"Validating evidence {args.validation_evidence_id} against threshold {args.validation_threshold}"
+                )
+                try:
+                    from chroma_mcp_client.validation.promotion import LearningPromoter
+
+                    promoter = LearningPromoter(client)
+                    evidence = promoter.get_validation_evidence(args.validation_evidence_id)
+
+                    if evidence is None:
+                        logger.error(f"Validation evidence {args.validation_evidence_id} not found")
+                        print(f"Error: Validation evidence {args.validation_evidence_id} not found")
+                        sys.exit(1)
+
+                    if evidence.score < args.validation_threshold:
+                        logger.error(
+                            f"Validation score {evidence.score} is below threshold {args.validation_threshold}"
+                        )
+                        print(
+                            f"Error: Validation score {evidence.score} does not meet threshold {args.validation_threshold}"
+                        )
+                        sys.exit(1)
+                except Exception as e:
+                    logger.error(f"Error validating evidence: {e}")
+                    print(f"Error: Failed to validate evidence: {e}")
+                    sys.exit(1)
+
         # Call the refactored function
         # Note: client and ef are already initialized earlier in main()
         learning_id = promote_to_learnings_collection(
@@ -625,6 +823,8 @@ def main():
             source_chat_id=args.source_chat_id,
             chat_history_collection_name=args.chat_collection_name,
             include_chat_context=args.include_chat_context,
+            validation_evidence_id=args.validation_evidence_id,
+            validation_score=args.validation_score,
         )
 
         if learning_id:
@@ -634,6 +834,165 @@ def main():
         else:
             logger.error("'promote-learning' command failed. See previous logs for details.")
             sys.exit(1)  # Exit if the promotion function indicated failure by returning None
+
+    elif args.command == "log-error":
+        logger.info("Executing 'log-error' command...")
+        try:
+            # Import at runtime to avoid circular imports
+            from chroma_mcp_client.validation.runtime_collector import (
+                store_runtime_error,
+                create_runtime_error_evidence_cli,
+            )
+
+            # Create runtime error evidence
+            error_evidence = create_runtime_error_evidence_cli(
+                error_type=args.error_type,
+                error_message=args.error_message,
+                stacktrace=args.stacktrace or "",
+                affected_files=args.affected_files.split(",") if args.affected_files else [],
+                resolution=args.resolution,
+                resolution_verified=args.resolution_verified,
+            )
+
+            # Store the evidence
+            error_id = store_runtime_error(error_evidence, collection_name=args.collection_name, chroma_client=client)
+
+            logger.info(f"'log-error' command finished. Error ID: {error_id}")
+            print(f"Runtime error logged successfully with ID: {error_id}")
+        except Exception as e:
+            logger.error(f"An error occurred during error logging: {e}", exc_info=True)
+            print(f"Error during logging: {e}")
+            sys.exit(1)
+
+    elif args.command == "log-test-results":
+        logger.info("Executing 'log-test-results' command...")
+        try:
+            # Import at runtime to avoid circular imports
+            from chroma_mcp_client.validation.test_collector import parse_junit_xml, store_test_results
+            from chroma_mcp_client.validation.test_collector import create_test_transition_evidence
+
+            # Parse the JUnit XML file
+            test_results = parse_junit_xml(args.xml_path)
+
+            # Store the test results
+            test_run_id = store_test_results(
+                results_dict=test_results, collection_name=args.collection_name, chroma_client=client
+            )
+
+            # If before-xml is provided, create transition evidence
+            if args.before_xml:
+                from chroma_mcp_client.validation.evidence_collector import collect_validation_evidence
+
+                transitions = create_test_transition_evidence(
+                    before_xml=args.before_xml,
+                    after_xml=args.xml_path,
+                    commit_before=args.commit_before,
+                    commit_after=args.commit_after,
+                )
+
+                # Create validation evidence including test transitions
+                evidence = collect_validation_evidence(
+                    test_transitions=transitions, runtime_errors=[], code_quality_improvements=[]
+                )
+
+                # Print validation score
+                print(f"Test transitions: {len(transitions)}")
+                print(f"Validation score: {evidence.score:.2f}")
+                print(f"Meets threshold: {evidence.meets_threshold()}")
+
+            logger.info(f"'log-test-results' command finished. Test Run ID: {test_run_id}")
+            print(f"Test results logged successfully with ID: {test_run_id}")
+        except Exception as e:
+            logger.error(f"An error occurred during test result logging: {e}", exc_info=True)
+            print(f"Error during logging: {e}")
+            sys.exit(1)
+
+    elif args.command == "log-quality-check":
+        logger.info("Executing 'log-quality-check' command...")
+        try:
+            # Import at runtime to avoid circular imports
+            from chroma_mcp_client.validation.code_quality_collector import create_code_quality_evidence
+            from chroma_mcp_client.validation.code_quality_collector import run_quality_check
+
+            # Run quality check comparison
+            quality_evidence = run_quality_check(
+                tool=args.tool,
+                before_output_path=args.before_output,
+                after_output_path=args.after_output,
+                metric_type=args.metric_type,
+            )
+
+            # Store in ChromaDB if needed
+            quality_id = str(uuid.uuid4())
+            print(f"Quality check ID: {quality_id}")
+            print(f"Before value: {quality_evidence.before_value}")
+            print(f"After value: {quality_evidence.after_value}")
+            print(f"Improvement: {quality_evidence.percentage_improvement:.2f}%")
+
+            logger.info(f"'log-quality-check' command finished. Quality ID: {quality_id}")
+        except Exception as e:
+            logger.error(f"An error occurred during quality check logging: {e}", exc_info=True)
+            print(f"Error during logging: {e}")
+            sys.exit(1)
+
+    elif args.command == "validate-evidence":
+        logger.info("Executing 'validate-evidence' command...")
+        try:
+            # Import at runtime to avoid circular imports
+            from chroma_mcp_client.validation.schemas import ValidationEvidence, calculate_validation_score
+            from chroma_mcp_client.validation.evidence_collector import collect_validation_evidence
+
+            evidence = None
+
+            # If evidence file provided, load from JSON
+            if args.evidence_file:
+                with open(args.evidence_file, "r") as f:
+                    evidence_data = json.load(f)
+                    evidence = ValidationEvidence.model_validate(evidence_data)
+
+            # Otherwise collect from provided IDs
+            else:
+                # Get test transitions, runtime errors, and code quality improvements
+                # from ChromaDB collections using the provided IDs
+                test_transitions = []
+                runtime_errors = []
+                code_quality_improvements = []
+
+                # Here we would implement lookup logic for the various IDs
+                # For now just print a message
+                if args.test_transitions or args.runtime_errors or args.code_quality:
+                    print("ID lookup not yet implemented. Please provide evidence file instead.")
+                    evidence = collect_validation_evidence(
+                        test_transitions=[], runtime_errors=[], code_quality_improvements=[]
+                    )
+
+            if evidence:
+                # Calculate score if needed
+                if evidence.score == 0:
+                    evidence.score = calculate_validation_score(evidence)
+
+                # Check if meets threshold
+                meets_threshold = evidence.meets_threshold(args.threshold)
+
+                # Print results
+                print(f"Validation score: {evidence.score:.2f}")
+                print(f"Threshold: {args.threshold}")
+                print(f"Meets threshold: {meets_threshold}")
+                print(f"Evidence types: {', '.join(e.value for e in evidence.evidence_types)}")
+
+                # Save to output file if specified
+                if args.output_file:
+                    with open(args.output_file, "w") as f:
+                        json.dump(evidence.model_dump(), f, indent=2)
+                    print(f"Evidence saved to {args.output_file}")
+            else:
+                print("No evidence provided. Use --evidence-file or evidence type IDs.")
+
+            logger.info(f"'validate-evidence' command finished.")
+        except Exception as e:
+            logger.error(f"An error occurred during evidence validation: {e}", exc_info=True)
+            print(f"Error during validation: {e}")
+            sys.exit(1)
 
     elif args.command == "log-chat":
         logger.info("Executing 'log-chat' command...")

@@ -21,6 +21,7 @@ Key features:
 - **Bidirectional Linking:** Connect discussions to code changes for tracing feature evolution
 - **Semantic Code Chunking:** Preserve logical code structures for more meaningful context retrieval
 - **Working Memory Tools:** MCP commands for capturing and retrieving development context
+- **Validation System:** Evidence-based validation for code changes and learning promotions
 
 See the [Getting Started with your Second Brain guide](docs/getting_started_second_brain.md) for more details.
 
