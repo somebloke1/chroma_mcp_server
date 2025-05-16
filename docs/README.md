@@ -18,6 +18,9 @@ Welcome to the Chroma MCP Server documentation. This guide provides comprehensiv
 - [Tool Usage Format Specification](usage/tool_usage_format.md)
 - [Automated Chat Logging](integration/automated_chat_logging.md)
 - [Memory Integration](rules/memory-integration-rules.md)
+- [Error-Driven Learning](usage/enhanced_context_capture.md#error-driven-learning)
+- [Learning Validation Workflow](refactoring/learning_validation_workflow.md)
+- [ROI Measurement Framework](usage/roi_measurement.md)
 
 ## Overview
 
@@ -40,6 +43,87 @@ This enables AI models to:
 - Maintain context across multiple development sessions
 
 **Current Implementation Status:** The foundational features of the "Second Brain" concept (Phase 1 in `docs/refactoring/local_rag_pipeline_plan_v4.md`) have been largely implemented, including automated indexing with semantic chunking, enhanced chat logging with rich context capture, bidirectional linking, working memory, and derived learnings promotion. The CLI tools for analysis and promotion are being enhanced to fully leverage this rich metadata. More advanced features (Phases 2 and 3) involving LoRA fine-tuning and automated reinforcement learning are under active development.
+
+## Key Benefits
+
+The "Second Brain" concept offers compelling benefits:
+
+1. **Automated Context Capture**: All code changes and AI discussions are automatically indexed, with rich contextual information.
+2. **Bidirectional Linking**: Create navigable connections between chat discussions and code changes.  
+3. **Validated Learning Collection**: Store only code changes with proven learning value based on evidence like test transitions and error resolution.
+4. **Measurable ROI**: Track concrete metrics showing the impact of your RAG system on development efficiency and code quality.
+5. **Continuous Improvement**: The system naturally adapts to focus on high-value solutions.
+
+## Key Enhanced Features
+
+### Error-Driven Learning
+
+The system now incorporates an error-driven learning approach that focuses on capturing and validating true learning moments:
+
+- Only promotes code changes that solved actual problems (failing tests, runtime errors)
+- Uses a validation scoring system to identify high-value learnings
+- Tracks the complete lifecycle from initial implementation through error detection to resolution
+- Creates a much higher signal-to-noise ratio in derived learnings
+
+See the [Error-Driven Learning Guide](usage/enhanced_context_capture.md#error-driven-learning) for implementation details.
+
+### Learning Validation Workflow
+
+A comprehensive workflow ensures only validated learnings get promoted:
+
+- Evidence-based validation scoring system
+- Multiple validation types (test transitions, runtime errors, quality improvements)
+- Enhanced review interface showing validation evidence
+- Clear thresholds for promotion eligibility
+
+See the [Learning Validation Workflow](refactoring/learning_validation_workflow.md) for the complete process.
+
+### ROI Measurement Framework
+
+A concrete measurement system quantifies the value of the RAG implementation:
+
+- Error resolution metrics (time-to-fix, prevention rate)
+- Quality impact metrics (before/after comparisons)
+- Productivity measurements (time saved, knowledge reuse)
+- Learning effectiveness evaluation
+
+See the [ROI Measurement Framework](usage/roi_measurement.md) for detailed metrics and implementation.
+
+### Enhanced Context Capture
+
+The system automatically extracts rich contextual information when AI interactions modify code, including:
+
+- Code snippets before and after changes (preserving context)
+- Detailed diff summaries highlighting what was actually modified
+- Tool sequences used during the interaction (e.g., read_file→edit_file→run_terminal_cmd)
+- Confidence scores to help identify high-value interactions
+- Classification of modification types (refactor/bugfix/feature/documentation)
+
+See the [Enhanced Context Capture Guide](usage/enhanced_context_capture.md) for details.
+
+### Bidirectional Linking
+
+The system creates and maintains navigable connections between:
+
+- Chat interactions that modify code and the affected code chunks
+- Code chunks and the discussions that created or modified them
+
+This allows tracing feature evolution across both domains, providing deeper context for AI and developers. See the [Automated Chat Logging Guide](integration/automated_chat_logging.md) for implementation details.
+
+### Enhanced Interactive Promotion
+
+The interactive promoter workflow (`review-and-promote`) now includes several productivity enhancements:
+
+- **Auto-Promote Mode:** Automatically promote high-confidence entries (≥0.8) without manual review
+- **Smart Defaults:** Intelligent defaults for all fields based on entry context
+- **Low Confidence Warnings:** Visual indicators for entries that may need more careful review
+- **Enhanced Code Selection:** Better bidirectional link support for more accurate code references
+
+These improvements streamline the curation of derived learnings by allowing users to often just press Enter to accept sensible defaults. See the [Review and Promote Guide](scripts/review-and-promote.md) for details.
+
+### Semantic Code Chunking
+
+Rather than using fixed-size chunks, the system preserves logical code structures (functions, classes, methods) when indexing code, ensuring more meaningful context retrieval. See the [Semantic Chunking Guide](usage/semantic_chunking.md) for more information.
 
 ## Installation
 
@@ -265,44 +349,6 @@ Log levels and directories are configurable through environment variables. See t
 ## Working Memory
 
 This server includes specialized tools for creating a persistent, searchable "working memory" to aid AI development workflows. Learn more about how these tools leverage embeddings to manage context across sessions in the **[Embeddings and Thinking Tools Guide](thinking_tools/embeddings_and_thinking.md)**.
-
-## Key Enhanced Features
-
-### Enhanced Context Capture
-
-The system automatically extracts rich contextual information when AI interactions modify code, including:
-
-- Code snippets before and after changes (preserving context)
-- Detailed diff summaries highlighting what was actually modified
-- Tool sequences used during the interaction (e.g., read_file→edit_file→run_terminal_cmd)
-- Confidence scores to help identify high-value interactions
-- Classification of modification types (refactor/bugfix/feature/documentation)
-
-See the [Enhanced Context Capture Guide](usage/enhanced_context_capture.md) for details.
-
-### Bidirectional Linking
-
-The system creates and maintains navigable connections between:
-
-- Chat interactions that modify code and the affected code chunks
-- Code chunks and the discussions that created or modified them
-
-This allows tracing feature evolution across both domains, providing deeper context for AI and developers. See the [Automated Chat Logging Guide](integration/automated_chat_logging.md) for implementation details.
-
-### Enhanced Interactive Promotion
-
-The interactive promoter workflow (`review-and-promote`) now includes several productivity enhancements:
-
-- **Auto-Promote Mode:** Automatically promote high-confidence entries (≥0.8) without manual review
-- **Smart Defaults:** Intelligent defaults for all fields based on entry context
-- **Low Confidence Warnings:** Visual indicators for entries that may need more careful review
-- **Enhanced Code Selection:** Better bidirectional link support for more accurate code references
-
-These improvements streamline the curation of derived learnings by allowing users to often just press Enter to accept sensible defaults. See the [Review and Promote Guide](scripts/review-and-promote.md) for details.
-
-### Semantic Code Chunking
-
-Rather than using fixed-size chunks, the system preserves logical code structures (functions, classes, methods) when indexing code, ensuring more meaningful context retrieval. See the [Semantic Chunking Guide](usage/semantic_chunking.md) for more information.
 
 ## Additional Resources
 

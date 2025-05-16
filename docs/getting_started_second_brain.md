@@ -28,19 +28,19 @@ The CLI tools (`analyze_chat_history.sh`, `promote_learning.sh`, `review_and_pro
 
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
-graph TD
-    A[Developer] --> B(IDE / Editor);
-    B --> C{Codebase};
-    B --> D[Git Commits];
-    B --> E[Docs .md];
-    B --> F[Chat / Issues];
-    A -- Manual Search / Recall --> C;
-    A -- Manual Search / Recall --> D;
-    A -- Manual Search / Recall --> E;
-    A -- Manual Search / Recall --> F;
-    G[AI Assistant] -- Limited, Stale Context --> A;
+flowchart TD
+    A[Developer] --> B[IDE / Editor]
+    B --> C{Codebase}
+    B --> D[Git Commits]
+    B --> E[Docs .md]
+    B --> F[Chat / Issues]
+    A -- "Manual Search / Recall" --> C
+    A -- "Manual Search / Recall" --> D
+    A -- "Manual Search / Recall" --> E
+    A -- "Manual Search / Recall" --> F
+    G[AI Assistant] -- "Limited, Stale Context" --> A
 
-    subgraph Knowledge Sources
+    subgraph "Knowledge Sources"
         C
         D
         E
@@ -49,6 +49,10 @@ graph TD
 
     style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
     style B fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style C fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style D fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style E fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style F fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
     style G fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
 ```
 
@@ -290,6 +294,394 @@ This is where the "Second Brain" truly comes alive, becoming a continuously impr
 - **Benefit: Reduced Cognitive Load & Accelerated Team Onboarding (Especially with a Shared ChromaDB)**
   - **WHY (vs. Traditional):** The system itself becomes a dynamic repository of the latest team-wide best practices and project-specific knowledge. New team members can get up to speed faster by interacting with an AI that's already deeply versed in the project's current state and conventions. Experienced developers spend less time re-explaining established patterns.
   - **HOW (v4 Feature):** The AI, consistently powered by the latest LoRA (potentially trained on team-wide data if using a shared ChromaDB), provides suggestions and explanations that are aligned with current team practices. The `derived_learnings_v1` also serves as an explicit knowledge base.
+
+## Detailed Learning Flows
+
+The Chroma MCP "Second Brain" features three key learning mechanisms that work together to create a comprehensive knowledge ecosystem. Each flow is designed to capture different types of developer knowledge and feed them into a unified knowledge base.
+
+### 1. Thoughts Collection and Sequential Thinking
+
+Structured thought capture enables developers to record their reasoning process, decision-making, and problem-solving approaches. This creates an invaluable record of the "why" behind technical decisions.
+
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+flowchart TD
+    A[Developer] --> B{Complex Problem}
+    B --> C[Start Sequential Thinking]
+    
+    subgraph "Thought Capture Process"
+        C --> D["record-thought CLI or MCP Tool"]
+        D -- "Thought 1 of N\nIssue Analysis" --> E[(ChromaDB: thinking_sessions_v1)]
+        D -- "Thought 2 of N\nSolution Approaches" --> E
+        D -- "Thought 3 of N\nImplementation Plan" --> E
+        D -- "Thought N of N\nVerification Strategy" --> E
+    end
+    
+    E -- "Find Similar\nThoughts" --> F[MCP Tool: find_similar_thoughts]
+    F --> G[AI Assistant]
+    G -- "Builds On\nPrevious Thoughts" --> H[Enhanced Response]
+    H --> A
+    
+    E -- "Session Summary" --> I[MCP Tool: get_session_summary]
+    I --> J["Analyze for\nPromotion"]
+    J --> K[(ChromaDB: derived_learnings_v1)]
+    
+    L[Another Developer] --> M["Query: 'Why did we choose\nthis approach for X?'"]
+    M --> N[MCP Tool: find_similar_thoughts]
+    N --> O["Retrieves Original\nReasoning Process"]
+    O --> L
+
+    style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style B fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
+    style C fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style D fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style E fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style F fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style G fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style H fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style I fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style J fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style K fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style L fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style M fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style N fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style O fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+```
+
+*Fig 3: Sequential Thinking Flow - Capturing and utilizing structured thought processes.*
+
+#### How Thought Collection Works
+
+1. **Initiating Sequential Thinking**
+   - When facing complex decisions or architectural planning, a developer starts a sequential thinking session.
+   - Either through the `record-thought` CLI tool or MCP commands in an IDE, the developer records their thought process.
+   - Each thought is numbered (e.g., "Thought 1 of N") and has a clear purpose (problem analysis, solution exploration, etc.).
+
+2. **Structured Storage in ChromaDB**
+   - Thoughts are stored in the `thinking_sessions_v1` collection with metadata including:
+     - `session_id`: A unique identifier for the thinking session
+     - `thought_number`: Sequential position in the thought process
+     - `total_thoughts`: Total expected number of thoughts in the sequence
+     - `branch_id`: Optional identifier if exploring alternative approaches
+     - Timestamp and other contextual information
+
+3. **Retrieval and Building on Previous Thoughts**
+   - The `find_similar_thoughts` MCP tool can retrieve relevant thoughts from past sessions.
+   - AI assistants use the `memory-integration-rule` to reference earlier thoughts and maintain continuity.
+   - New thoughts can explicitly build on previous ones, creating a coherent chain of reasoning.
+
+4. **Knowledge Transfer and Learning**
+   - Complete thought sessions can be analyzed for promotion to the `derived_learnings_v1` collection.
+   - Other developers can search for reasoning behind technical decisions, accessing the original thought process.
+   - AI assistants can leverage past thinking patterns to provide more contextually appropriate suggestions.
+
+#### Practical Application Example
+
+Consider a developer trying to choose between two data storage approaches:
+
+1. Developer writes "Thought 1 of 4: We need to decide between SQLite and PostgreSQL for our data layer. Our requirements are..."
+2. Continues with "Thought 2 of 4: SQLite advantages include... PostgreSQL advantages include..."
+3. Proceeds to "Thought 3 of 4: Decision matrix comparing factors with weighted scoring..."
+4. Concludes with "Thought 4 of 4: Based on this analysis, we will use PostgreSQL because..."
+
+Later, when another team member asks, "Why are we using PostgreSQL?" the system can retrieve this exact reasoning process, preserving institutional knowledge that would otherwise be lost.
+
+### 2. Code and Chat Auto-Logging with Bidirectional Linking
+
+The heart of the "Second Brain" is the automatic capture of code changes and related discussions, connected through bidirectional links that enable comprehensive context retrieval.
+
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+flowchart TD
+    A[Developer] --> B{New Code or Changes}
+    A -- "Question About Code" --> C[AI Assistant]
+    
+    subgraph "Code Indexing Flow"
+        B --> D{Git Commit}
+        D -- Triggers --> E[Post-Commit Hook]
+        E --> F["chroma-client index --changed"]
+        F -- "Semantic Code Chunks" --> G[(ChromaDB: codebase_v1)]
+    end
+    
+    subgraph "Chat Logging Flow"
+        C -- "Consults" --> G
+        C -- "Generates Response" --> H[Code Solution/Explanation]
+        H --> I[auto_log_chat Rule]
+        I -- "Extract Context" --> J["• Code Diff\n• Tool Sequence\n• Confidence Score"]
+        J --> K["chroma_log_chat MCP Call"]
+        K -- "Rich Context, Bidirectional Links" --> L[(ChromaDB: chat_history_v1)]
+        K -- "Updates Related Code Links" --> G
+    end
+    
+    subgraph "Learning Promotion Flow"
+        L -- "Regularly" --> M["analyze-chat-history CLI"]
+        M -- "Prioritizes by\nConfidence Score" --> N["High-Value Interactions\nwith Evidence"]
+        N --> O["review-and-promote CLI"]
+        O -- "Developer Approval" --> P[(ChromaDB: derived_learnings_v1)]
+        P -- "Enhanced Relevance" --> Q["Future RAG Queries"]
+        Q --> C
+    end
+    
+    R[Other Developer] --> S["Query: 'How did we fix\nthe XYZ bug?'"]
+    S --> T["chroma_query_documents"]
+    T -- "Semantic Search" --> L
+    T -- "Follows Links to" --> G
+    T -- "Retrieves Golden Solutions" --> P
+    T --> U["Complete Context with\nCode + Discussion + Solution"]
+    U --> R
+
+    style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style B fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
+    style C fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style D fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style E fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style F fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style G fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style H fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style I fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style J fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style K fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style L fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style M fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style N fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style O fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style P fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style Q fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style R fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style S fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style T fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style U fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+```
+
+*Fig 4: Code and Chat Auto-Logging Flow - Capturing context and creating bidirectional links.*
+
+#### How Code and Chat Logging Works
+
+1. **Automated Code Indexing**
+   - When a developer commits code changes, the post-commit hook triggers `chroma-client index --changed`.
+   - The code is semantically chunked (by function, class, or logical section) rather than by arbitrary line counts.
+   - Each chunk is stored in `codebase_v1` with metadata including file path, commit hash, and timestamps.
+
+2. **Enhanced Context Capture During AI Interaction**
+   - When a developer interacts with an AI assistant, the assistant queries the codebase for context.
+   - After providing a response (which may include code edits), the `auto_log_chat` rule activates.
+   - This rule extracts rich context including:
+     - Before/after code snippets when edits were made
+     - Detailed diffs showing exactly what changed
+     - The sequence of tools used (e.g., read_file→edit_file→run_terminal_cmd)
+     - A confidence score reflecting the perceived value of the interaction
+     - Categories of modification (refactor/bugfix/feature/documentation)
+
+3. **Bidirectional Linking Creation**
+   - The logging process automatically creates links between:
+     - The chat entry in `chat_history_v1` and the relevant code chunks in `codebase_v1`
+     - The code chunks and any chat entries that modified or discussed them
+   - These bidirectional links allow navigation seamlessly between code and discussions, answering questions like:
+     - "Who changed this code and why?"
+     - "What other parts of the codebase were affected by this discussion?"
+     - "What's the history of changes to this function?"
+
+4. **Learning Promotion Pipeline**
+   - The `analyze-chat-history` CLI tool regularly processes entries in `chat_history_v1`.
+   - It prioritizes entries with high confidence scores or significant code impact.
+   - These candidates are presented through the `review-and-promote` interface.
+   - Upon developer approval, they're elevated to `derived_learnings_v1` with all relevant context preserved.
+
+#### Practical Application Example 1
+
+1. A developer asks the AI about optimizing a slow database query.
+2. The AI retrieves the query from `codebase_v1`, suggests improvements, and helps implement them.
+3. The `auto_log_chat` rule captures:
+   - The original slow query and the optimized version (diff)
+   - The sequence of tools used to inspect and modify the code
+   - A high confidence score because the change significantly improved performance
+   - Links to the affected code chunks
+4. Later, `analyze-chat-history` flags this high-confidence interaction for review.
+5. Using `review-and-promote`, the developer approves it as a derived learning.
+6. When another developer encounters performance issues with queries, both the code and the reasoning behind the optimization pattern are automatically available.
+
+### 3. Test Result Integration and Error-Driven Learning
+
+The "Second Brain" captures test results, tracks transitions from failure to success, and uses this evidence to validate and prioritize learnings based on concrete improvements.
+
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+flowchart TD
+    A[Developer] -- Writes/Modifies Code --> B["Run Tests\n./scripts/test.sh -c -v"]
+    
+    subgraph "Test Execution and Capture"
+        B -- "Generates" --> C["JUnit XML\ntest-results.xml"]
+        C --> D["log-test-results CLI"]
+        D -- "Structured Test Data" --> E[(ChromaDB: test_results_v1)]
+        D -- "Updates Links to" --> F[(ChromaDB: codebase_v1)]
+        D -- "Updates Links to" --> G[(ChromaDB: chat_history_v1)]
+    end
+    
+    subgraph "Failure-to-Success Learning"
+        H["Test Failure"] -- "Developer Seeks Help" --> I[AI Assistant]
+        I -- "Consults" --> F
+        I -- "Provides Fix" --> J["Fix Implemented"]
+        J --> K["Rerun Tests\n./scripts/test.sh -c -v"]
+        K -- "Now Passing" --> L["log-test-results CLI"]
+        L -- "Records Transition\nFailure → Success" --> M["Evidence: TestTransition"]
+        M --> N["High Validation Score"]
+    end
+    
+    subgraph "Validation-Driven Learning"
+        E -- "Analyze Test Patterns" --> O["analyze-chat-history\nwith Validation Scores"]
+        O --> P["High-Value Fixes with\nTest Evidence"]
+        P --> Q["review-and-promote CLI"]
+        Q -- "Auto-Prioritized by\nValidation Score" --> R[(ChromaDB: derived_learnings_v1)]
+        S["Runtime Error"] --> T["log-error CLI"]
+        T -- "Structured Error Data" --> U["Evidence: RuntimeError"]
+        U --> V["Combined Validation Score"]
+        V --> Q
+    end
+    
+    W[New Developer] -- "Encounters Similar Issue" --> X["Query with Error Context"]
+    X --> Y["RAG with Validated Solutions"]
+    Y -- "Returns Proven Fix\nWith Test Evidence" --> W
+
+    style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style B fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style C fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
+    style D fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style E fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style F fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style G fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style H fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
+    style I fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style J fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style K fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style L fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style M fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style N fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style O fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style P fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style Q fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style R fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style S fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
+    style T fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style U fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style V fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
+    style W fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style X fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style Y fill:#26A69A,stroke:#E6E6E6,stroke-width:1px,color:#333333
+```
+
+*Fig 5: Test-Driven Learning Flow - Capturing test transitions and using them as validation evidence.*
+
+#### How Test-Driven Learning Works
+
+1. **Test Result Capture**
+   - The enhanced `test.sh` script generates JUnit XML output during test execution.
+   - The `log-test-results` CLI tool processes this XML and stores structured data in `test_results_v1`.
+   - Each test result includes status (pass/fail/skip), duration, error messages for failures, and links to relevant code chunks and chat history entries.
+
+2. **Failure-to-Success Tracking**
+   - When a test fails, the developer might seek AI assistance to debug and fix it.
+   - After implementing the fix, tests are re-run and hopefully pass.
+   - The system captures this transition from failure to success as concrete evidence of a valuable solution.
+   - This creates a `TestTransitionEvidence` record linking the initial failure, the fix discussion, and the eventual success.
+
+3. **Error Logging and Correlation**
+   - Runtime errors can be logged using the `log-error` CLI command.
+   - These are structured as `RuntimeErrorEvidence` with context, affected code, and resolution status.
+   - Both test transitions and error resolutions contribute to validation scores.
+
+4. **Validation-Driven Learning Promotion**
+   - The `analyze-chat-history` tool now incorporates validation evidence.
+   - It ranks chat entries by validation score, prioritizing those with concrete evidence of improvement.
+   - The `review-and-promote` interface displays validation evidence during review.
+   - Solutions that resolved test failures or fixed errors receive higher priority for promotion.
+
+5. **Evidence-Based RAG Enhancement**
+   - The `derived_learnings_v1` collection now includes validation scores and evidence.
+   - RAG queries can prioritize solutions with stronger validation evidence.
+   - This ensures that returned solutions have proven track records of resolving similar issues.
+
+#### Practical Application Example 2
+
+1. A developer runs tests, and a specific test fails with a cryptic error message.
+2. They ask the AI for help, and together they diagnose the issue as a race condition.
+3. The AI suggests a synchronization approach, which the developer implements.
+4. Running the tests again shows the test now passes consistently.
+5. This transition is captured by `log-test-results` as evidence of a valuable fix.
+6. Later, `analyze-chat-history` flags this interaction due to its high validation score.
+7. The solution is promoted to `derived_learnings_v1` with its test evidence attached.
+8. When another developer encounters similar synchronization issues, the system can provide a solution with proven effectiveness.
+
+## The Integrated Learning Ecosystem
+
+These three flows work together as complementary parts of a unified learning ecosystem:
+
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+flowchart TD
+    subgraph "Developer Knowledge Sources"
+        A["Explicit Reasoning\n(Sequential Thinking)"]
+        B["Code & Chat Interactions\n(Auto-Logging)"]
+        C["Evidence-Based Validation\n(Test Results & Errors)"]
+    end
+    
+    subgraph "ChromaDB Collections"
+        D[(thinking_sessions_v1)]
+        E[(codebase_v1)]
+        F[(chat_history_v1)]
+        G[(test_results_v1)]
+        H[(derived_learnings_v1)]
+    end
+    
+    A --> D
+    B --> E
+    B --> F
+    C --> G
+    
+    D -- "Promotion of\nValuable Insights" --> H
+    F -- "Promotion of\nValidated Solutions" --> H
+    E -- "Bidirectional\nLinks" --> F
+    G -- "Validation\nEvidence" --> F
+    
+    H -- "Enhanced RAG" --> I["AI Assistance with\nComprehensive Context"]
+    I --> J["More Effective\nDevelopment"]
+
+    style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style B fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style C fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style D fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style E fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style F fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style G fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style H fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style I fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style J fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+```
+
+*Fig 6: The Integrated Learning Ecosystem - Three complementary knowledge flows feeding a unified Second Brain.*
+
+### Key Integration Points
+
+1. **Comprehensive Knowledge Capture**
+   - **Explicit Reasoning:** The "why" behind decisions via sequential thinking
+   - **Implementation Details:** The "how" via code and chat logging
+   - **Empirical Validation:** The "proof" via test results and error resolution
+
+2. **Cross-Referenced Context**
+   - Bidirectional links connect discussions, code changes, test results, and thought processes
+   - A single query can retrieve multiple perspectives on the same issue
+
+3. **Evidence-Based Prioritization**
+   - Validation scores combine multiple forms of evidence
+   - Test transitions provide concrete proof of solution effectiveness
+   - High-confidence interactions with validation evidence receive priority for promotion
+
+4. **Continuous Improvement Loop**
+   - New knowledge is constantly captured and indexed
+   - Valuable patterns are promoted to derived learnings
+   - Future development benefits from accumulated knowledge
+   - Test results provide objective measurement of improvement
+
+This integrated approach creates a truly comprehensive "Second Brain" that captures not just what was done, but why it was done, how well it worked, and the evidence to support its effectiveness.
 
 ## Leveraging the Ecosystem in Your Project: A Phased Journey
 

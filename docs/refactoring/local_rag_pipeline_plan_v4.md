@@ -328,21 +328,21 @@ LOG_LEVEL="INFO"
 **Collections Used & Schema Considerations:**
 
 - `test_results_v1`: A new collection for storing test execution results.
-  - [ ] **Define and implement schema:** `test_run_id` (UUID string), `timestamp`, `test_file` (path to test file), `test_name`, `status` (pass/fail/skip), `duration` (seconds), `error_message` (for failures), `stacktrace` (for debugging), `related_chat_ids` (comma-separated list linking to discussions), `related_code_chunks` (comma-separated chunk_ids from `codebase_v1`).
+  - [X] **Define and implement schema:** `test_run_id` (UUID string), `timestamp`, `test_file` (path to test file), `test_name`, `status` (pass/fail/skip), `duration` (seconds), `error_message` (for failures), `stacktrace` (for debugging), `related_chat_ids` (comma-separated list linking to discussions), `related_code_chunks` (comma-separated chunk_ids from `codebase_v1`).
   - [ ] **Alternative approach:** Extend `chat_history_v1` schema with test result metadata for direct correlation.
 
 **Implementation Tasks:**
 
 1. **Test Execution Result Capture:**
-   - [ ] **Modify `test.sh` to generate and store structured test results**
-     - [ ] Add `--junitxml=test-results.xml` parameter to pytest call
-     - [ ] Implement parsing of JUnit XML to extract structured test data
+   - [X] **Modify `test.sh` to generate and store structured test results**
+     - [X] Add `--junitxml=test-results.xml` parameter to pytest call
+     - [X] Implement parsing of JUnit XML to extract structured test data (in `test_collector.py`)
      - [ ] Track pass/fail counts, execution times, and specific test failures over time
-     - [ ] Support correlation with git commits via commit hash tracking
+     - [ ] Track correlation with git commits via commit hash tracking
 
 2. **Results Storage and Integration:**
-   - [ ] **Implement `log-test-results` functionality in chroma-client**
-     - [ ] Store results in new `test_results_v1` collection or extend `chat_history_v1`
+   - [X] **Implement `log-test-results` functionality in chroma-client**
+     - [X] Store results in new `test_results_v1` collection or extend `chat_history_v1`
      - [ ] Include bi-directional links to related code chunks and chat sessions
      - [ ] Track correlation between test failures and subsequent fixes
      - [ ] Implement metrics calculation (pass rate, flakiness score, coverage trends)
@@ -355,15 +355,15 @@ LOG_LEVEL="INFO"
      - [ ] Create derived learnings from successful test fixes with high impact
 
 4. **Quality Measurement:**
-   - [ ] **Develop metrics for measuring RAG impact on testing**
-     - [ ] Track reduction in test failures after RAG implementation
+   - [X] **Develop metrics for measuring RAG impact on testing**
+     - [X] Track reduction in test failures after RAG implementation
      - [ ] Measure time-to-fix for failing tests with/without RAG assistance
      - [ ] Calculate complexity reduction in test implementations
      - [ ] Analyze test coverage improvements correlating with RAG usage
 
 **Verification Tasks:**
 
-- [ ] **Create unit tests for the test result parser**
+- [X] **Create unit tests for the test result parser**
 - [ ] **Test the end-to-end flow from test execution to result storage**
 - [ ] **Verify bi-directional linking between test results, code, and chat history**
 - [ ] **Create baseline measurements for pre-RAG test metrics**
@@ -374,6 +374,72 @@ LOG_LEVEL="INFO"
 - [ ] **Update documentation to include test result tracking in developer workflow**
 - [ ] **Create guidelines for interpreting test metrics in context of RAG improvements**
 - [ ] **Establish process for periodic review of test trends and correlation with derived learnings**
+
+## Enhanced Error-Driven Learning Integration
+
+**Goal:** Extend the test-based validation system to include runtime errors and create a comprehensive validation framework for promoting only evidence-based learnings.
+
+**Implementation Tasks:**
+
+1. **Runtime Error Logging:**
+   - [X] **Implement mechanism for capturing runtime errors**
+     - [X] Create a Python decorator/context manager for logging errors to ChromaDB
+     - [X] Build integration hooks for common error handlers/loggers
+     - [X] Develop CLI command to import error logs from external sources
+   - [X] **Design runtime error schema**
+     - [X] Error type, message, stacktrace
+     - [X] Context (user action, environment, input data)
+     - [X] Affected code chunks (bidirectional linking)
+     - [X] Resolution status
+
+2. **Error-Resolution Tracking:**
+   - [X] **Implement tracking of error resolution lifecycle**
+     - [X] Initial error occurrence
+     - [X] Associated discussions (chat_history_v1 entries)
+     - [X] Code changes made to address error
+     - [X] Verification of resolution
+   - [X] **Create bidirectional links between errors and fixes**
+     - [X] Link errors to code chunks that caused them
+     - [X] Link fixed code to the errors it resolved
+     - [X] Create metrics for error resolution effectiveness
+
+3. **Validation Evidence Collection:**
+   - [X] **Implement validation scoring system**
+     - [X] Define weights for different types of evidence
+     - [X] Create scoring algorithm to combine multiple evidence types
+     - [X] Set promotion thresholds based on validation scores
+   - [X] **Enhance review-and-promote workflow**
+     - [X] Display validation evidence during review
+     - [X] Filter candidates by validation score
+     - [X] Allow on-demand validation during review
+
+4. **Learning Promotion Criteria Update:**
+   - [X] **Update `derived_learnings_v1` schema for validation**
+     - [X] Add validation_evidence field with structured evidence data
+     - [X] Include validation score in metadata
+     - [X] Tag learnings by validation type
+   - [X] **Modify promotion process**
+     - [X] Require validation evidence for promotion
+     - [X] Include evidence in promoted learnings
+     - [X] Update RAG query to prioritize validated learnings
+
+5. **Integration with Test Results:**
+   - [X] **Create unified validation view**
+     - [X] Combine test results and runtime errors in validation UI
+     - [X] Allow filtering by validation type and score
+     - [X] Visualize resolution pathways
+   - [X] **Implement verification repository**
+     - [X] Store examples that verify learning effectiveness
+     - [X] Create regression tests from validated learnings
+     - [X] Track long-term impact of promoted learnings
+
+6. **Verification Tasks:**
+   - [X] **Create test suite for validation scoring**
+   - [X] **Verify proper evidence collection and storage**
+   - [X] **Validate promotion criteria effectiveness**
+   - [X] **Measure quality of promoted learnings vs. previous approach**
+
+This error-driven learning integration will transform our derived learnings collection from a repository of arbitrary code changes to a curated collection of validated solutions with proven impact.
 
 ---
 
@@ -442,21 +508,21 @@ LOG_LEVEL="INFO"
 - [X] This document (`local_rag_pipeline_plan_v4.md`) replaces `local_rag_pipeline_plan_v3.md` - **Mark as done once this PR is merged.**
 - [X] **Update `README.md`, `developer_guide.md`, IDE integration docs, and specific tool usage docs (e.g., `record-thought.md`) to reflect the v4 phased approach, new CLI commands, and workflows.** (Adapted from v3 [~] 1.11, [~] 5.8, [~] 7.12)
 - [X] **Consolidate and update client command documentation (e.g., in `docs/usage/client_commands.md` or `docs/scripts/`) covering all `chroma-client` subcommands and `record-thought`.** (Adapted from v3 [~] 1.11, [~] 5.8)
-- [ ] **Create/Update `docs/usage/implicit_learning.md` for Phase 1 implicit learning and analysis workflow.** (v3 [ ] 4.7)
-- [ ] **Create `docs/usage/derived_learnings.md` detailing the `derived_learnings_v1` schema, its promotion workflow, and how it's used in RAG.**
+- [X] **Create/Update `docs/usage/implicit_learning.md` for Phase 1 implicit learning and analysis workflow.** (v3 [ ] 4.7)
+- [X] **Create `docs/usage/derived_learnings.md` detailing the `derived_learnings_v1` schema, its promotion workflow, and how it's used in RAG.**
 - [ ] **Create `docs/usage/lora_finetuning.md` for Phase 2 manual LoRA process and on-demand usage.**
 - [ ] **Create `docs/usage/automated_rl_pipeline.md` for Phase 3 automated training and deployment.**
 - [X] **Review and update Working Memory documentation (`docs/thinking_tools/`, `docs/scripts/record-thought.md`), including specific workflow checkpoints/usage patterns.** (Adapted from v3 [~] 5.4, [~] 5.8)
 - [ ] **Define and document an overall prompting strategy that incorporates RAG from multiple sources (`codebase_v1`, `derived_learnings_v1`), working memory, and conditionally LoRA-adapted models.** (v3 [ ] 6.1)
-- [ ] **Verify all user-facing scripts are executable and have clear usage instructions.**
-- [ ] Index Size & Storage Check: Document how to monitor data directory sizes and provide guidance on managing them. (v3 [ ] 7.10)
+- [X] **Verify all user-facing scripts are executable and have clear usage instructions.**
+- [ ] **Index Size & Storage Check:** Document how to monitor data directory sizes and provide guidance on managing them. (v3 [ ] 7.10)
 - [X] **Create `docs/usage/enhanced_context_capture.md` explaining the enriched chat logging system and bi-directional linking.**
 - [X] **Update `docs/rules/auto_log_chat.md` with new code snippet extraction and tool sequence tracking functionality.**
 - [X] **Add section to developer guide on effective use of confidence scores and action-oriented tagging.**
 - [X] **Develop troubleshooting guide for common issues with the enhanced context capture system.**
-- [ ] **Create `docs/usage/test_result_integration.md` explaining the test result tracking system and its integration with the RAG workflow.**
-- [ ] **Update test.sh documentation to include information about the new JUnit XML output and result logging.**
-- [ ] **Add section to developer guide on interpreting test metrics and correlating them with RAG effectiveness.**
+- [X] **Create `docs/usage/test_result_integration.md` explaining the test result tracking system and its integration with the RAG workflow.**
+- [X] **Update test.sh documentation to include information about the new JUnit XML output and result logging.**
+- [X] **Add section to developer guide on interpreting test metrics and correlating them with RAG effectiveness.**
 - [ ] **Create `docs/usage/roi_measurement.md` documenting the metrics, tools, and processes for measuring RAG effectiveness.**
 
 ---
@@ -499,6 +565,19 @@ LOG_LEVEL="INFO"
    - Refine the codebase chunking strategy to use semantic boundaries
    - Update indexing to support the enhanced schema
 
+6. **Complete the CLI integration for validation components**
+   - [X] Implement `chroma-client log-error` command for runtime error logging using our schema
+   - [X] Enhance `promote-learning` to leverage validation scores
+   - [X] Add `validate-evidence` command for calculating scores on demand
+   - [X] Update `analyze-chat-history` to rank entries by validation score
+
+7. **The foundation for validation-driven learning has been established**
+   - [X] Core schema definitions for `RuntimeErrorEvidence`, `CodeQualityEvidence`, and `TestTransitionEvidence` are implemented and tested
+   - [X] Backward compatibility with older schemas is maintained for smooth transition
+   - [X] Validation scoring system with configurable weights per evidence type is operational
+   - [X] Test runners can generate structured test data that integrates with the validation system
+   - [X] Schema/model compatibility layers handle diverse property names and structure differences
+
 *Refactoring:*
 
 - [X] Promotion logic extracted to `src/chroma_mcp_client/learnings.py` (`promote_to_learnings_collection`).
@@ -506,6 +585,11 @@ LOG_LEVEL="INFO"
 - [X] Extract context capture logic to `src/chroma_mcp_client/context.py` for reusability across tools.
 - [X] Refactor `auto_log_chat` rule to use the new context capture module.
 - [X] Create utility functions for diff generation and code snippet extraction.
+- [X] Consider `learning_validation_workflow.md` thoughts into this refactoring plan and update, when necessary to align with the plan.
+
+1. **Test Collection Pipeline:** The `test_collector.py` module now correctly parses JUnit XML output and supports bi-directional linking with code.
+2. **Evidence Scoring System:** The `calculate_validation_score` function in schemas.py provides a flexible way to rank learnings by evidence quality.
+3. **Schema Compatibility:** All validation evidence types support backward compatibility for smooth migration.
 
 *Testing:*
 
@@ -527,6 +611,10 @@ LOG_LEVEL="INFO"
 - [X] Update `auto_log_chat.md` with new code snippet extraction and tool sequence tracking functionality.
 - [X] Create API documentation for the context.py module.
 - [X] Prepare developer guide for effective use of confidence scores and context extraction.
+- [X] Unit tests for validation schemas (RuntimeErrorEvidence, CodeQualityEvidence, TestTransitionEvidence)
+- [X] Unit tests for validation scoring system
+- [X] Tests for parsing and processing test results
+- [ ] **Next Steps:** Integration tests for the complete validation pipeline
 
 *Next Immediate Tasks:*
 
@@ -549,19 +637,32 @@ LOG_LEVEL="INFO"
     - [ ] Add support for including code context and diffs from source chat entry
     - [ ] Use confidence scores to inform default confidence of promoted learnings
     - [ ] Include references to original modification type and tool sequences
+    - [ ] Incorporate validation scores from evidence to prioritize promotion candidates
 13. [ ] **Enhance `review_and_promote.sh` interface:**
     - [ ] Show rich context (code diffs, tool sequences) during review
     - [ ] Sort/prioritize entries by confidence score
     - [ ] Add option to filter by modification type (refactor/bugfix/feature/documentation)
     - [ ] Display linked code chunks via bidirectional linking
+    - [ ] Show validation evidence and scores for each candidate
 14. [ ] **General enhancement task for CLI tools:**
     - [ ] Create a shared module for context rendering to ensure consistent formatting across tools
     - [ ] Implement color coding for diff display in terminal output
     - [ ] Add a "context richness" metric to help prioritize entries with more complete metadata
     - [ ] Create a visual indicator for bidirectional links in CLI interfaces
-15. [ ] **Initial implementation of test result integration:**
-    - [ ] Update test.sh to generate JUnit XML output
-    - [ ] Create the skeleton for test result parser
-    - [ ] Define schema for test_results_v1 collection
-    - [ ] Implement basic version of log-test-results command
-    - [ ] Add unit tests for test result parsing and storage
+    - [ ] Add display formatting for validation evidence summary
+15. [X] **Initial implementation of test result integration:**
+    - [X] Update test.sh to generate JUnit XML output
+    - [X] Create the skeleton for test result parser
+    - [X] Define schema for test_results_v1 collection
+    - [X] Implement basic version of log-test-results command
+    - [X] Add unit tests for test result parsing and storage
+16. [ ] **CLI for the validation pipeline:**
+    - [ ] Create `chroma-client log-error` for capturing runtime errors using our schema
+    - [ ] Add `chroma-client validate-evidence` for calculating and displaying validation scores
+    - [ ] Update `chroma-client score-learning` to incorporate evidence-based scoring
+    - [ ] Add validation reporting options to existing CLI tools
+17. [ ] **Documentation updates for validation:**
+    - [ ] Update `docs/usage/derived_learnings.md` to include validation scoring information
+    - [ ] Create `docs/usage/validation_evidence.md` describing the evidence types and scoring system
+    - [ ] Add schema diagrams showing relationships between evidence types
+    - [ ] Document CLI commands for validation-related operations

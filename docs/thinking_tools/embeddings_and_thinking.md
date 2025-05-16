@@ -52,7 +52,8 @@ The Thinking Utilities complement the enhanced context capture system and bidire
 This integration enables a more comprehensive understanding of the development process, where explicit reasoning steps can be linked to actual code changes and conversations:
 
 ```mermaid
-graph LR
+%%{init: {'theme': 'dark'}}%%
+flowchart TD
     A[Thinking Session] -- references --> B[Chat History Entry]
     B -- modifies --> C[Code Chunk]
     A -- reasons about --> C
@@ -65,6 +66,11 @@ graph LR
         B["chat_history_v1"]
         C["codebase_v1"]
     end
+    
+    style A fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style B fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style C fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style D fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
 ```
 
 ## Embedding Models
@@ -102,20 +108,29 @@ If both are set, the command-line argument takes precedence.
 ## Sequential Thinking
 
 ```mermaid
-graph LR
-    A[User/AI Interaction] --> B(Record Thought via MCP);
-    B --> C{Embedding Function};
-    C --> D[ChromaDB Collection: sequential_thoughts_v1];
-    B --> D;
+%%{init: {'theme': 'dark'}}%%
+flowchart TD
+    A[User/AI Interaction] --> B["Record Thought via MCP"]
+    B --> C{"Embedding Function"}
+    C --> D[(ChromaDB Collection:\nsequential_thoughts_v1)]
+    B --> D
 
-    E[AI Needs Context] --> F[Query via MCP for relevant past info];
-    F --> C;
-    F --> G[Query ChromaDB];
-    C --> G;
-    G --> D;
-    D --> G;
-    G --> F;
-    F --> E;
+    E[AI Needs Context] --> F["Query via MCP for\nrelevant past info"]
+    F --> C
+    F --> G["Query ChromaDB"]
+    C --> G
+    G --> D
+    D --> G
+    G --> F
+    F --> E
+    
+    style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style B fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
+    style C fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style D fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style E fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
+    style F fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style G fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
 ```
 
 ## Memory Integration for AI Assistants
@@ -158,6 +173,7 @@ These tools provide the interface to manage the working memory.
   * **Functionality:** (Requires pre-computation or a separate `thinking_sessions` collection). Embeds the `query` and searches for sessions (represented by aggregated embeddings or summaries stored separately) that are semantically similar. Returns matching `session_id`s and similarity scores.
 
 ```mermaid
+%%{init: {'theme': 'dark'}}%%
 sequenceDiagram
     participant Dev as Developer/AI Assistant
     participant MCP as Chroma MCP Server
@@ -188,6 +204,10 @@ sequenceDiagram
     MCP->>+Chroma: Get Documents (Where: {session_id: A})
     Chroma-->>-MCP: Documents (Thought 1, Thought 2)
     MCP-->>-Dev: Session Summary ([Thought 1, Thought 2])
+    
+    style Dev fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
+    style MCP fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
+    style Chroma fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
 ```
 
 ## Use Cases

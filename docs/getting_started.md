@@ -226,6 +226,87 @@ Leveraging the MCP integration, the server supports automatically logging summar
 
 See the **[Automated Chat History Logging Guide](integration/automated_chat_logging.md)** for configuration details.
 
+## Validation System
+
+The MCP server includes a validation system to objectively measure the quality and impact of code changes. This is particularly useful for qualifying learning promotions with evidence of their effectiveness.
+
+### Setting up Validation Collections
+
+The validation system requires two collections:
+
+- `validation_evidence_v1` - Stores validation evidence like test transitions and error resolutions
+- `test_results_v1` - Stores test result data
+
+You can set up these collections with the setup-collections command:
+
+```bash
+chroma-client setup-collections
+```
+
+### Collecting Validation Evidence
+
+The validation system supports three types of evidence:
+
+1. **Test Transitions** - Tests that change from failing to passing
+
+    ```bash
+    # Log test results
+    ./scripts/log_test_results.sh --xml test-results.xml
+
+    # Compare before/after test results
+    ./scripts/log_test_results.sh --xml after.xml --before-xml before.xml
+    ```
+
+2. **Runtime Error Resolutions** - Errors that are resolved by changes
+
+    ```bash
+    # Log a runtime error
+    ./scripts/log_error.sh --error-type "TypeError" --message "Cannot read property"
+
+    # Log a resolved error
+    ./scripts/log_error.sh --error-type "TypeError" --message "Fixed issue" --resolution "Added null check" --verified
+    ```
+
+3. **Code Quality Improvements** - Improvements in code quality metrics
+
+    ```bash
+    # Log quality metrics
+    ./scripts/log_quality_check.sh --after pylint-output.txt
+
+    # Compare before/after quality metrics
+    ./scripts/log_quality_check.sh --before before.txt --after after.txt
+    ```
+
+### Validating Evidence
+
+Once you've collected evidence, you can validate it to determine if it meets the promotion threshold:
+
+```bash
+# Validate evidence from a file
+./scripts/validate_evidence.sh --file evidence.json
+
+# Validate evidence from IDs
+./scripts/validate_evidence.sh --test-ids test-123 --runtime-ids error-456
+```
+
+### Promoting Validated Learnings
+
+You can use validation evidence when promoting learnings:
+
+```bash
+# Promote a learning with validation evidence
+chroma-client promote-learning \
+  --description "Use proper null checks to avoid TypeError" \
+  --pattern "if (value === null || value === undefined)" \
+  --code_ref "src/utils.js:abc123:42" \
+  --tags "javascript,error-handling" \
+  --confidence 0.95 \
+  --require-validation \
+  --validation-evidence-id "evidence-123"
+```
+
+This ensures that only well-validated learnings are promoted to the derived learnings collection.
+
 ## Development
 
 ### Development Prerequisites
