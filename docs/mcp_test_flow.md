@@ -17,10 +17,10 @@ See the [Automated Test Workflow Guide](usage/automated_test_workflow.md) and us
 
 ```bash
 # Setup test workflow automation
-chroma-client setup-test-workflow --workspace-dir /path/to/workspace
+chroma-mcp-client setup-test-workflow --workspace-dir /path/to/workspace
 
 # Check for test transitions after making changes
-chroma-client check-test-transitions --workspace-dir /path/to/workspace --auto-promote
+chroma-mcp-client check-test-transitions --workspace-dir /path/to/workspace --auto-promote
 ```
 
 **Assumptions:**

@@ -13,6 +13,17 @@ Logs are stored in the directory specified by the `CHROMA_LOG_DIR` environment v
 CHROMA_LOG_DIR=./custom_logs
 ```
 
+### Log Retention
+
+The server automatically cleans up old log files based on the retention period specified by the `LOG_RETENTION_DAYS` environment variable. If not set, this defaults to 7 days.
+
+```bash
+# Example setting in .env
+LOG_RETENTION_DAYS=14  # Keep logs for 14 days
+```
+
+Log cleanup happens during server startup, removing log files older than the specified retention period.
+
 ### Log Levels
 
 Multiple environment variables control logging levels:

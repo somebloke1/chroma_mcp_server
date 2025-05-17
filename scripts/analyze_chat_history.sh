@@ -22,9 +22,9 @@ echo "Running chat history analysis in $PROJECT_ROOT..."
 # Change to project root directory
 cd "${PROJECT_ROOT}"
 
-# Execute the chroma-client analyze-chat-history subcommand using hatch
+# Execute the chroma-mcp-client analyze-chat-history subcommand using hatch
 # Pass all arguments received by this script to the subcommand
-TOKENIZERS_PARALLELISM=false hatch run chroma-client analyze-chat-history "$@"
+TOKENIZERS_PARALLELISM=false hatch run chroma-mcp-client analyze-chat-history "$@"
 
 exit_code=$?
 if [ $exit_code -ne 0 ]; then

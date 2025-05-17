@@ -68,7 +68,7 @@ if [ -z "$ERROR_TYPE" ] || [ -z "$ERROR_MESSAGE" ]; then
 fi
 
 # Build and execute command
-COMMAND="chroma-client log-error --error-type \"$ERROR_TYPE\" --error-message \"$ERROR_MESSAGE\""
+COMMAND="chroma-mcp-client log-error --error-type \"$ERROR_TYPE\" --error-message \"$ERROR_MESSAGE\""
 
 # Add optional parameters if provided
 if [ ! -z "$STACKTRACE" ]; then

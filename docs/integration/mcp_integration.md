@@ -107,6 +107,7 @@ Here is an example `.cursor/mcp.json` configuration demonstrating how to set up 
 | `CHROMA_CLIENT_TYPE` | Type of client connection | `persistent` | `ephemeral`, `persistent`, `http`, `cloud` |
 | `CHROMA_DATA_DIR` | Storage location for persistent client | `./chroma_data` | `./data`, `/opt/chroma/data` |
 | `CHROMA_LOG_DIR` | Storage location for logs | `./chroma_logs` | `./logs`, `/var/log/chroma` |
+| `LOG_RETENTION_DAYS` | Number of days to keep log files before automatic cleanup | `7` | `14`, `30` |
 | `CHROMA_HOST` | Host address for HTTP client | `localhost` | `127.0.0.1`, `chroma.example.com` |
 | `CHROMA_PORT` | Port for HTTP client | `8000` | `8000`, `9000` |
 | `CHROMA_SSL` | Whether to use SSL | `false` | `true`, `false` |

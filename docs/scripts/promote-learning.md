@@ -1,6 +1,6 @@
 # Wrapper Script: `promote_learning.sh`
 
-This script provides a simple wrapper for running the `promote-learning` command of the `chroma-client` tool within the correct Hatch environment.
+This script provides a simple wrapper for running the `promote-learning` command of the `chroma-mcp-client` tool within the correct Hatch environment.
 
 ## Purpose
 
@@ -9,16 +9,16 @@ The primary goal of this script is to simplify the execution of the learning pro
 It essentially runs the following command:
 
 ```bash
-hatch run chroma-client promote-learning [ARGUMENTS...]
+hatch run chroma-mcp-client promote-learning [ARGUMENTS...]
 ```
 
-Refer to the main [`chroma-client` documentation](chroma-client.md#promote-learning) for details on the underlying command's arguments (`--description`, `--pattern`, `--code-ref`, etc.).
+Refer to the main [`chroma-mcp-client` documentation](chroma-mcp-client.md#promote-learning) for details on the underlying command's arguments (`--description`, `--pattern`, `--code-ref`, etc.).
 
 ## Prerequisites
 
 - `hatch` installed and available in your PATH.
 - The project environment configured via `hatch`.
-- A configured `.env` file for the `chroma-client` (see `docs/scripts/chroma-client.md`).
+- A configured `.env` file for the `chroma-mcp-client` (see `docs/scripts/chroma-mcp-client.md`).
 
 ## Usage
 
@@ -30,7 +30,7 @@ Navigate to the project root directory and run the script, passing the necessary
 
 ### Script Parameters
 
-This script passes all arguments directly to the `chroma-client promote-learning` command. See the [`chroma-client` documentation](chroma-client.md#promote-learning) for the required and optional arguments like `--description`, `--pattern`, `--code-ref`, `--tags`, `--confidence`, `--source-chat-id`, etc.
+This script passes all arguments directly to the `chroma-mcp-client promote-learning` command. See the [`chroma-mcp-client` documentation](chroma-mcp-client.md#promote-learning) for the required and optional arguments like `--description`, `--pattern`, `--code-ref`, `--tags`, `--confidence`, `--source-chat-id`, etc.
 
 ### Enhanced Context Features
 

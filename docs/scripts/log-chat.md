@@ -1,6 +1,6 @@
 # Wrapper Script: `log_chat.sh`
 
-This script provides a simple wrapper for running the `log-chat` command of the `chroma-client` tool within the correct Hatch environment.
+This script provides a simple wrapper for running the `log-chat` command of the `chroma-mcp-client` tool within the correct Hatch environment.
 
 ## Purpose
 
@@ -9,14 +9,14 @@ The primary goal of this script is to simplify the execution of the chat logging
 It essentially runs the following command:
 
 ```bash
-hatch run chroma-client log-chat [ARGUMENTS...]
+hatch run chroma-mcp-client log-chat [ARGUMENTS...]
 ```
 
 ## Prerequisites
 
 - `hatch` installed and available in your PATH.
 - The project environment configured via `hatch`.
-- A configured `.env` file for the `chroma-client` (see `docs/scripts/chroma-client.md`).
+- A configured `.env` file for the `chroma-mcp-client` (see `docs/scripts/chroma-mcp-client.md`).
 
 ## Usage
 

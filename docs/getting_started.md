@@ -147,6 +147,7 @@ The server primarily uses environment variables for configuration. A `.env` file
   - `cloud`: Connects to a ChromaDB Cloud instance. Requires `CHROMA_TENANT`, `CHROMA_DATABASE`, and `CHROMA_API_KEY` to be set. The MCP server acts only as a client.
 - `CHROMA_DATA_DIR`: Path for persistent storage (required and only used if `CHROMA_CLIENT_TYPE=persistent`).
 - `CHROMA_LOG_DIR`: Path for log files (defaults to a temporary directory).
+- `LOG_RETENTION_DAYS`: Number of days to keep log files before automatic cleanup during server startup (defaults to 7 days).
 - `LOG_LEVEL`: Sets the default logging level for server components and the client CLI (if not overridden by `-v`/`--verbose`).
 - `MCP_LOG_LEVEL`: Sets the logging level specifically for the MCP framework components (e.g., `INFO`, `DEBUG`).
 - `MCP_SERVER_LOG_LEVEL`: Controls logging level specifically for the stdio server mode. In stdio mode, logs are redirected to timestamp-based log files (e.g., `logs/chroma_mcp_stdio_1747049137.log`) to prevent contamination of the JSON communication stream.
@@ -162,11 +163,11 @@ If you modify the `CHROMA_EMBEDDING_FUNCTION` environment variable (or the corre
 
 To resolve this:
 
-- For `codebase_v1`: The recommended approach is often to delete the existing collection and re-index your codebase using `hatch run index-codebase` (or `chroma-client index --all`). This ensures it's created with the 'accurate' model, which is the default for indexing and querying.
-- For other collections, or if re-indexing `codebase_v1` is not feasible: You can use the `chroma-client update-collection-ef --collection <n> --ef <new_ef_name>` command to update the collection's metadata to reflect the new embedding function name. Be cautious with this, as it only changes the metadata pointer; the actual embeddings are not recomputed. This is usually suitable if the actual embedding *model* hasn't changed, only its registered name or how the client refers to it.
-- Alternatively, use `chroma-client setup-collections` to recreate all required collections with the current embedding function configuration.
+- For `codebase_v1`: The recommended approach is often to delete the existing collection and re-index your codebase using `hatch run index-codebase` (or `chroma-mcp-client index --all`). This ensures it's created with the 'accurate' model, which is the default for indexing and querying.
+- For other collections, or if re-indexing `codebase_v1` is not feasible: You can use the `chroma-mcp-client update-collection-ef --collection <n> --ef <new_ef_name>` command to update the collection's metadata to reflect the new embedding function name. Be cautious with this, as it only changes the metadata pointer; the actual embeddings are not recomputed. This is usually suitable if the actual embedding *model* hasn't changed, only its registered name or how the client refers to it.
+- Alternatively, use `chroma-mcp-client setup-collections` to recreate all required collections with the current embedding function configuration.
 
-See the [chroma-client script documentation](scripts/chroma-client.md) for details on `update-collection-ef` and `setup-collections`.
+See the [chroma-mcp-client script documentation](scripts/chroma-mcp-client.md) for details on `update-collection-ef` and `setup-collections`.
 
 **Note on Timestamp Consistency:**
 The server enforces consistent timestamp handling by automatically overriding any AI-provided timestamps with server-generated values. This ensures that all documents stored in ChromaDB collections have accurate system timestamps, addressing potential issues where AI models might use their training cutoff dates instead of the actual system time.
@@ -176,13 +177,95 @@ To set up the automated test-driven learning workflow, you can use the `setup-te
 
 ```bash
 # Set up automated test workflow Git hooks and configuration
-chroma-client setup-test-workflow --workspace-dir /path/to/workspace
+chroma-mcp-client setup-test-workflow --workspace-dir /path/to/workspace
 
 # Run tests with automatic test failure/success tracking
 ./scripts/test.sh -c -v --auto-capture-workflow
 ```
 
 This will create Git hooks that automatically track test executions and transitions from failure to success. For more details, see the [Automated Test Workflow Guide](usage/automated_test_workflow.md).
+
+### Git Integration for Codebase Indexing
+
+The Chroma MCP Server includes automated Git hooks for keeping your codebase index up to date. This ensures that your RAG system always has access to the latest code in your repository.
+
+#### Setting Up Git Hooks for Automatic Indexing
+
+You can use the `setup-git-hooks` command to automatically set up Git hooks:
+
+```bash
+# Set up Git hooks for automatic indexing
+chroma-mcp-client setup-git-hooks
+```
+
+This creates a `post-commit` hook that automatically indexes any files changed in each commit.
+
+#### Manual Setup
+
+If you prefer to set up the hooks manually:
+
+1. **Create a post-commit hook file:**
+
+   ```bash
+   # Navigate to your git hooks directory
+   cd .git/hooks
+   
+   # Create the post-commit file
+   touch post-commit
+   chmod +x post-commit
+   ```
+
+2. **Add the following content to the post-commit file:**
+
+   ```bash
+   #!/bin/sh
+   # .git/hooks/post-commit
+   
+   echo "Running post-commit hook: Indexing changed files..."
+   
+   # Ensure we are in the project root
+   PROJECT_ROOT=$(git rev-parse --show-toplevel)
+   cd "$PROJECT_ROOT" || exit 1
+   
+   # Get list of changed/added files in the last commit
+   # Use --diff-filter=AM to only get Added or Modified files
+   FILES=$(git diff-tree --no-commit-id --name-only -r HEAD --diff-filter=AM -- "*.py" "*.js" "*.ts" "*.md" "*.txt")
+   
+   if [ -z "$FILES" ]; then
+     echo "No relevant files changed in this commit."
+     exit 0
+   fi
+   
+   echo "Files to index:"
+   echo "$FILES"
+   
+   # Run the indexer
+   FILES_ARGS=$(echo "$FILES" | tr '\n' ' ')
+   
+   # Run the client with appropriate verbosity
+   chroma-mcp-client index $FILES_ARGS
+   
+   if [ $? -ne 0 ]; then
+     echo "Error running chroma-mcp-client indexer!"
+     exit 1
+   fi
+   
+   echo "Post-commit indexing complete."
+   exit 0
+   ```
+
+#### Initial Codebase Indexing
+
+After setting up the hooks, you'll want to index your existing codebase:
+
+```bash
+# Index all tracked files in the repository
+chroma-mcp-client index --all
+```
+
+This will scan your repository and index all relevant files into the `codebase_v1` collection.
+
+For more details on automatic indexing, see the [Git Hooks documentation](automation/git_hooks.md).
 
 Cursor uses `.cursor/mcp.json` to configure server launch commands:
 
@@ -253,7 +336,7 @@ The validation system requires two collections:
 You can set up these collections with the setup-collections command:
 
 ```bash
-chroma-client setup-collections
+chroma-mcp-client setup-collections
 ```
 
 ### Collecting Validation Evidence
@@ -308,7 +391,7 @@ You can use validation evidence when promoting learnings:
 
 ```bash
 # Promote a learning with validation evidence
-chroma-client promote-learning \
+chroma-mcp-client promote-learning \
   --description "Use proper null checks to avoid TypeError" \
   --pattern "if (value === null || value === undefined)" \
   --code_ref "src/utils.js:abc123:42" \

@@ -59,13 +59,13 @@ The `--auto-capture-workflow` flag enables the automated test-driven learning sy
 **Setup required before first use:**
 
 ```bash
-chroma-client setup-test-workflow --workspace-dir .
+chroma-mcp-client setup-test-workflow --workspace-dir .
 ```
 
 After running tests with fixes, check for completed workflows:
 
 ```bash
-chroma-client check-test-transitions --workspace-dir .
+chroma-mcp-client check-test-transitions --workspace-dir .
 ```
 
 For complete details, see the [Automated Test Workflow Guide](../usage/automated_test_workflow.md).
@@ -107,7 +107,7 @@ This generates the distributable files in the `dist/` directory.
 
 ## Installing for IDE and CLI Usage
 
-After modifying and testing the MCP server package, you need to rebuild and install it in the Hatch environment for the changes to take effect in Cursor (or any other IDE) or when using the `chroma-client` CLI:
+After modifying and testing the MCP server package, you need to rebuild and install it in the Hatch environment for the changes to take effect in Cursor (or any other IDE) or when using the `chroma-mcp-client` CLI:
 
 ### Full Version (with AI models for embeddings)
 

@@ -97,10 +97,10 @@ The semantic chunking is automatically applied when using the indexing features:
 
 ```bash
 # Index all files in the repo with semantic chunking
-chroma-client index --all
+chroma-mcp-client index --all
 
 # Index specific files with semantic chunking 
-chroma-client index path/to/file.py path/to/file.js
+chroma-mcp-client index path/to/file.py path/to/file.js
 
 # Post-commit hook also uses semantic chunking automatically
 ```

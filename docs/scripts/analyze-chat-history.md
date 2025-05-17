@@ -1,6 +1,6 @@
 # Wrapper Script: `analyze_chat_history.sh`
 
-This script provides a simple wrapper for running the `analyze-chat-history` command of the `chroma-client` tool within the correct Hatch environment.
+This script provides a simple wrapper for running the `analyze-chat-history` command of the `chroma-mcp-client` tool within the correct Hatch environment.
 
 ## Purpose
 
@@ -16,7 +16,7 @@ hatch run python -m chroma_mcp_client.cli analyze-chat-history [ARGUMENTS...]
 
 - `hatch` installed and available in your PATH.
 - The project environment configured via `hatch`.
-- A configured `.env` file for the `chroma-client` (see `docs/scripts/chroma-client.md`).
+- A configured `.env` file for the `chroma-mcp-client` (see `docs/scripts/chroma-mcp-client.md`).
 
 ## Usage
 
@@ -65,7 +65,7 @@ The analyze-chat-history command now supports enhanced context capture features:
 
 ## Expected Output
 
-Upon successful completion, the script (via the underlying `chroma-client` command) will log:
+Upon successful completion, the script (via the underlying `chroma-mcp-client` command) will log:
 
 1. Information about the entries being processed, including confidence scores and modification types.
 2. Tool sequences used during the interactions.

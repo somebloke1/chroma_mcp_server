@@ -151,6 +151,15 @@ logs/chroma_mcp_stdio_<timestamp>.log
 
 This ensures clean JSON communication between the MCP client and server. The log level for stdio mode can be controlled with the `MCP_SERVER_LOG_LEVEL` environment variable.
 
+#### Log Retention
+
+To prevent log files from consuming excessive disk space, the server automatically cleans up log files older than the specified retention period. This cleanup happens during server startup. The retention period can be configured with the `LOG_RETENTION_DAYS` environment variable, which defaults to 7 days:
+
+```bash
+# Example setting in .env to keep logs for 14 days
+LOG_RETENTION_DAYS=14
+```
+
 Alternatively, you can manually run the server directly within the activated Hatch environment:
 
 ```bash
@@ -224,14 +233,14 @@ There are two main ways to log chat interactions:
 
 1. **Automatic Logging via IDE Rules**: Using the `auto_log_chat` rule in Cursor or other supported IDEs, which instructs the AI to automatically log each interaction. See the [Automated Chat History Logging Guide](docs/integration/automated_chat_logging.md) for setup details.
 
-2. **Manual Logging via CLI**: Using the `chroma-client log-chat` command to manually log chat interactions with rich context:
+2. **Manual Logging via CLI**: Using the `chroma-mcp-client log-chat` command to manually log chat interactions with rich context:
 
 ```bash
 # Basic usage
-chroma-client log-chat --prompt-summary "User question" --response-summary "AI response"
+chroma-mcp-client log-chat --prompt-summary "User question" --response-summary "AI response"
 
 # Full usage with detailed context
-chroma-client log-chat \
+chroma-mcp-client log-chat \
   --prompt-summary "User question" \
   --response-summary "AI response" \
   --raw-prompt "Full text of the question" \
@@ -243,7 +252,7 @@ chroma-client log-chat \
   --confidence-score 0.85
 ```
 
-See the [CLI Reference](scripts/chroma-client.md#log-chat) for full details of command options.
+See the [CLI Reference](scripts/chroma-mcp-client.md#log-chat) for full details of command options.
 
 ## Working Memory and Thinking Tools
 
@@ -255,8 +264,8 @@ This workflow describes how developers can analyze their chat history to identif
 
 The process involves two main CLI commands:
 
-1. `chroma-client analyze-chat-history`: This command scans the `chat_history_v1` collection for entries (typically those with status `captured`), attempts to correlate them with recent code changes in your Git repository, and updates their status to `analyzed`. It outputs a list of entries it successfully processed.
-2. `chroma-client promote-learning`: After reviewing the output of the analysis, the developer uses this command to manually create a structured learning entry in the `derived_learnings_v1` collection. This command also updates the status of the source chat entry to `promoted_to_learning`.
+1. `chroma-mcp-client analyze-chat-history`: This command scans the `chat_history_v1` collection for entries (typically those with status `captured`), attempts to correlate them with recent code changes in your Git repository, and updates their status to `analyzed`. It outputs a list of entries it successfully processed.
+2. `chroma-mcp-client promote-learning`: After reviewing the output of the analysis, the developer uses this command to manually create a structured learning entry in the `derived_learnings_v1` collection. This command also updates the status of the source chat entry to `promoted_to_learning`.
 
 ### Step-by-Step Guide
 
@@ -266,10 +275,10 @@ The process involves two main CLI commands:
 
     ```bash
     # Example: Analyze chats from the last 7 days in the current repo
-    hatch run chroma-client analyze-chat-history --days-limit 7 --repo-path .
+    hatch run chroma-mcp-client analyze-chat-history --days-limit 7 --repo-path .
 
     # Example: Analyze chats from the last 30 days, specifying collection names
-    hatch run chroma-client analyze-chat-history --days-limit 30 --collection-name chat_history_v1 --chat-collection-name chat_history_v1 --repo-path /path/to/your/project
+    hatch run chroma-mcp-client analyze-chat-history --days-limit 30 --collection-name chat_history_v1 --chat-collection-name chat_history_v1 --repo-path /path/to/your/project
     ```
 
     Key options:
@@ -315,7 +324,7 @@ The process involves two main CLI commands:
 
 5. **Verification (Optional):**
 
-    You can verify the promotion using `chroma-client query` or MCP tools:
+    You can verify the promotion using `chroma-mcp-client query` or MCP tools:
 
     * Query `derived_learnings_v1` for the new learning ID to inspect its content.
     * Query `chat_history_v1` for the `source-chat-id` to confirm its status is `promoted_to_learning` and that it has a `promoted_learning_id` metadata field pointing to the new learning.
@@ -381,7 +390,7 @@ The automated test-driven learning workflow captures test failures, monitors for
 
 ```bash
 # Set up the test workflow (creates Git hooks)
-chroma-client setup-test-workflow
+chroma-mcp-client setup-test-workflow
 
 # This creates/modifies:
 # - pre-push hook: Runs tests with --auto-capture-workflow
@@ -392,10 +401,10 @@ chroma-client setup-test-workflow
 ./scripts/test.sh -c -v --auto-capture-workflow
 
 # Manually check for test transitions
-chroma-client check-test-transitions
+chroma-mcp-client check-test-transitions
 
 # Check and auto-promote valid transitions
-chroma-client check-test-transitions --auto-promote
+chroma-mcp-client check-test-transitions --auto-promote
 ```
 
 For full details, see the [Automated Test Workflow Guide](usage/automated_test_workflow.md).
@@ -490,7 +499,7 @@ See `pyproject.toml` for specific version constraints.
 * **UVX Cache Issues:** If `uvx` seems stuck on an old version after a release or install, try refreshing its cache: `uvx --refresh chroma-mcp-server --version`
 * **Dependency Conflicts:** Ensure your Hatch environment is clean (`hatch env remove default && hatch env create`) or run tests with `./scripts/test.sh --clean`.
 * **Release Script Errors:** Ensure `curl` and `jq` are installed. Check PyPI/TestPyPI credentials if publishing fails.
-* **Embedding Function Mismatch Errors:** If you change the embedding function (via `.env` or `--embedding-function` argument) for a project with existing ChromaDB collections, subsequent operations (like queries or using the analysis client) might fail with an `Embedding function name mismatch` error. This means the embedding function your client is *currently* configured to use doesn't match the function name stored in the collection's metadata. To fix this, use the `chroma-client update-collection-ef` command to update the collection's metadata to match your current client setting. See the [chroma-client documentation](scripts/chroma-client.md#update-collection-ef) for usage.
+* **Embedding Function Mismatch Errors:** If you change the embedding function (via `.env` or `--embedding-function` argument) for a project with existing ChromaDB collections, subsequent operations (like queries or using the analysis client) might fail with an `Embedding function name mismatch` error. This means the embedding function your client is *currently* configured to use doesn't match the function name stored in the collection's metadata. To fix this, use the `chroma-mcp-client update-collection-ef` command to update the collection's metadata to match your current client setting. See the [chroma-mcp-client documentation](scripts/chroma-mcp-client.md#update-collection-ef) for usage.
 
 ## CLI Arguments
 
@@ -540,7 +549,7 @@ While the goal is often automated analysis, manual curation is crucial for high-
 1. **Analyze:** Run `analyze-chat-history` to correlate recent chats with code changes and mark potentially valuable entries as `analyzed`:
 
     ```bash
-    hatch run analyze-chat-history --days-limit 3
+    hatch run chroma-mcp-client analyze-chat-history --days-limit 3
     ```
 
 2. **Review (Outside Script):** Examine the output of `analyze-chat-history` or query the `chat_history_v1` collection directly (e.g., using MCP tools) to find entries marked `analyzed` that represent useful insights.
@@ -548,7 +557,7 @@ While the goal is often automated analysis, manual curation is crucial for high-
 
     ```bash
     # Example promoting chat entry 'abc-123'
-    hatch run promote-learning \
+    hatch run chroma-mcp-client promote-learning \
         --source-chat-id "abc-123" \
         --description "Refactored logging setup for better context." \
         --pattern "logging.basicConfig(...) replaced with custom setup" \
@@ -610,19 +619,67 @@ For details on how semantic chunking works, see the [Semantic Chunking documenta
 
 ### Using the Index Command
 
-The primary tool is the `chroma-client index` command, which has several usage patterns:
+The primary tool is the `chroma-mcp-client index` command, which has several usage patterns:
 
 ```bash
 # Index all git-tracked files in the repository
-chroma-client index --all
+chroma-mcp-client index --all
 
 # Index specific files
-chroma-client index path/to/file1.py path/to/file2.js
+chroma-mcp-client index path/to/file1.py path/to/file2.js
 
 # Index specific files with a non-default collection
-chroma-client index path/to/file1.py path/to/file2.js --collection-name my_custom_collection
+chroma-mcp-client index path/to/file1.py path/to/file2.js --collection-name my_custom_collection
 ```
 
 The indexer scans files, splits them into semantic chunks, calculates embeddings, and stores them in ChromaDB for later retrieval. All this happens on the server side using the configured embedding function.
 
 ### Git Integration
+
+The Chroma MCP Server includes tools for integrating with Git to enable automatic indexing of code changes. This ensures that your codebase index always reflects the latest state of your project.
+
+#### Setup Git Hooks for Automatic Indexing
+
+You can set up Git hooks to automatically index changed files whenever you make a commit:
+
+```bash
+# Using the CLI tool to set up Git hooks
+chroma-mcp-client setup-git-hooks
+```
+
+This command creates a `post-commit` hook in your `.git/hooks/` directory that automatically detects and indexes files that were changed in each commit.
+
+#### Automatic Test Workflow Integration
+
+The Git integration also supports the automated test-driven learning workflow:
+
+```bash
+# Set up both indexing and test workflow hooks
+chroma-mcp-client setup-test-workflow
+```
+
+This creates both `pre-push` and `post-commit` hooks that handle test execution, failure/success tracking, and automatic correlation with code changes.
+
+#### How Automatic Indexing Works
+
+The Git hook integration:
+
+1. Runs automatically after every successful `git commit`
+2. Uses `git diff-tree` to find files added or modified in the commit
+3. Passes only the changed files to the indexer, making it efficient
+4. Uses semantic chunking to preserve logical code structures
+5. Stores the indexed content in the configured ChromaDB collection
+
+#### Manual Indexing
+
+You can also manually trigger indexing of your entire codebase:
+
+```bash
+# Index all git-tracked files
+chroma-mcp-client index --all
+
+# Or index specific files
+chroma-mcp-client index path/to/file1.py path/to/file2.js
+```
+
+For more details on the Git hook implementation and customization options, see the [Git Hooks documentation](automation/git_hooks.md).

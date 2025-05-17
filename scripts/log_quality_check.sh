@@ -68,7 +68,7 @@ if [ ! -f "$AFTER_OUTPUT" ]; then
 fi
 
 # Build and execute command
-COMMAND="chroma-client log-quality-check --tool \"$TOOL\" --after-output \"$AFTER_OUTPUT\""
+COMMAND="chroma-mcp-client log-quality-check --tool \"$TOOL\" --after-output \"$AFTER_OUTPUT\""
 
 # Add optional parameters if provided
 if [ ! -z "$BEFORE_OUTPUT" ]; then

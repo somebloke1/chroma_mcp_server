@@ -4,9 +4,9 @@ This script provides a convenient way to launch the interactive chat history rev
 
 ## Purpose
 
-Initiates the `chroma-client review-and-promote` command within the correct Hatch environment. This command fetches chat entries marked as 'analyzed', displays them to the user, allows searching the codebase for relevant code references, and prompts the user to promote, ignore, or skip each entry.
+Initiates the `chroma-mcp-client review-and-promote` command within the correct Hatch environment. This command fetches chat entries marked as 'analyzed', displays them to the user, allows searching the codebase for relevant code references, and prompts the user to promote, ignore, or skip each entry.
 
-See the main [`chroma-client` documentation](chroma-client.md#review-and-promote) for full details on the underlying command and its options.
+See the main [`chroma-mcp-client` documentation](chroma-mcp-client.md#review-and-promote) for full details on the underlying command and its options.
 
 ## Enhanced Features
 

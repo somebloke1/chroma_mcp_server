@@ -4,7 +4,7 @@ This script simplifies the process of logging code quality metrics for validatio
 
 ## Overview
 
-Code quality improvements are an important form of validation evidence, demonstrating that changes enhance maintainability and reduce issues. The `log_quality_check.sh` script wraps the `chroma-client log-quality-check` command, making it easy to:
+Code quality improvements are an important form of validation evidence, demonstrating that changes enhance maintainability and reduce issues. The `log_quality_check.sh` script wraps the `chroma-mcp-client log-quality-check` command, making it easy to:
 
 - Record metrics from code quality tools
 - Compare before/after results to quantify improvements

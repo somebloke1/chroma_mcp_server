@@ -18,6 +18,7 @@ import datetime
 import subprocess
 import tempfile
 import uuid
+import glob
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Set
 
@@ -461,6 +462,85 @@ python -m chroma_mcp_client.cli check-test-transitions"""
 
         return None
 
+    def cleanup_processed_artifacts(self, workflow_file: str) -> bool:
+        """
+        Clean up test artifacts after successful processing.
+
+        Args:
+            workflow_file: Path to the workflow file that was processed
+
+        Returns:
+            bool: True if cleanup was successful, False otherwise
+        """
+        try:
+            logger.info(f"Cleaning up processed artifacts from workflow: {workflow_file}")
+
+            # Read workflow file to get associated artifact paths
+            if not os.path.exists(workflow_file):
+                logger.warning(f"Workflow file not found: {workflow_file}")
+                return False
+
+            with open(workflow_file, "r") as f:
+                workflow_data = json.load(f)
+
+            # Get paths to artifacts
+            before_xml = workflow_data.get("before_xml")
+            after_xml = workflow_data.get("after_xml")
+            status = workflow_data.get("status")
+
+            if status != "transitioned":
+                logger.warning(
+                    f"Cannot clean up workflow with status '{status}'. Only 'transitioned' workflows can be cleaned up."
+                )
+                return False
+
+            files_removed = 0
+
+            # Only remove files if they exist
+            if before_xml and os.path.exists(before_xml):
+                logger.info(f"Removing processed artifact: {before_xml}")
+                os.remove(before_xml)
+                files_removed += 1
+
+                # Also remove commit file if it exists
+                commit_file = f"{before_xml}.commit"
+                if os.path.exists(commit_file):
+                    os.remove(commit_file)
+                    files_removed += 1
+
+            # We can optionally remove the "after" XML as well, since it's already logged
+            # Uncomment if desired (may be useful to keep latest test results)
+            # if after_xml and os.path.exists(after_xml):
+            #     logger.info(f"Removing processed artifact: {after_xml}")
+            #     os.remove(after_xml)
+            #     files_removed += 1
+
+            # Only remove the workflow file itself after processing
+            logger.info(f"Removing processed workflow file: {workflow_file}")
+            os.remove(workflow_file)
+            files_removed += 1
+
+            # Find and remove any old workflow file that points to the same before_xml
+            workflow_dir = os.path.dirname(workflow_file)
+            old_workflow_pattern = os.path.join(workflow_dir, "test_workflow_*.json")
+            for old_workflow_file in glob.glob(old_workflow_pattern):
+                try:
+                    with open(old_workflow_file, "r") as f:
+                        old_data = json.load(f)
+                    if old_data.get("xml_path") == before_xml:
+                        logger.info(f"Removing related workflow file: {old_workflow_file}")
+                        os.remove(old_workflow_file)
+                        files_removed += 1
+                except Exception as e:
+                    logger.warning(f"Error processing old workflow file {old_workflow_file}: {e}")
+
+            logger.info(f"Cleanup completed successfully. Removed {files_removed} files.")
+            return True
+
+        except Exception as e:
+            logger.warning(f"Error cleaning up artifacts: {e}")
+            return False
+
 
 def check_for_completed_workflows():
     """
@@ -490,3 +570,22 @@ def setup_automated_workflow(workspace_dir: str = "."):
     """
     manager = TestWorkflowManager(workspace_dir=workspace_dir)
     return manager.setup_git_hooks()
+
+
+def cleanup_test_artifacts(workflow_file: str) -> bool:
+    """
+    Clean up test artifacts from a completed workflow.
+
+    Args:
+        workflow_file: Path to the workflow file that tracks the artifacts
+
+    Returns:
+        bool: True if cleanup was successful, False otherwise
+    """
+    try:
+        workspace_dir = os.path.abspath(os.path.join(os.path.dirname(workflow_file), "../.."))
+        workflow_manager = TestWorkflowManager(workspace_dir=workspace_dir)
+        return workflow_manager.cleanup_processed_artifacts(workflow_file)
+    except Exception as e:
+        logger.error(f"Error cleaning up test artifacts: {e}")
+        return False

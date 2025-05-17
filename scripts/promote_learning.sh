@@ -25,10 +25,10 @@ echo "Running promote-learning in $PROJECT_ROOT..."
 # Change to project root directory
 cd "${PROJECT_ROOT}"
 
-# Execute the chroma-client promote-learning subcommand using hatch
+# Execute the chroma-mcp-client promote-learning subcommand using hatch
 # Pass all arguments received by this script to the subcommand
 # Use python -m syntax for robustness with hatch if needed
-hatch run chroma-client promote-learning "$@"
+hatch run chroma-mcp-client promote-learning "$@"
 # Alternatively: hatch run python -m chroma_mcp_client.cli promote-learning "$@"
 
 exit_code=$?

@@ -17,6 +17,8 @@ import logging
 import os
 import time
 import tempfile  # Add tempfile import
+import glob
+import datetime
 
 from mcp.server import Server
 from mcp.server.lowlevel.server import NotificationOptions
@@ -73,7 +75,50 @@ root_logger.addHandler(null_handler)
 # 7. Log that we've configured logging
 logging.info(f"STDIO MODE: Logging configured - all logs redirected to {log_file}")
 
-# 8. Monkey patch logging.getLogger to ensure any future loggers get our configuration
+# 8. Cleanup old log files
+try:
+    # Import config utility and load server configuration
+    from chroma_mcp.utils.config import load_config
+
+    # Get the retention period from server configuration (default to 7 days)
+    config = load_config()
+    log_retention_days = config.log_retention_days
+    logging.info(f"Log retention policy set to {log_retention_days} days")
+
+    # Calculate the cutoff date
+    cutoff_date = datetime.datetime.now() - datetime.timedelta(days=log_retention_days)
+    cutoff_timestamp = cutoff_date.timestamp()
+
+    # Find and delete old log files
+    log_pattern = os.path.join(log_dir, "chroma_mcp_stdio_*.log")
+    log_files = glob.glob(log_pattern)
+    deleted_count = 0
+
+    for log_file_path in log_files:
+        try:
+            # Extract timestamp from filename or use file modification time as fallback
+            file_name = os.path.basename(log_file_path)
+            try:
+                # Try to extract timestamp from filename (chroma_mcp_stdio_TIMESTAMP.log)
+                timestamp_str = file_name.split("_")[3].split(".")[0]
+                file_timestamp = float(timestamp_str)
+            except (IndexError, ValueError):
+                # If extraction fails, use file modification time
+                file_timestamp = os.path.getmtime(log_file_path)
+
+            # Delete if older than retention period
+            if file_timestamp < cutoff_timestamp:
+                os.remove(log_file_path)
+                deleted_count += 1
+        except Exception as e:
+            logging.warning(f"Failed to process log file {log_file_path}: {e}")
+
+    if deleted_count > 0:
+        logging.info(f"Cleaned up {deleted_count} log files older than {log_retention_days} days")
+except Exception as e:
+    logging.warning(f"Failed to cleanup old log files: {e}")
+
+# 9. Monkey patch logging.getLogger to ensure any future loggers get our configuration
 original_getLogger = logging.getLogger
 
 

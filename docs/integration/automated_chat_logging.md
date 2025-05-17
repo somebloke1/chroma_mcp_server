@@ -49,12 +49,12 @@ Consult the documentation for your specific AI client/IDE integration to determi
 
 In cases where automatic logging is not available or for logging interactions from non-IDE environments, the project provides a CLI command for manual logging:
 
-### `chroma-client log-chat`
+### `chroma-mcp-client log-chat`
 
 This command allows you to manually log chat interactions with rich context:
 
 ```bash
-chroma-client log-chat --prompt-summary "User question" --response-summary "AI response"
+chroma-mcp-client log-chat --prompt-summary "User question" --response-summary "AI response"
 ```
 
 #### Required Parameters
@@ -77,7 +77,7 @@ chroma-client log-chat --prompt-summary "User question" --response-summary "AI r
 Basic usage with only required parameters:
 
 ```bash
-chroma-client log-chat \
+chroma-mcp-client log-chat \
   --prompt-summary "How to fix the authentication bug" \
   --response-summary "Updated token validation in auth.js"
 ```
@@ -85,7 +85,7 @@ chroma-client log-chat \
 Advanced usage with optional parameters:
 
 ```bash
-chroma-client log-chat \
+chroma-mcp-client log-chat \
   --prompt-summary "How to fix the authentication bug" \
   --response-summary "Updated token validation in auth.js" \
   --raw-prompt "Users are reporting they can't log in after session timeout" \
@@ -96,7 +96,7 @@ chroma-client log-chat \
   --session-id "550e8400-e29b-41d4-a716-446655440000"
 ```
 
-For further details on this command, see the [CLI Reference](../scripts/chroma-client.md#log-chat).
+For further details on this command, see the [CLI Reference](../scripts/chroma-mcp-client.md#log-chat).
 
 ## Tool Usage Format
 
@@ -116,4 +116,4 @@ Each tool usage item must contain:
 
 For comprehensive details about the format, technical specifics, and examples, refer to the [Tool Usage Format Specification](../usage/tool_usage_format.md).
 
-For further details on the logging command, see the [CLI Reference](../scripts/chroma-client.md#log-chat).
+For further details on the logging command, see the [CLI Reference](../scripts/chroma-mcp-client.md#log-chat).

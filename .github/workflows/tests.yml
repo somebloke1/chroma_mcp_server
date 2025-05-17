@@ -48,10 +48,14 @@ jobs:
         python -m pip install --upgrade pip --no-cache-dir
         pip install hatch coverage --no-cache-dir
     
+    - name: Create test output directories
+      run: |
+        mkdir -p logs/tests/junit logs/tests/coverage logs/tests/workflows
+    
     - name: Run tests with coverage run
       # Run tests using 'coverage run' managed by hatch environment
       # Pass arguments like timeout/no-xdist directly to pytest
-      run: hatch run test:coverage run -m pytest --timeout=120 -p no:xdist tests/
+      run: hatch run test:coverage run -m pytest --timeout=120 -p no:xdist --junitxml=logs/tests/junit/test-results.xml tests/
     
     - name: Combine coverage data (if needed)
       # Important if tests were run in parallel, harmless otherwise
@@ -59,7 +63,7 @@ jobs:
     
     - name: Generate coverage XML report
       # Use hatch to run coverage in the correct environment
-      run: hatch run coverage xml -o coverage.xml
+      run: hatch run coverage xml
     
     - name: Generate coverage report summary
       # Display summary in the logs
@@ -69,5 +73,5 @@ jobs:
       uses: codecov/codecov-action@v3
       with:
         token: ${{ secrets.CODECOV_TOKEN }} # nosec - linter-ignore-for-missing-secrets
-        file: ./coverage.xml # Should exist now
+        file: ./logs/tests/coverage/coverage.xml # Updated path to coverage report
         fail_ci_if_error: true 

@@ -1049,7 +1049,7 @@ JSON object containing a list of `similar_sessions` (each potentially including 
 ### Setup Collections Command
 
 ```bash
-chroma-client setup-collections [-v]
+chroma-mcp-client setup-collections [-v]
 ```
 
 Sets up all required collections for the Chroma MCP Server. This is useful for new installations or ensuring all collections exist.
@@ -1061,7 +1061,7 @@ Options:
 #### Promote Learning Command
 
 ```bash
-chroma-client promote-learning DESCRIPTION [--pattern PATTERN] [--code-ref CODE_REF] 
+chroma-mcp-client promote-learning DESCRIPTION [--pattern PATTERN] [--code-ref CODE_REF] 
                               [--tags TAGS] [--confidence CONFIDENCE] 
                               [--source-chat-id ID] [--collection-name NAME] 
                               [--include-chat-context] [--require-validation]
@@ -1093,7 +1093,7 @@ Options:
 #### Log Error Command
 
 ```bash
-chroma-client log-error --error-type TYPE --error-message MSG
+chroma-mcp-client log-error --error-type TYPE --error-message MSG
                        [--stacktrace TRACE] [--affected-files FILES]
                        [--resolution RES] [--resolution-verified]
                        [--collection-name NAME]
@@ -1117,7 +1117,7 @@ Options:
 #### Log Test Results Command
 
 ```bash
-chroma-client log-test-results XML_PATH [--before-xml PATH]
+chroma-mcp-client log-test-results XML_PATH [--before-xml PATH]
                               [--commit-before HASH] [--commit-after HASH]
                               [--collection-name NAME]
 ```
@@ -1138,7 +1138,7 @@ Options:
 #### Log Quality Check Command
 
 ```bash
-chroma-client log-quality-check --tool TOOL --after-output PATH
+chroma-mcp-client log-quality-check --tool TOOL --after-output PATH
                               [--before-output PATH] [--metric-type TYPE]
                               [--collection-name NAME]
 ```
@@ -1159,7 +1159,7 @@ Options:
 #### Validate Evidence Command
 
 ```bash
-chroma-client validate-evidence [--evidence-file PATH] [--test-transitions IDS]
+chroma-mcp-client validate-evidence [--evidence-file PATH] [--test-transitions IDS]
                               [--runtime-errors IDS] [--code-quality IDS]
                               [--threshold NUM] [--output-file PATH]
 ```

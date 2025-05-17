@@ -1,7 +1,7 @@
 #!/bin/bash
 # Wrapper script for running the interactive chat review and promotion workflow.
 # Usage: ./scripts/review_and_promote.sh [--days-limit N] [--fetch-limit M] ...
-# Arguments are passed directly to the chroma-client review-and-promote command.
+# Arguments are passed directly to the chroma-mcp-client review-and-promote command.
 
 set -e # Exit immediately if a command exits with a non-zero status.
 

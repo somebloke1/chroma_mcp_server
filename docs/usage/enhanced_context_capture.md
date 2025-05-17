@@ -344,7 +344,7 @@ flowchart TD
 
 1. **Chroma MCP Server installed and configured** with your IDE
 2. **`auto_log_chat` rule** configured in your IDE settings
-3. **ChromaDB collections** set up using `chroma-client setup-collections`
+3. **ChromaDB collections** set up using `chroma-mcp-client setup-collections`
 
 ### Configure Custom Context Extraction
 
@@ -375,29 +375,29 @@ The enriched context enables powerful queries:
 
 ```bash
 # Find all discussions that modified a specific file
-chroma-client query-chat-history --related-file src/database/query.py
+chroma-mcp-client query-chat-history --related-file src/database/query.py
 
 # Find high-confidence interactions (score > 0.9)
-chroma-client query-chat-history --min-confidence 0.9
+chroma-mcp-client query-chat-history --min-confidence 0.9
 
 # Find all bug fixes with their context
-chroma-client query-chat-history --modification-type bugfix
+chroma-mcp-client query-chat-history --modification-type bugfix
 
 # Find refactorings that used a specific tool sequence
-chroma-client query-chat-history --tool-sequence "read_file→edit_file→run_terminal_cmd" --modification-type refactor
+chroma-mcp-client query-chat-history --tool-sequence "read_file→edit_file→run_terminal_cmd" --modification-type refactor
 ```
 
 ### Navigating Bidirectional Links
 
 ```bash
 # Find all chats that modified a specific code chunk
-chroma-client query-chat-history --code-chunk <chunk_id>
+chroma-mcp-client query-chat-history --code-chunk <chunk_id>
 
 # Find all code chunks modified in a specific chat
-chroma-client query-codebase --chat-id <chat_id>
+chroma-mcp-client query-codebase --chat-id <chat_id>
 
 # Get the full history of a file with all related discussions
-chroma-client get-file-history src/module/file.py
+chroma-mcp-client get-file-history src/module/file.py
 ```
 
 ## Best Practices for Maximizing Enhanced Context
@@ -410,17 +410,17 @@ chroma-client get-file-history src/module/file.py
 
    ```bash
    # Run weekly to analyze and prioritize learnings
-   chroma-client analyze-chat-history --prioritize-by confidence --since last-week
+   chroma-mcp-client analyze-chat-history --prioritize-by confidence --since last-week
    
    # Review and promote high-value learnings
-   chroma-client review-and-promote
+   chroma-mcp-client review-and-promote
    ```
 
 6. **Periodically review the knowledge graph** to identify common patterns:
 
    ```bash
    # Generate knowledge graph visualization
-   chroma-client generate-knowledge-graph --min-confidence 0.8 --output graph.html
+   chroma-mcp-client generate-knowledge-graph --min-confidence 0.8 --output graph.html
    ```
 
 ## Advanced Usage: Custom Context Integrations
@@ -450,7 +450,7 @@ jobs:
         run: pip install chroma-mcp-server[client]
       - name: Analyze changed files
         run: |
-          chroma-client analyze-pr-context \
+          chroma-mcp-client analyze-pr-context \
             --pr-number ${{ github.event.pull_request.number }} \
             --repository ${{ github.repository }} \
             --output pr-analysis.md

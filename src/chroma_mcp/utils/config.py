@@ -23,6 +23,7 @@ class ServerConfig:
     max_batch_size: int = 100
     default_collection: Optional[str] = None
     enable_telemetry: bool = False
+    log_retention_days: int = 7  # Default to 7 days of log retention
 
 
 def load_config(env_file: Optional[str] = None) -> ServerConfig:
@@ -51,6 +52,7 @@ def load_config(env_file: Optional[str] = None) -> ServerConfig:
             max_batch_size=int(os.getenv("CHROMA_MAX_BATCH_SIZE", "100")),
             default_collection=os.getenv("CHROMA_DEFAULT_COLLECTION"),
             enable_telemetry=os.getenv("CHROMA_ENABLE_TELEMETRY", "false").lower() in ["true", "1", "yes"],
+            log_retention_days=int(os.getenv("LOG_RETENTION_DAYS", "7")),
         )
 
         logger.debug(f"Loaded configuration: {config}")
