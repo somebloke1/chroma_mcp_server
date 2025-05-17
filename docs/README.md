@@ -200,6 +200,7 @@ export CHROMA_SERVER_MODE=stdio # Optional, defaults to http
 export CHROMA_CLIENT_TYPE=persistent
 export CHROMA_DATA_DIR=./my_data
 export CHROMA_LOG_DIR=./logs
+export LOG_RETENTION_DAYS=7 # Number of days to keep log files before cleanup
 export CHROMA_EMBEDDING_FUNCTION=accurate
 chroma-mcp-server
 ```
@@ -210,6 +211,7 @@ chroma-mcp-server
 - `--client-type`: Type of Chroma client (`ephemeral`, `persistent`, `http`, `cloud`). Also configurable via `CHROMA_CLIENT_TYPE`.
 - `--data-dir`: Path to data directory for persistent client. Also configurable via `CHROMA_DATA_DIR`.
 - `--log-dir`: Path to log directory. Also configurable via `CHROMA_LOG_DIR`.
+- Log retention: Configure with `LOG_RETENTION_DAYS` environment variable (default: 7 days).
 - `--host`: Host address for HTTP client. Also configurable via `CHROMA_HOST`.
 - `--port`: Port for HTTP client. Also configurable via `CHROMA_PORT`.
 - `--ssl`: Whether to use SSL for HTTP client. Also configurable via `CHROMA_SSL`.

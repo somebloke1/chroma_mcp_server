@@ -1,6 +1,6 @@
-# Console Script: `chroma-client`
+# Console Script: `chroma-mcp-client`
 
-This document describes the usage of the `chroma-client` console script, which provides a command-line interface for interacting directly with a ChromaDB instance for automation tasks, primarily codebase indexing and querying.
+This document describes the usage of the `chroma-mcp-client` console script, which provides a command-line interface for interacting directly with a ChromaDB instance for automation tasks, primarily codebase indexing and querying.
 
 ## Installation
 
@@ -14,7 +14,7 @@ Alternatively, if managing the project with `hatch`, ensure the `client` feature
 
 ## Configuration
 
-The `chroma-client` script relies on a `.env` file located in the root of your project directory (or the directory where you run the command) to configure the connection to ChromaDB. Key variables include:
+The `chroma-mcp-client` script relies on a `.env` file located in the root of your project directory (or the directory where you run the command) to configure the connection to ChromaDB. Key variables include:
 
 - `CHROMA_CLIENT_TYPE`: (`persistent`, `http`, `cloud`)
 - `CHROMA_DATA_DIR`: (Required for `persistent`)
@@ -27,7 +27,7 @@ Refer to the main project documentation for detailed `.env` configuration option
 ## Usage
 
 ```bash
-chroma-client [OPTIONS] COMMAND [ARGS]...
+chroma-mcp-client [OPTIONS] COMMAND [ARGS]...
 ```
 
 ### Global Options
@@ -42,7 +42,7 @@ chroma-client [OPTIONS] COMMAND [ARGS]...
 Index specific files, directories (recursively), or all git-tracked files into ChromaDB.
 
 ```bash
-chroma-client index [OPTIONS] [PATHS...]
+chroma-mcp-client index [OPTIONS] [PATHS...]
 ```
 
 **Arguments:**
@@ -59,13 +59,13 @@ chroma-client index [OPTIONS] [PATHS...]
 
 ```bash
 # Index a specific file
-chroma-client index ./src/my_module.py --repo-root .
+chroma-mcp-client index ./src/my_module.py --repo-root .
 
 # Index all files tracked by git in the current repo
-chroma-client index --all
+chroma-mcp-client index --all
 
 # Index files in a specific directory recursively, using a custom collection
-chroma-client index ./docs --collection-name project_docs --repo-root .
+chroma-mcp-client index ./docs --collection-name project_docs --repo-root .
 ```
 
 #### `count`
@@ -73,7 +73,7 @@ chroma-client index ./docs --collection-name project_docs --repo-root .
 Count documents in a ChromaDB collection.
 
 ```bash
-chroma-client count [OPTIONS]
+chroma-mcp-client count [OPTIONS]
 ```
 
 **Options:**
@@ -83,7 +83,7 @@ chroma-client count [OPTIONS]
 **Example:**
 
 ```bash
-chroma-client count --collection-name codebase_v1
+chroma-mcp-client count --collection-name codebase_v1
 ```
 
 #### `query`
@@ -91,7 +91,7 @@ chroma-client count --collection-name codebase_v1
 Query a ChromaDB collection using semantic search.
 
 ```bash
-chroma-client query [OPTIONS] QUERY_TEXT
+chroma-mcp-client query [OPTIONS] QUERY_TEXT
 ```
 
 **Arguments:**
@@ -106,7 +106,7 @@ chroma-client query [OPTIONS] QUERY_TEXT
 **Example:**
 
 ```bash
-chroma-client query "how to handle database connection errors" -n 3
+chroma-mcp-client query "how to handle database connection errors" -n 3
 ```
 
 #### `analyze-chat-history`
@@ -114,7 +114,7 @@ chroma-client query "how to handle database connection errors" -n 3
 Analyzes recent chat history entries (from a specified collection, typically `chat_history_v1`) to correlate recorded AI suggestions/responses with actual Git changes made to mentioned files within a specified repository.
 
 ```bash
-chroma-client analyze-chat-history [OPTIONS]
+chroma-mcp-client analyze-chat-history [OPTIONS]
 ```
 
 **Options:**
@@ -129,10 +129,10 @@ chroma-client analyze-chat-history [OPTIONS]
 
 ```bash
 # Analyze entries from the last 30 days in the current repo
-chroma-client analyze-chat-history --days-limit 30
+chroma-mcp-client analyze-chat-history --days-limit 30
 
 # Analyze entries in a different repo using a custom status
-chroma-client analyze-chat-history --repo-path /path/to/other/repo --status-filter pending --new-status correlated
+chroma-mcp-client analyze-chat-history --repo-path /path/to/other/repo --status-filter pending --new-status correlated
 ```
 
 #### `log-chat`
@@ -140,7 +140,7 @@ chroma-client analyze-chat-history --repo-path /path/to/other/repo --status-filt
 Log a chat interaction with enhanced context to ChromaDB, capturing rich metadata about the interaction, file changes, and tool usage.
 
 ```bash
-chroma-client log-chat [OPTIONS]
+chroma-mcp-client log-chat [OPTIONS]
 ```
 
 **Options:**
@@ -159,10 +159,10 @@ chroma-client log-chat [OPTIONS]
 
 ```bash
 # Basic usage with only required parameters
-chroma-client log-chat --prompt-summary "How to fix the login bug" --response-summary "Fixed the login issue by updating authentication flow"
+chroma-mcp-client log-chat --prompt-summary "How to fix the login bug" --response-summary "Fixed the login issue by updating authentication flow"
 
 # Complete usage with all parameters
-chroma-client log-chat \
+chroma-mcp-client log-chat \
   --prompt-summary "How to fix the login bug" \
   --response-summary "Fixed the login issue by updating authentication flow" \
   --raw-prompt "I'm having issues with users not being able to log in. Can you help fix it?" \
@@ -187,7 +187,7 @@ This command is necessary when you change the embedding function your client use
 If the new client embedding function doesn't match the function name stored in the collection's metadata (from when it was created or last updated), ChromaDB will raise an `Embedding function name mismatch` error when you try to access the collection (e.g., via `query` or `analyze-chat-history`). Running this command syncs the collection's metadata record with your new client-side setting.
 
 ```bash
-chroma-client update-collection-ef --collection-name NAME --ef-name EF_NAME
+chroma-mcp-client update-collection-ef --collection-name NAME --ef-name EF_NAME
 ```
 
 **Options:**
@@ -200,7 +200,7 @@ chroma-client update-collection-ef --collection-name NAME --ef-name EF_NAME
 ```bash
 # You changed CHROMA_EMBEDDING_FUNCTION in .env to 'accurate' (which maps to sentence_transformer internally)
 # Now update the existing 'chat_history_v1' collection metadata to match:
-chroma-client update-collection-ef --collection-name chat_history_v1 --ef-name sentence_transformer
+chroma-mcp-client update-collection-ef --collection-name chat_history_v1 --ef-name sentence_transformer
 ```
 
 #### `promote-learning`
@@ -208,7 +208,7 @@ chroma-client update-collection-ef --collection-name chat_history_v1 --ef-name s
 Manually promotes an insight or finding into the `derived_learnings_v1` collection. This is useful for adding learnings that didn't originate directly from an automatically analyzed chat entry, or if the interactive `review-and-promote` workflow is bypassed.
 
 ```bash
-chroma-client promote-learning [OPTIONS]
+chroma-mcp-client promote-learning [OPTIONS]
 ```
 
 **Options:**
@@ -226,7 +226,7 @@ chroma-client promote-learning [OPTIONS]
 
 ```bash
 # Promote learning from chat entry 'xyz', linking to a code chunk
-chroma-client promote-learning \
+chroma-mcp-client promote-learning \
   --source-chat-id "xyz" \
   --description "Use BackgroundTasks for non-blocking FastAPI tasks." \
   --pattern "Defer long operations in FastAPI via BackgroundTasks." \
@@ -242,7 +242,7 @@ chroma-client promote-learning \
 Ensures that all standard ChromaDB collections required by the system (`codebase_v1`, `chat_history_v1`, `derived_learnings_v1`, `thinking_sessions_v1`) exist. It will create any missing collections using default settings.
 
 ```bash
-hatch run chroma-client setup-collections
+hatch run chroma-mcp-client setup-collections
 # or using alias:
 hatch run setup-collections
 ```
@@ -282,7 +282,7 @@ Starts an interactive workflow to review chat entries marked with the status 'an
 
 ```bash
 # Start interactive review for entries from the last 3 days
-hatch run chroma-client review-and-promote --days-limit 3
+hatch run chroma-mcp-client review-and-promote --days-limit 3
 
 # or using alias:
 hatch run review-promote --days-limit 3
@@ -295,9 +295,9 @@ For more details, see the [review-and-promote.md](review-and-promote.md) documen
 
 ### Note on Usage with Hatch
 
-When running these commands within the `hatch` environment (e.g., `hatch run ...`), you might encounter issues where the `chroma-client` alias defined in `pyproject.toml` is not correctly resolved for subcommands like `analyze-chat-history`.
+When running these commands within the `hatch` environment (e.g., `hatch run ...`), you might encounter issues where the `chroma-mcp-client` alias defined in `pyproject.toml` is not correctly resolved for subcommands like `analyze-chat-history`.
 
-If commands like `hatch run chroma-client analyze-chat-history ...` fail with "command not found" or similar errors, use the direct module execution syntax instead:
+If commands like `hatch run chroma-mcp-client analyze-chat-history ...` fail with "command not found" or similar errors, use the direct module execution syntax instead:
 
 ```bash
 hatch run python -m chroma_mcp_client.cli <command> [OPTIONS] [ARGS]...

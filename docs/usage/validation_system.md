@@ -38,7 +38,7 @@ A configurable threshold (default: 0.7 or 70%) that evidence must meet to qualif
 1. Ensure required collections exist:
 
    ```bash
-   chroma-client setup-collections
+   chroma-mcp-client setup-collections
    ```
 
 2. Configure any custom thresholds or settings as needed (defaults work well for most cases)
@@ -137,7 +137,7 @@ Use the validation evidence when promoting learnings:
 
 ```bash
 # Promote learning with validation evidence
-chroma-client promote-learning \
+chroma-mcp-client promote-learning \
   --description "Always check for null/undefined before accessing object properties" \
   --pattern "if (obj && obj.property)" \
   --code-ref "src/utils.js:abc123:42" \
@@ -147,7 +147,7 @@ chroma-client promote-learning \
   --validation-evidence-id evidence-123
 
 # Promote learning with manual validation score
-chroma-client promote-learning \
+chroma-mcp-client promote-learning \
   --description "Use try/catch blocks around JSON.parse" \
   --pattern "try { JSON.parse(str) } catch (e) { /* handle error */ }" \
   --code-ref "src/data.js:def456:78" \

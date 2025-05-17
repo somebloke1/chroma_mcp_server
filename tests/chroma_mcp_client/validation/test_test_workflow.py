@@ -345,6 +345,74 @@ python -m chroma_mcp_client.cli check-test-transitions
         # Assert file content was not changed (compare with original)
         assert updated_content == existing_content
 
+    @patch("chroma_mcp_client.validation.test_workflow.get_chroma_client")
+    def test_cleanup_processed_artifacts(self, mock_get_client, tmp_path):
+        """Test that the cleanup_processed_artifacts method correctly cleans up test artifacts."""
+        # Create a mock client and collection
+        mock_client = MagicMock()
+        mock_collection = MagicMock()
+        mock_client.get_collection.return_value = mock_collection
+        mock_get_client.return_value = mock_client
+
+        # Setup test directories
+        logs_dir = tmp_path / "logs"
+        tests_dir = logs_dir / "tests"
+        junit_dir = tests_dir / "junit"
+        workflows_dir = tests_dir / "workflows"
+
+        for d in [logs_dir, tests_dir, junit_dir, workflows_dir]:
+            d.mkdir(exist_ok=True)
+
+        # Create test files
+        before_xml = junit_dir / "failed_tests_20250101_010101.xml"
+        before_xml.write_text("<test></test>")  # Simple XML content
+
+        before_xml_commit = Path(str(before_xml) + ".commit")
+        before_xml_commit.write_text("abcdef123456")  # Fake commit hash
+
+        after_xml = junit_dir / "test-results.xml"
+        after_xml.write_text("<test></test>")  # Simple XML content
+
+        # Create a linked workflow file
+        workflow_file = workflows_dir / "test_workflow_old.json"
+        old_workflow_content = {
+            "status": "failed",
+            "timestamp": "2025-01-01T01:01:01Z",
+            "xml_path": str(before_xml),
+            "commit": "abcdef123456",
+        }
+        workflow_file.write_text(json.dumps(old_workflow_content))
+
+        # Create a completed workflow file
+        completed_workflow = workflows_dir / "test_workflow_complete_20250101_020202.json"
+        completed_workflow_content = {
+            "status": "transitioned",
+            "timestamp": "2025-01-01T02:02:02Z",
+            "before_xml": str(before_xml),
+            "after_xml": str(after_xml),
+            "before_commit": "abcdef123456",
+            "after_commit": "fedcba654321",
+        }
+        completed_workflow.write_text(json.dumps(completed_workflow_content))
+
+        # Initialize the test workflow manager with the test workspace and mock client
+        manager = TestWorkflowManager(workspace_dir=str(tmp_path), chroma_client=mock_client)
+
+        # Call the cleanup method
+        result = manager.cleanup_processed_artifacts(str(completed_workflow))
+
+        # Verify the result
+        assert result is True
+
+        # Verify that files were removed
+        assert not before_xml.exists()
+        assert not before_xml_commit.exists()
+        assert not workflow_file.exists()  # The old workflow file should be removed
+        assert not completed_workflow.exists()  # The completed workflow file should be removed
+
+        # The "after" XML should still exist (current test results)
+        assert after_xml.exists()
+
 
 @patch("chroma_mcp_client.validation.test_workflow.TestWorkflowManager")
 def test_setup_automated_workflow(mock_manager_class):

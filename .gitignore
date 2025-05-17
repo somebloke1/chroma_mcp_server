@@ -87,6 +87,11 @@ test-results.xml
 failed_tests_*.xml*
 test_workflow_*.json
 
+# Test artifacts reorganized to logs/tests/
+logs/tests/junit/
+logs/tests/coverage/
+logs/tests/workflows/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -133,9 +138,18 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+coverage_output.txt
 *.cover
 .hypothesis/
 .pytest_cache/
+
+# Additional test artifact patterns for new organization
+logs/tests/coverage/
+logs/tests/coverage/.coverage
+logs/tests/coverage/.coverage.*
+logs/tests/coverage/coverage.xml
+logs/tests/coverage/html/
+logs/tests/coverage/coverage_output.txt
 
 # Translations
 *.mo

@@ -5,7 +5,7 @@
 **Core Architecture (Consistent Across Phases):**
 
 - **ChromaDB:** Vector database for storing code chunks, chat summaries, and derived learnings. Can be local (SQLite-backed) or a shared server instance.
-- **Automation (Git Hooks, CI, Scripts):** Uses dedicated Python client modules (`src/chroma_mcp_client/`) exposed via installable console scripts (e.g., `chroma-client`) that connect *directly* to the ChromaDB backend based on `.env` configuration.
+- **Automation (Git Hooks, CI, Scripts):** Uses dedicated Python client modules (`src/chroma_mcp_client/`) exposed via installable console scripts (e.g., `chroma-mcp-client`) that connect *directly* to the ChromaDB backend based on `.env` configuration.
 - **Interaction (IDE - Cursor, Windsurf, etc.):** Leverages the `chroma-mcp-server` running via IDE's MCP integration. The server facilitates working memory tools and automated logging of summarized prompt/response pairs to `chat_history_v1`.
 - **Learning Extraction & Application:** Processes evolve from manual analysis to automated pipelines that identify valuable interactions, train models, and feed insights back into the RAG system.
 
@@ -29,7 +29,7 @@
 
 | Phase | Description                                                           | Core Chroma Collections Used                                 | Key Requirements                                                                 | Compatible with Next Phase? |
 | ----- | --------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------------------------- |
-| **1** | Local RAG-Only (Implicit Learning via Chat History)                   | `codebase_v1`, `chat_history_v1`, `derived_learnings_v1`     | ChromaDB (local/shared), IDE + Git + MCP Rules, `chroma-client` CLI              | ✅ Yes                       |
+| **1** | Local RAG-Only (Implicit Learning via Chat History)                   | `codebase_v1`, `chat_history_v1`, `derived_learnings_v1`     | ChromaDB (local/shared), IDE + Git + MCP Rules, `chroma-mcp-client` CLI              | ✅ Yes                       |
 | **2** | RAG + LoRA Fine-Tuning (Manual/Optional)                              | (Same as Phase 1)                                            | Adds reward dataset export, manual LoRA adapter training, optional adapter use   | ✅ Yes                       |
 | **3** | Full RL Pipeline: Nightly Analysis, Automated Training, LoRA Deployment | (Same as Phase 1, enriched metadata)                         | Adds scheduling, auto-promotion, CI/CD ops, potentially shared ChromaDB for team | ✅ Yes                       |
 
@@ -50,7 +50,7 @@
   - [X] **Add enhanced context fields:** `code_context` (before/after code snippets), `diff_summary` (key changes made), `tool_sequence` (e.g., "read_file→edit_file→run_terminal_cmd"), `modification_type` (refactor/bugfix/feature/documentation), and `confidence_score` (AI-assessed value from 0.0-1.0)
 - `derived_learnings_v1`: Manually validated and promoted insights.
   - [X] **Define and implement schema:** `learning_id` (UUID string), `source_chat_id` (optional string FK to `chat_history_v1`), `description` (document content), `pattern` (string), `example_code_reference` (chunk_id string from `codebase_v1`), `tags` (comma-sep string), `confidence` (float).
-  - [X] **Create collection using MCP client or `chroma-client`.**
+  - [X] **Create collection using MCP client or `chroma-mcp-client`.**
 - `thinking_sessions_v1`: For working memory.
   - [X] Create collection using MCP client.
 
@@ -62,17 +62,17 @@
     - [X] Setup client modules (`src/chroma_mcp_client/`), packaging (`pyproject.toml`).
     - [X] Implement and configure unit tests (pytest, mock, coverage, etc.).
     - [X] Ensure `chroma-mcp-server` is launchable via IDE / `python -m chroma_mcp.cli`.
-    - [X] Implement `chroma-client` console script for CLI operations and wrapper scripts (`scripts/*.sh`).
-    - [X] **Implement `chroma-client setup-collections` command to check and create all required collections (`codebase_v1`, `chat_history_v1`, `derived_learnings_v1`, `thinking_sessions_v1`, `test_results_v1`) if they don't exist.**
+    - [X] Implement `chroma-mcp-client` console script for CLI operations and wrapper scripts (`scripts/*.sh`).
+    - [X] **Implement `chroma-mcp-client setup-collections` command to check and create all required collections (`codebase_v1`, `chat_history_v1`, `derived_learnings_v1`, `thinking_sessions_v1`, `test_results_v1`) if they don't exist.**
     - [X] Verify direct client connection (HTTP/Cloud via console script).
     - [X] Ensure security & secrets checklist followed (`.env` gitignored, etc.).
     - [X] Add comprehensive unit tests for client logic (`tests/client/`, etc., 80% coverage).
 
 2. **Codebase Indexing with Contextual Chunking:**
     - [X] Ensure `codebase_v1` collection exists/is created by client.
-    - [X] `chroma-client index --all`: Initial full codebase indexing into `codebase_v1`.
-    - [X] Git `post-commit` hook using `chroma-client index --changed` for incremental updates.
-    - [X] Implement basic query interface (`chroma-client query`).
+    - [X] `chroma-mcp-client index --all`: Initial full codebase indexing into `codebase_v1`.
+    - [X] Git `post-commit` hook using `chroma-mcp-client index --changed` for incremental updates.
+    - [X] Implement basic query interface (`chroma-mcp-client query`).
     - [X] **Enhance the chunking strategy to use semantic boundaries (function/class definitions, logical sections) instead of fixed-size chunks.**
     - [X] **Update indexing to support bi-directional linking by tracking which chat sessions modify which code files.**
 
@@ -115,7 +115,7 @@
 - [X] End-to-End Test (Working Memory: `record-thought` via CLI/IDE task).
 - [X] **Test `analyze-chat-history` command thoroughly.** (Adapted from v3 [ ] 7.4)
 - [X] **Test `promote-learning` workflow and `derived_learnings_v1` creation.**
-- [X] Test All Console Scripts (`chroma-client` subcommands, `record-thought`).
+- [X] Test All Console Scripts (`chroma-mcp-client` subcommands, `record-thought`).
 - [X] Run All Unit Tests (maintain >=80% coverage).
 - [X] **Quality Assessment:** Periodically evaluate usefulness/accuracy of `derived_learnings_v1` entries.
 - [X] **Test enhanced context capture in `auto_log_chat` rule.**
@@ -137,7 +137,7 @@
 **Workflow Changes & Implementation:**
 
 1. **Export Reward Dataset:**
-    - [ ] **Develop `chroma-client export-rl-dataset` command.**
+    - [ ] **Develop `chroma-mcp-client export-rl-dataset` command.**
     - [ ] **Define the schema for `rl_dataset_YYYYMMDD.jsonl` (e.g., prompt-completion pairs).**
     - [ ] **Implement logic in `export-rl-dataset` to extract and transform data from `chat_history_v1` (status `promoted_to_learning` or `rewarded_implemented`) or `derived_learnings_v1`.**
     - [ ] **Ensure `chat_history_v1` entries used are marked with status `exported_for_reward`.**
@@ -152,7 +152,7 @@
 
 **Phase 2 Verification:**
 
-- [ ] **Test `chroma-client export-rl-dataset` command and the format of `rl_dataset.jsonl`.**
+- [ ] **Test `chroma-mcp-client export-rl-dataset` command and the format of `rl_dataset.jsonl`.**
 - [ ] **Manually train a sample LoRA adapter using an exported dataset.**
 - [ ] **Test on-demand usage of the trained LoRA adapter in an IDE setup and evaluate its impact.**
 - [ ] Cost Check: Monitor API costs if using paid models for fine-tuning or inference. (v3 [ ] 7.7)
@@ -221,13 +221,13 @@
 
 | Script/Command                 | Phase 1                    | Phase 2                    | Phase 3                        | Notes                                                       |
 | ------------------------------ | -------------------------- | -------------------------- | ------------------------------ | ----------------------------------------------------------- |
-| `chroma-client index`          | ✅                          | ✅                          | ✅                              | Core indexing                                               |
-| `chroma-client query`          | ✅                          | ✅                          | ✅                              | Core querying (may evolve to use LoRA contextually)         |
-| `chroma-client analyze-chat-history` | ✅ (manual trigger)         | ✅ (manual trigger)         | ✅ (automated, enhanced)       | Analyzes chat for learning signals                        |
-| `chroma-client promote-learning` | ✅ (manual)                 | ✅ (manual)                 | ✅ (manual, or semi-automated) | Curates `derived_learnings_v1`                            |
-| `chroma-client log-test-results` | ✅ (manual/CI integration)   | ✅ (manual/CI integration)   | ✅ (automated)                 | Stores and analyzes test execution results                 |
+| `chroma-mcp-client index`          | ✅                          | ✅                          | ✅                              | Core indexing                                               |
+| `chroma-mcp-client query`          | ✅                          | ✅                          | ✅                              | Core querying (may evolve to use LoRA contextually)         |
+| `chroma-mcp-client analyze-chat-history` | ✅ (manual trigger)         | ✅ (manual trigger)         | ✅ (automated, enhanced)       | Analyzes chat for learning signals                        |
+| `chroma-mcp-client promote-learning` | ✅ (manual)                 | ✅ (manual)                 | ✅ (manual, or semi-automated) | Curates `derived_learnings_v1`                            |
+| `chroma-mcp-client log-test-results` | ✅ (manual/CI integration)   | ✅ (manual/CI integration)   | ✅ (automated)                 | Stores and analyzes test execution results                 |
 | `record-thought`               | ✅                          | ✅                          | ✅                              | For working memory                                          |
-| `chroma-client export-rl-dataset` | ❌                          | ✅ (manual trigger)         | ✅ (automated)                 | Creates fine-tuning dataset                               |
+| `chroma-mcp-client export-rl-dataset` | ❌                          | ✅ (manual trigger)         | ✅ (automated)                 | Creates fine-tuning dataset                               |
 | `scripts/train_lora.sh`        | ❌                          | ✅ (manual execution)       | ✅ (automated)                 | Wrapper for LoRA training                                   |
 | `scripts/deploy_adapter.sh`    | ❌                          | ❌                          | ✅ (automated)                 | Manages LoRA adapter deployment                             |
 | `official-client log-chat`     | ✅ (refined implementation)  | ✅ (refined implementation)  | ✅ (refined implementation)     | Manually logs chat interactions with enhanced context      |
@@ -311,6 +311,7 @@ LOG_LEVEL="INFO"
 - [ ] **Track `model_version` (base model and any active LoRA) in `chat_history_v1` metadata.**
 - [ ] (Optional) **Implement more sophisticated performance/cost tuning measures (chunking strategies, quantization).** (v3 [ ] 6.2)
 - [ ] **Setup basic monitoring and logging for server and client operations.** (v3 [ ] 6.3)
+- [x] **Implement automatic log rotation to remove log files older than the specified retention period (default 7 days).**
 - [ ] (Optional) **Implement HTTP resilience & retries in client if using HTTP/Cloud backend.** (v3 [ ] 6.4)
 - [ ] **Investigate/Setup Observability / Metrics Dashboard for key pipeline metrics.** (v3 [ ] 6.5)
 - [ ] **Add action-oriented tagging with structured categories like refactoring, bug fixing, feature implementation, documentation.**
@@ -318,6 +319,8 @@ LOG_LEVEL="INFO"
 - [ ] (Optional) **Create a visualization tool for navigating the connections between code changes and chat history.**
 - [ ] (Optional) **Add support for multimedia content in chat summaries (e.g., screenshots, diagrams) to enhance context.**
 - [ ] **Upgrade existing CLI tools (`analyze_chat_history.sh`, `promote_learning.sh`, `review_and_promote.sh`) to fully leverage enhanced metadata captured by the logging system for better context awareness and correlation.**
+- [x] **Rename CLI executable from `chroma-client` to `chroma-mcp-client` for naming consistency as outlined in [client_rename_plan.md](./client_rename_plan.md).**
+- [x] **Update test script to use new test artifact locations as outlined in [test_artifacts_organization_plan.md](./test_artifacts_organization_plan.md).**
 
 ---
 
@@ -341,7 +344,7 @@ LOG_LEVEL="INFO"
      - [ ] Track correlation with git commits via commit hash tracking
 
 2. **Results Storage and Integration:**
-   - [X] **Implement `log-test-results` functionality in chroma-client**
+   - [X] **Implement `log-test-results` functionality in chroma-mcp-client**
      - [X] Store results in new `test_results_v1` collection or extend `chat_history_v1`
      - [ ] Include bi-directional links to related code chunks and chat sessions
      - [ ] Track correlation between test failures and subsequent fixes
@@ -508,7 +511,7 @@ This error-driven learning integration will transform our derived learnings coll
 
 - [X] This document (`local_rag_pipeline_plan_v4.md`) replaces `local_rag_pipeline_plan_v3.md` - **Mark as done once this PR is merged.**
 - [X] **Update `README.md`, `developer_guide.md`, IDE integration docs, and specific tool usage docs (e.g., `record-thought.md`) to reflect the v4 phased approach, new CLI commands, and workflows.** (Adapted from v3 [~] 1.11, [~] 5.8, [~] 7.12)
-- [X] **Consolidate and update client command documentation (e.g., in `docs/usage/client_commands.md` or `docs/scripts/`) covering all `chroma-client` subcommands and `record-thought`.** (Adapted from v3 [~] 1.11, [~] 5.8)
+- [X] **Consolidate and update client command documentation (e.g., in `docs/usage/client_commands.md` or `docs/scripts/`) covering all `chroma-mcp-client` subcommands and `record-thought`.** (Adapted from v3 [~] 1.11, [~] 5.8)
 - [X] **Create/Update `docs/usage/implicit_learning.md` for Phase 1 implicit learning and analysis workflow.** (v3 [ ] 4.7)
 - [X] **Create `docs/usage/derived_learnings.md` detailing the `derived_learnings_v1` schema, its promotion workflow, and how it's used in RAG.**
 - [ ] **Create `docs/usage/lora_finetuning.md` for Phase 2 manual LoRA process and on-demand usage.**
@@ -571,7 +574,7 @@ This error-driven learning integration will transform our derived learnings coll
    - Update indexing to support the enhanced schema
 
 6. **Complete the CLI integration for validation components**
-   - [X] Implement `chroma-client log-error` command for runtime error logging using our schema
+   - [X] Implement `chroma-mcp-client log-error` command for runtime error logging using our schema
    - [X] Enhance `promote-learning` to leverage validation scores
    - [X] Add `validate-evidence` command for calculating scores on demand
    - [X] Update `analyze-chat-history` to rank entries by validation score
@@ -614,7 +617,7 @@ This error-driven learning integration will transform our derived learnings coll
 
 *Documentation:*
 
-- [X] Update `docs/scripts/chroma-client.md` with new commands.
+- [X] Update `docs/scripts/chroma-mcp-client.md` with new commands.
 - [X] Update `docs/developer_guide.md` with workflows.
 - [X] Update `docs/mcp_test_flow.md` for RAG query changes.
 - [X] Update plan doc (this file) with progress.
@@ -676,8 +679,8 @@ This error-driven learning integration will transform our derived learnings coll
     - [X] Implement basic version of log-test-results command
     - [X] Add unit tests for test result parsing and storage
 16. [X] **CLI for the validation pipeline:**
-    - [X] Create `chroma-client log-error` for capturing runtime errors using our schema
-    - [X] Add `chroma-client validate-evidence` for calculating and displaying validation scores
+    - [X] Create `chroma-mcp-client log-error` for capturing runtime errors using our schema
+    - [X] Add `chroma-mcp-client validate-evidence` for calculating and displaying validation scores
     - [X] Update CLI commands to incorporate evidence-based scoring
     - [X] Add validation reporting options to existing CLI tools
 17. [X] **Automate the Test-Driven Learning Workflow:**

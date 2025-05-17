@@ -70,7 +70,7 @@ if [ ! -z "$EVIDENCE_FILE" ] && [ ! -f "$EVIDENCE_FILE" ]; then
 fi
 
 # Build and execute command
-COMMAND="chroma-client validate-evidence --threshold $THRESHOLD"
+COMMAND="chroma-mcp-client validate-evidence --threshold $THRESHOLD"
 
 # Add evidence sources
 if [ ! -z "$EVIDENCE_FILE" ]; then

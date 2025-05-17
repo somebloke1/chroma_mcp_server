@@ -66,7 +66,7 @@ if [ ! -f "$XML_PATH" ]; then
 fi
 
 # Build and execute command
-COMMAND="chroma-client log-test-results \"$XML_PATH\""
+COMMAND="chroma-mcp-client log-test-results \"$XML_PATH\""
 
 # Add optional parameters if provided
 if [ ! -z "$BEFORE_XML" ]; then

@@ -258,7 +258,7 @@ sequenceDiagram
 
 ### Prerequisites
 
-- ChromaDB collections set up using `chroma-client setup-collections`
+- ChromaDB collections set up using `chroma-mcp-client setup-collections`
 - Enhanced `test.sh` script that generates JUnit XML output
 - Chroma MCP Server with test result integration tools
 
@@ -279,7 +279,7 @@ sequenceDiagram
    Automatically or manually run:
 
    ```bash
-   chroma-client log-test-results --file test-results.xml
+   chroma-mcp-client log-test-results --file test-results.xml
    ```
 
    You can also set up a post-test hook to automatically run this command after each test execution.
@@ -290,16 +290,16 @@ To query the test history and transitions:
 
 ```bash
 # View recent test results
-chroma-client query-tests --limit 10
+chroma-mcp-client query-tests --limit 10
 
 # Find tests that transitioned from fail to pass
-chroma-client query-test-transitions
+chroma-mcp-client query-test-transitions
 
 # Find all tests related to a specific code file
-chroma-client query-tests --file src/module/file.py
+chroma-mcp-client query-tests --file src/module/file.py
 
 # Find all evidence for a specific test
-chroma-client query-test-evidence --test test_function_name
+chroma-mcp-client query-test-evidence --test test_function_name
 ```
 
 ### Incorporating Test Evidence in Learning Promotion
@@ -308,10 +308,10 @@ The enhanced `analyze-chat-history` and `review-and-promote` tools automatically
 
 ```bash
 # Analyze chat history and prioritize by validation score
-chroma-client analyze-chat-history --prioritize-validation
+chroma-mcp-client analyze-chat-history --prioritize-validation
 
 # Review and promote with evidence display
-chroma-client review-and-promote --show-evidence
+chroma-mcp-client review-and-promote --show-evidence
 ```
 
 ## Validation Scoring System
@@ -360,7 +360,7 @@ In addition to test result integration, the system supports logging runtime erro
 
 ```bash
 # Log a runtime error
-chroma-client log-error \
+chroma-mcp-client log-error \
   --error-type ConnectionError \
   --message "Database connection timeout" \
   --file src/database/connection.py \
@@ -431,13 +431,13 @@ The system provides several reports to track improvements:
 
 ```bash
 # Generate test metric trend report
-chroma-client generate-report --type test-metrics --period last-90-days
+chroma-mcp-client generate-report --type test-metrics --period last-90-days
 
 # Show knowledge reuse effectiveness
-chroma-client generate-report --type knowledge-reuse
+chroma-mcp-client generate-report --type knowledge-reuse
 
 # Generate executive ROI summary
-chroma-client generate-report --type roi-summary
+chroma-mcp-client generate-report --type roi-summary
 ```
 
 ## Practical Tips for Maximizing Test-Driven Learning

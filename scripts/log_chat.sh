@@ -14,9 +14,9 @@ echo "Running chat logging in $PROJECT_ROOT..."
 # Change to project root directory
 cd "${PROJECT_ROOT}"
 
-# Execute the chroma-client log-chat subcommand using hatch
+# Execute the chroma-mcp-client log-chat subcommand using hatch
 # Pass all arguments received by this script to the subcommand
-TOKENIZERS_PARALLELISM=false hatch run chroma-client log-chat "$@"
+TOKENIZERS_PARALLELISM=false hatch run chroma-mcp-client log-chat "$@"
 
 exit_code=$?
 if [ $exit_code -ne 0 ]; then

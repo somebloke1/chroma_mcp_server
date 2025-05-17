@@ -61,7 +61,7 @@ tool_usage = [
 
 ## Command Line Usage
 
-When using with the `chroma-client log-chat` command:
+When using with the `chroma-mcp-client log-chat` command:
 
 ```bash
 --tool-usage '[{"name": "read_file", "args": {"target_file": "file.txt"}}, {"name": "edit_file", "args": {"target_file": "file.txt"}}]'

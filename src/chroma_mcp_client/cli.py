@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import uuid
 import time
 import json
+import click
 
 # Get our specific logger
 logger = logging.getLogger(__name__)
@@ -34,6 +35,13 @@ from .interactive_promoter import run_interactive_promotion
 # Import the refactored promotion function
 from .learnings import promote_to_learnings_collection
 
+# Import the cleanup_test_artifacts function
+from .validation.test_workflow import (
+    check_for_completed_workflows,
+    setup_automated_workflow,
+    cleanup_test_artifacts,
+)
+
 # --- Constants ---
 DEFAULT_COLLECTION_NAME = "codebase_v1"
 DEFAULT_QUERY_RESULTS = 5
@@ -48,7 +56,7 @@ if default_log_level_env not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
 
 
 def main():
-    """Main entry point for the chroma-client CLI."""
+    """Main entry point for the chroma-mcp-client CLI."""
     # Configure logging EARLY inside main()
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     # Set a default level; will be adjusted based on verbosity later
@@ -535,6 +543,17 @@ def main():
     )
     setup_workflow_parser.add_argument("--workspace-dir", default=".", help="Root directory of the workspace.")
     setup_workflow_parser.add_argument("--force", action="store_true", help="Force overwrite of existing git hooks.")
+
+    # --- Cleanup Test Artifacts Subparser ---
+    cleanup_test_parser = subparsers.add_parser(
+        "cleanup-test-artifacts",
+        help="Clean up test artifacts from a completed workflow.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    cleanup_test_parser.add_argument(
+        "workflow_file",
+        help="Path to the workflow file that references the artifacts to clean up.",
+    )
 
     args = parser.parse_args()
 
@@ -1097,6 +1116,27 @@ def main():
         except Exception as e:
             logger.error(f"An error occurred during setup of test workflow: {e}", exc_info=True)
             print(f"Error during setup of test workflow: {e}")
+            sys.exit(1)
+
+    elif args.command == "cleanup-test-artifacts":
+        logger.info("Executing 'cleanup-test-artifacts' command...")
+        try:
+            if not os.path.isfile(args.workflow_file):
+                logger.error(f"Workflow file not found: {args.workflow_file}")
+                sys.exit(1)
+
+            logger.info(f"Cleaning up test artifacts from workflow: {args.workflow_file}")
+
+            success = cleanup_test_artifacts(args.workflow_file)
+
+            if success:
+                logger.info("✅ Test artifacts cleanup completed successfully")
+            else:
+                logger.error("❌ Failed to clean up test artifacts")
+                sys.exit(1)
+        except Exception as e:
+            logger.error(f"An error occurred during test artifacts cleanup: {e}", exc_info=True)
+            print(f"Error during cleanup: {e}")
             sys.exit(1)
 
     else:

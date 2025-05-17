@@ -4,7 +4,7 @@ This script simplifies the process of logging runtime errors for validation evid
 
 ## Overview
 
-When errors occur in a system, logging them with detailed information is valuable for validation and learning. The `log_error.sh` script provides a convenient wrapper around the `chroma-client log-error` command, making it easy to record:
+When errors occur in a system, logging them with detailed information is valuable for validation and learning. The `log_error.sh` script provides a convenient wrapper around the `chroma-mcp-client log-error` command, making it easy to record:
 
 - Error types and messages
 - Stacktraces

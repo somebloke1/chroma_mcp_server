@@ -9,6 +9,15 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$PROJECT_ROOT"
 echo "ℹ️ Changed working directory to project root: $PROJECT_ROOT"
 
+# --- Define Test Artifacts Directories ---
+TEST_LOGS_DIR="${PROJECT_ROOT}/logs/tests"
+JUNIT_DIR="${TEST_LOGS_DIR}/junit"
+COVERAGE_DIR="${TEST_LOGS_DIR}/coverage"
+WORKFLOW_DIR="${TEST_LOGS_DIR}/workflows"
+
+# Create directories if they don't exist
+mkdir -p "${JUNIT_DIR}" "${COVERAGE_DIR}" "${COVERAGE_DIR}/html" "${WORKFLOW_DIR}"
+
 # Install hatch if not installed
 if ! command -v hatch &> /dev/null; then
     echo "Hatch not found. Installing hatch..."
@@ -105,7 +114,7 @@ if [ "$CLEAN_ENV" = true ]; then
 fi
 
 # Always generate JUnit XML output
-XML_OUTPUT_PATH="test-results.xml"
+XML_OUTPUT_PATH="${JUNIT_DIR}/test-results.xml"
 PYTEST_XML_ARG="--junitxml=${XML_OUTPUT_PATH}"
 
 # Build the base pytest command arguments
@@ -189,7 +198,7 @@ if [ -f "${XML_OUTPUT_PATH}" ]; then
         
         if [ "$TESTS_FAILED" = true ]; then
             # Save failing test results for future comparison
-            FAILURE_XML="failed_tests_${TIMESTAMP}.xml"
+            FAILURE_XML="${JUNIT_DIR}/failed_tests_${TIMESTAMP}.xml"
             cp "${XML_OUTPUT_PATH}" "${FAILURE_XML}"
             echo "❌ Tests failed - saved results to ${FAILURE_XML} for future comparison"
             
@@ -201,14 +210,27 @@ if [ -f "${XML_OUTPUT_PATH}" ]; then
             echo "${CURRENT_COMMIT}" > "${FAILURE_XML}.commit"
             
             # Create a workflow state file
-            echo "{\"status\": \"failed\", \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\", \"xml_path\": \"${FAILURE_XML}\", \"commit\": \"${CURRENT_COMMIT}\"}" > "test_workflow_${TIMESTAMP}.json"
-            echo "🔍 Created workflow state file: test_workflow_${TIMESTAMP}.json"
+            WORKFLOW_FILE="${WORKFLOW_DIR}/test_workflow_${TIMESTAMP}.json"
+            echo "{\"status\": \"failed\", \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\", \"xml_path\": \"${FAILURE_XML}\", \"commit\": \"${CURRENT_COMMIT}\"}" > "${WORKFLOW_FILE}"
+            echo "🔍 Created workflow state file: ${WORKFLOW_FILE}"
         else
             # Tests passed - look for previous failures to compare with
             echo "✅ Tests passed - checking for previous failures to detect transitions"
             
-            # Find the most recent workflow state file
-            LATEST_WORKFLOW=$(ls -t test_workflow_*.json 2>/dev/null | head -n 1)
+            # Find the most recent workflow state file (check both old and new locations for backward compatibility)
+            LATEST_WORKFLOW_OLD=$(ls -t test_workflow_*.json 2>/dev/null | head -n 1)
+            LATEST_WORKFLOW_NEW=$(ls -t "${WORKFLOW_DIR}"/test_workflow_*.json 2>/dev/null | head -n 1)
+            
+            # Determine which workflow file to use
+            LATEST_WORKFLOW=""
+            if [ -n "$LATEST_WORKFLOW_NEW" ]; then
+                LATEST_WORKFLOW="${LATEST_WORKFLOW_NEW}"
+            elif [ -n "$LATEST_WORKFLOW_OLD" ]; then
+                # If found in old location, copy to new structure
+                LATEST_WORKFLOW="${WORKFLOW_DIR}/$(basename ${LATEST_WORKFLOW_OLD})"
+                cp "${LATEST_WORKFLOW_OLD}" "${LATEST_WORKFLOW}"
+                echo "📋 Migrated workflow file to new location: ${LATEST_WORKFLOW}"
+            fi
             
             if [ -n "$LATEST_WORKFLOW" ]; then
                 echo "🔍 Found previous workflow state: ${LATEST_WORKFLOW}"
@@ -217,6 +239,22 @@ if [ -f "${XML_OUTPUT_PATH}" ]; then
                 FAILURE_XML=$(grep -o '"xml_path": "[^"]*"' "${LATEST_WORKFLOW}" | cut -d'"' -f4)
                 FAILURE_COMMIT=$(grep -o '"commit": "[^"]*"' "${LATEST_WORKFLOW}" | cut -d'"' -f4)
                 
+                # Check if the path is a legacy path without the logs/tests/ prefix
+                if [[ "${FAILURE_XML}" != "${JUNIT_DIR}"* && -f "${FAILURE_XML}" ]]; then
+                    # It's a legacy path, copy to new location
+                    NEW_FAILURE_XML="${JUNIT_DIR}/$(basename ${FAILURE_XML})"
+                    cp "${FAILURE_XML}" "${NEW_FAILURE_XML}"
+                    echo "📋 Migrated test failure XML to new location: ${NEW_FAILURE_XML}"
+                    
+                    # Also copy the commit file if it exists
+                    if [ -f "${FAILURE_XML}.commit" ]; then
+                        cp "${FAILURE_XML}.commit" "${NEW_FAILURE_XML}.commit"
+                    fi
+                    
+                    # Update the path for processing
+                    FAILURE_XML="${NEW_FAILURE_XML}"
+                fi
+                
                 if [ -f "${FAILURE_XML}" ]; then
                     echo "🧪 Comparing with previous failure: ${FAILURE_XML}"
                     
@@ -224,9 +262,14 @@ if [ -f "${XML_OUTPUT_PATH}" ]; then
                     echo "📊 Analyzing test transitions..."
                     python -m chroma_mcp_client.cli log-test-results "${XML_OUTPUT_PATH}" --before-xml "${FAILURE_XML}" --commit-before "${FAILURE_COMMIT}" --commit-after "${CURRENT_COMMIT}"
                     
-                    # Mark workflow as complete
-                    echo "{\"status\": \"transitioned\", \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\", \"before_xml\": \"${FAILURE_XML}\", \"after_xml\": \"${XML_OUTPUT_PATH}\", \"before_commit\": \"${FAILURE_COMMIT}\", \"after_commit\": \"${CURRENT_COMMIT}\"}" > "test_workflow_complete_${TIMESTAMP}.json"
-                    echo "✅ Created completed workflow record: test_workflow_complete_${TIMESTAMP}.json"
+                    # Create a completed workflow file in the new location
+                    COMPLETED_WORKFLOW="${WORKFLOW_DIR}/test_workflow_complete_${TIMESTAMP}.json"
+                    echo "{\"status\": \"transitioned\", \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\", \"before_xml\": \"${FAILURE_XML}\", \"after_xml\": \"${XML_OUTPUT_PATH}\", \"before_commit\": \"${FAILURE_COMMIT}\", \"after_commit\": \"${CURRENT_COMMIT}\"}" > "${COMPLETED_WORKFLOW}"
+                    echo "✅ Created completed workflow record: ${COMPLETED_WORKFLOW}"
+                    
+                    # Attempt auto-cleanup of processed artifacts
+                    echo "🗑️ Cleaning up processed artifacts..."
+                    python -m chroma_mcp_client.cli cleanup-test-artifacts "${COMPLETED_WORKFLOW}"
                 else
                     echo "⚠️ Previous failure XML not found: ${FAILURE_XML}"
                 fi
@@ -243,20 +286,28 @@ if [ -f "${XML_OUTPUT_PATH}" ]; then
         
         # Add before XML if specified
         if [ -n "$BEFORE_XML" ]; then
+            # Check if the before XML is in the old location and needs migration
+            if [[ "${BEFORE_XML}" != "${JUNIT_DIR}"* && -f "${BEFORE_XML}" ]]; then
+                NEW_BEFORE_XML="${JUNIT_DIR}/$(basename ${BEFORE_XML})"
+                cp "${BEFORE_XML}" "${NEW_BEFORE_XML}"
+                echo "📋 Migrated before XML to new location: ${NEW_BEFORE_XML}"
+                BEFORE_XML="${NEW_BEFORE_XML}"
+            fi
+            
             LOG_CMD="${LOG_CMD} --before-xml ${BEFORE_XML}"
             
             # Get git hash for the before file if possible
-            # This is a simplistic approach - in a real system, you'd store this with the before file
             BEFORE_COMMIT="unknown"
-            if [ -f "${BEFORE_XML}.commit" ]; then
-                BEFORE_COMMIT=$(cat "${BEFORE_XML}.commit")
+            COMMIT_FILE="${BEFORE_XML}.commit"
+            if [ -f "${COMMIT_FILE}" ]; then
+                BEFORE_COMMIT=$(cat "${COMMIT_FILE}")
             fi
             
             LOG_CMD="${LOG_CMD} --commit-before ${BEFORE_COMMIT} --commit-after ${CURRENT_COMMIT}"
         fi
         
         # Execute log command
-        echo "Executing: $LOG_CMD"
+        echo "Executing: ${LOG_CMD}"
         $LOG_CMD
         
         # Save current commit hash for future comparisons
@@ -283,7 +334,7 @@ if [ "$COVERAGE" = true ]; then
     echo "Combining parallel coverage data (if any)..."
     hatch run coverage combine --quiet
     echo "Generating XML coverage report..."
-    hatch run coverage xml # Generate XML for Codecov
+    hatch run coverage xml -o "${COVERAGE_DIR}/coverage.xml" # Generate XML for Codecov
     echo "Generating XML terminal coverage report..."
     hatch run coverage report -m # Show terminal report
     
@@ -292,19 +343,17 @@ if [ "$COVERAGE" = true ]; then
         echo "🔍 Logging code quality metrics from coverage..."
         
         # Create temporary coverage output file
-        COV_OUTPUT_FILE="coverage_output.txt"
-        hatch run coverage report -m > "$COV_OUTPUT_FILE"
+        COV_OUTPUT_FILE="${COVERAGE_DIR}/coverage_output.txt"
+        hatch run coverage report -m > "${COV_OUTPUT_FILE}"
         
         # Log quality metrics
         echo "Executing: python -m chroma_mcp_client.cli log-quality-check --tool coverage --after-output ${COV_OUTPUT_FILE} --metric-type coverage"
         python -m chroma_mcp_client.cli log-quality-check --tool coverage --after-output "${COV_OUTPUT_FILE}" --metric-type coverage
-        
-        # Clean up temporary file
-        rm -f "$COV_OUTPUT_FILE"
     fi
     
     if [ "$HTML" = true ]; then
         echo "Generating HTML coverage report..."
+        # Directory is now configured in pyproject.toml to be "${COVERAGE_DIR}/html"
         hatch run coverage html
     fi
     echo "<<< Coverage combination finished >>>"

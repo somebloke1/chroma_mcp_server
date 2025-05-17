@@ -68,7 +68,7 @@ graph TD
     A --> D{Git Commit};
     D -- Triggers --> E[Post-Commit Hook];
     E -- runs --> F(hatch run ...);
-    F -- executes --> G[chroma-client CLI];
+    F -- executes --> G[chroma-mcp-client CLI];
     G -- Indexes Changed Files --> H[(ChromaDB: codebase_v1)];
     C -- MCP Interaction --> H;
     
@@ -192,7 +192,7 @@ The traditional development workflow forces developers to be digital archaeologi
     - **Chroma MCP Solution & WHY it's better:**
         - **Code (`codebase_v1`):** The Git hook **automatically indexes every change on commit** using semantic chunking that preserves logical code structures. Your codebase context is *always fresh* without a single manual indexing command.
 
-          - **HOW:** `chroma-client index --changed` runs silently in the background using semantic code boundaries.
+          - **HOW:** `chroma-mcp-client index --changed` runs silently in the background using semantic code boundaries.
         - **Dialogues (`chat_history_v1`):** The enhanced `auto_log_chat` rule **automatically captures the essence of every AI interaction plus rich contextual information** (code diffs, tool sequences, confidence scores). No more "Where did we discuss that bug?" – it's logged, linked to related code changes, and semantically searchable.
 
           - **HOW:** AI extracts context, generates diffs, tracks tool usage, and calls an MCP tool.
@@ -399,7 +399,7 @@ flowchart TD
     subgraph "Code Indexing Flow"
         B --> D{Git Commit}
         D -- Triggers --> E[Post-Commit Hook]
-        E --> F["chroma-client index --changed"]
+        E --> F["chroma-mcp-client index --changed"]
         F -- "Semantic Code Chunks" --> G[(ChromaDB: codebase_v1)]
     end
     
@@ -458,7 +458,7 @@ flowchart TD
 #### How Code and Chat Logging Works
 
 1. **Automated Code Indexing**
-   - When a developer commits code changes, the post-commit hook triggers `chroma-client index --changed`.
+   - When a developer commits code changes, the post-commit hook triggers `chroma-mcp-client index --changed`.
    - The code is semantically chunked (by function, class, or logical section) rather than by arbitrary line counts.
    - Each chunk is stored in `codebase_v1` with metadata including file path, commit hash, and timestamps.
 
@@ -693,12 +693,12 @@ This integrated approach creates a truly comprehensive "Second Brain" that captu
 
 1. **Phase 1 - Build the Foundation (Available Now):**
     - **Setup:** Configure your `.env`, install `chroma-mcp-server[full,client,dev]`, set up the `post-commit` hook (see [Automating Codebase Indexing with Git Hooks](./automation/git_hooks.md)), and configure the `auto_log_chat` rule in your IDE (see [Automated Chat History Logging Guide](./integration/automated_chat_logging.md)).
-    - **Automated Test Workflow:** Configure the automated test-driven learning workflow with `chroma-client setup-test-workflow` to automatically track test failures and successes (see [Automated Test Workflow Guide](./usage/automated_test_workflow.md)).
+    - **Automated Test Workflow:** Configure the automated test-driven learning workflow with `chroma-mcp-client setup-test-workflow` to automatically track test failures and successes (see [Automated Test Workflow Guide](./usage/automated_test_workflow.md)).
     - **Daily Workflow:** Commit your changes (auto-indexing). Interact with your AI (auto-logging with rich context). Use `record-thought` for key decisions. Query `codebase_v1` and `chat_history_v1` via MCP tools. Start curating `derived_learnings_v1` using the `review-and-promote` interface. Run tests with `--auto-capture-workflow` to automatically track test transitions.
     - **ROI Measurement (Planned):** When implemented, enable test result tracking to establish baseline metrics for code quality, then use the reports and dashboards to monitor improvements as you leverage the knowledge base.
 
 2. **Phase 2 - Specialize Your AI (Coming Soon):**
-    - **Action:** When you identify repetitive tasks or specific domains where tailored AI could help, use `chroma-client export-rl-dataset` to create training data from your best interactions/learnings.
+    - **Action:** When you identify repetitive tasks or specific domains where tailored AI could help, use `chroma-mcp-client export-rl-dataset` to create training data from your best interactions/learnings.
     - **Train & Use:** Manually run `scripts/train_lora.sh` and experiment with using the resulting LoRA adapter in your IDE.
 
 3. **Phase 3 - Automate the Learning Loop (In Development):**

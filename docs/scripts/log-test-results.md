@@ -4,7 +4,7 @@ This script simplifies the process of logging test results for validation eviden
 
 ## Overview
 
-Test results provide a critical form of validation evidence for measuring the impact of code changes. The `log_test_results.sh` script provides a convenient wrapper around the `chroma-client log-test-results` command, making it easy to:
+Test results provide a critical form of validation evidence for measuring the impact of code changes. The `log_test_results.sh` script provides a convenient wrapper around the `chroma-mcp-client log-test-results` command, making it easy to:
 
 - Log JUnit XML test results
 - Compare before/after test results to identify transitions (failing → passing)

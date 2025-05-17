@@ -20,7 +20,7 @@ To enable the automated workflow:
 
 ```bash
 # Set up the workflow (creates git hooks)
-chroma-client setup-test-workflow
+chroma-mcp-client setup-test-workflow
 
 # Run tests with automatic workflow capture
 ./scripts/test.sh -c -v --auto-capture-workflow
@@ -77,7 +77,7 @@ With the `--auto-promote` flag, the system can:
 ### Setup Options
 
 ```bash
-chroma-client setup-test-workflow [OPTIONS]
+chroma-mcp-client setup-test-workflow [OPTIONS]
 
 Options:
   --workspace-dir PATH   Root directory of the workspace (default: current directory)
@@ -98,7 +98,7 @@ Options:
 ### Checking Test Transitions
 
 ```bash
-chroma-client check-test-transitions [OPTIONS]
+chroma-mcp-client check-test-transitions [OPTIONS]
 
 Options:
   --workspace-dir PATH       Root directory of the workspace
@@ -134,7 +134,7 @@ Options:
 If you've been working without the `--auto-capture-workflow` flag, you can manually check for transitions:
 
 ```bash
-chroma-client check-test-transitions
+chroma-mcp-client check-test-transitions
 # Processed 2 test transitions
 ```
 
@@ -143,7 +143,7 @@ chroma-client check-test-transitions
 To automatically promote high-confidence fixes to derived learnings:
 
 ```bash
-chroma-client check-test-transitions --auto-promote
+chroma-mcp-client check-test-transitions --auto-promote
 # Processed 2 test transitions
 # Auto-promoted 1 learning to derived_learnings_v1
 ```
@@ -209,7 +209,7 @@ The workflow can be extended with custom plugins in the `src/chroma_mcp_client/v
 The workflow setup process creates Git hooks that automate test failure capture and transition detection. To set up the workflow, run:
 
 ```bash
-chroma-client setup-test-workflow
+chroma-mcp-client setup-test-workflow
 ```
 
 This creates:
@@ -222,11 +222,11 @@ This creates:
 You can also specify a custom workspace directory:
 
 ```bash
-chroma-client setup-test-workflow --workspace-dir /path/to/project
+chroma-mcp-client setup-test-workflow --workspace-dir /path/to/project
 ```
 
 To replace existing hooks, use:
 
 ```bash
-chroma-client setup-test-workflow --force
+chroma-mcp-client setup-test-workflow --force
 ```

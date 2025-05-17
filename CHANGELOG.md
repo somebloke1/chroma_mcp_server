@@ -1,9 +1,38 @@
 # Changelog
 
-All notable changes to the Chroma MCP Server will be documented in this file.
-
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.18] - 2025-05-17
+
+**Added:**
+
+- Added test artifacts organization with dedicated `logs/tests/` directory structure for JUnit XML reports, coverage data, and workflow tracking files.
+- Added automatic cleanup of test artifacts after successful processing to reduce clutter.
+- Updated coverage configuration in pyproject.toml to store `.coverage` file and HTML reports in the `logs/tests/coverage/` directory.
+- Implemented automatic log rotation to remove log files older than the specified retention period (default 7 days).
+- Restored Git integration documentation in getting_started.md and developer_guide.md with instructions for automatic codebase indexing using Git hooks.
+
+**Fixed:**
+
+- Fixed critical bug in TestWorkflowManager's `cleanup_processed_artifacts` method to properly clean up test artifacts.
+- Enhanced cleanup logic to only remove files that have been successfully processed.
+- Added safety checks to prevent accidental removal of important data.
+
+## [0.2.17] - 2025-05-17
+
+**Added:**
+
+- Added `chroma-mcp-client` command as a replacement for `chroma-client` for better naming consistency.
+
+**Changed:**
+
+- Deprecated `chroma-client` command in favor of `chroma-mcp-client`. The old command will be removed in version 0.3.0.
+- Updated all documentation and scripts across the repository to use `chroma-mcp-client` instead of `chroma-client`.
+- Implemented backward compatibility wrapper in `deprecated_cli.py` that shows a warning when using the old command.
+- Modified GitHub Actions workflow to use the new test artifact locations.
+
+All notable changes to the Chroma MCP Server will be documented in this file.
 
 ## [0.2.16] - 2025-05-17
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.2.16"
+version = "0.2.18"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -76,7 +76,10 @@ full = [
 
 [project.scripts]
 chroma-mcp-server = "chroma_mcp.cli:main"
-chroma-client = "chroma_mcp_client.cli:main"
+# Keep old entry point temporarily for backward compatibility
+chroma-client = "chroma_mcp_client.deprecated_cli:main"
+# New recommended entry point
+chroma-mcp-client = "chroma_mcp_client.cli:main"
 # Add future scripts here: record-feedback = ..., record-thought = ...
 record-thought = "chroma_mcp_thinking.thinking_cli:main"
 
@@ -145,6 +148,8 @@ branch = false
 parallel = false
 source = ["src/chroma_mcp", "src/chroma_mcp_client", "src/chroma_mcp_thinking"]
 relative_files = true
+# Add data_file setting to store .coverage in the new location
+data_file = "logs/tests/coverage/.coverage"
 # Add omit from .coveragerc
 omit = [
     "*/tests/*",
@@ -175,13 +180,13 @@ exclude_lines = [
 ]
 show_missing = true
 
-# Add html output settings from .coveragerc
+# Update HTML output directory to the new location
 [tool.coverage.html]
-directory = "coverage_html"
+directory = "logs/tests/coverage/html"
 
-# Add xml output settings from .coveragerc (for Codecov)
+# Update XML output settings from .coveragerc (for Codecov)
 [tool.coverage.xml]
-output = "coverage.xml"
+output = "logs/tests/coverage/coverage.xml"
 
 [tool.pytest-asyncio]
 mode = "strict"

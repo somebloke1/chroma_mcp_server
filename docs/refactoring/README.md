@@ -16,6 +16,8 @@ This directory contains documentation related to various refactoring efforts and
 | [refactor_plan_mcp_sdk_compliance_v2.md](./refactor_plan_mcp_sdk_compliance_v2.md) | Detailed plan for MCP SDK compliance with expanded implementation details | Independent | Current SDK compliance plan with detailed implementation steps |
 | [hatch_smithery_integration.md](./hatch_smithery_integration.md) | Documentation for integrating Hatch and Smithery build tools into the project | Infrastructure | Implemented for development workflow improvements |
 | [mcp-reference.md](./mcp-reference.md) | Reference documentation for MCP (Model Control Protocol) implementation | Reference | Provides specifications and guidelines for MCP development |
+| [client_rename_plan.md](./client_rename_plan.md) | Plan for renaming the CLI executable from `chroma-client` to `chroma-mcp-client` | Infrastructure | In progress - Phase 1 (entry points, deprecation warnings) implemented, remaining documentation updates in progress |
+| [test_artifacts_organization_plan.md](./test_artifacts_organization_plan.md) | Plan for organizing test artifacts in a dedicated `logs/tests/` directory structure | Infrastructure | In progress - Phase 1 (directory structure, cleanup logic) implemented, remaining documentation updates in progress |
 
 ## Implementation Phases Explained
 
@@ -39,14 +41,21 @@ flowchart LR
     classDef phase3 fill:#7C0200,stroke:#333,stroke-width:1px,color:white
     classDef phase4 fill:#5a3d5c,stroke:#333,stroke-width:1px,color:white
     classDef component fill:#2a2a2a,stroke:#F8B229,stroke-width:2px,color:white
+    classDef infra fill:#483D8B,stroke:#333,stroke-width:1px,color:white
     
     %% Timeline flow
     P1[Phase 1:\nBasic RAG Pipeline]:::phase1 --> P2[Phase 2:\nEnhanced Context]:::phase2 --> P3[Phase 3:\nThinking Tools &\nTest-Driven Learning]:::phase3 --> P4[Phase 4:\nEnterprise Readiness]:::phase4
+    
+    %% Infrastructure improvements
+    INFRA[Infrastructure\nImprovements]:::infra
+    INFRA --> CR[CLI Renaming]:::component
+    INFRA --> TA[Test Artifacts Organization]:::component
     
     %% Phase 1 components
     P1 --> CR1[Core ChromaDB Collections]:::component
     P1 --> CLI1[Basic CLI Tools]:::component
     P1 --> MCP1[MCP Server Integration]:::component
+    INFRA -.-> CLI1
 
     %% Phase 2 components
     P2 --> BL[Bidirectional Linking]:::component
@@ -98,6 +107,8 @@ In parallel with the RAG pipeline development, other refactoring efforts have ad
 2. **Build System Improvements**: Integration of Hatch and Smithery for improved development workflow.
 3. **Collection Schema Evolution**: Progressive refinement of the ChromaDB collection schema to support richer metadata and more effective retrieval.
 4. **Test Result Integration**: Implementation of structured test result tracking and automated test-driven learning workflows. This includes JUnit XML parsing, test transition detection (failure→success), validation evidence creation, and bidirectional linking between test results, code changes, and chat history.
-5. **ROI Measurement**: Development of a framework for quantifying the value and effectiveness of the RAG implementation.
+5. **CLI Renaming**: Renaming the `chroma-client` executable to `chroma-mcp-client` for better naming consistency with `chroma-mcp-server` and to avoid potential conflicts with official Chroma tools. The implementation includes backward compatibility through version 0.2.x with deprecation warnings, and a planned removal of the old entry point in version 0.3.0.
+6. **Test Artifacts Organization**: Organizing test artifacts in a dedicated `logs/tests/` directory structure to improve clarity and maintainability.
+7. **ROI Measurement**: Development of a framework for quantifying the value and effectiveness of the RAG implementation.
 
 For questions about specific implementations, refer to the individual documents or review the implementation code in the corresponding modules.

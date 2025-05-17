@@ -4,7 +4,7 @@ This script simplifies the process of validating evidence for learning promotion
 
 ## Overview
 
-Validation evidence provides objective metrics to qualify the impact and quality of code changes. The `validate_evidence.sh` script wraps the `chroma-client validate-evidence` command, making it easy to:
+Validation evidence provides objective metrics to qualify the impact and quality of code changes. The `validate_evidence.sh` script wraps the `chroma-mcp-client validate-evidence` command, making it easy to:
 
 - Load validation evidence from files or IDs
 - Calculate validation scores based on multiple evidence types
