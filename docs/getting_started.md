@@ -94,40 +94,42 @@ npx -y @smithery/cli install chroma-mcp-server
     pip install hatch
     ```
 
-3. **Activate Environment:** Use the `develop.sh` script or `hatch shell`:
+3. **Activate Environment:** Use the devtools command or `hatch shell`:
 
-    ```bash
-    # Using the script
-    ./scripts/develop.sh 
-    
-    # Or directly with Hatch
-    hatch shell
-    ```
+**DEPRECATION NOTICE:** `./scripts/develop.sh` is deprecated and will be removed in version 0.3.0.
 
-    This sets up the environment with all necessary development dependencies.
+```bash
+# Recommended: Activate the Hatch development environment
+hatch run develop-mcp
+
+# Or directly with Hatch shell
+hatch shell
+```
+
+This sets up the environment with all necessary development dependencies.
 
 ## Development Scripts
 
-The project includes several utility scripts in the `scripts/` directory:
+**DEPRECATION NOTICE:** The scripts in the `scripts/` directory are deprecated and will be removed in version 0.3.0. Please use the devtools commands installed via the Python package, e.g., via Hatch:
 
 ```bash
 # Start development environment
-./scripts/develop.sh
+hatch run develop-mcp  # replaces ./scripts/develop.sh
 
 # Build the package
-./scripts/build.sh
+hatch run build-mcp  # replaces ./scripts/build.sh
 
 # Run tests with coverage
-./scripts/test.sh
+hatch run test-mcp  # replaces ./scripts/test.sh
 
 # Publish to PyPI/TestPyPI
-./scripts/publish.sh [-t|-p] [-v VERSION]
+hatch run publish-mcp [-t|-p] [-v VERSION]  # replaces ./scripts/publish.sh
 
 # Test UVX installation from local wheel
-./scripts/test_uvx_install.sh
+./scripts/test_uvx_install.sh  # deprecated (no direct devtools replacement)
 
 # Automate the full release process (includes installing Prod/Test version locally)
-./scripts/release.sh [--update-target <prod|test>] <VERSION>
+hatch run release-mcp [--update-target <prod|test>] <VERSION>  # replaces ./scripts/release.sh
 ```
 
 ## Configuration

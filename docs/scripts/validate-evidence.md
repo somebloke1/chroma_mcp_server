@@ -1,5 +1,7 @@
 # Validation Evidence Script
 
+**DEPRECATION NOTICE:** The `validate_evidence.sh` shell script is deprecated and will be removed in version 0.3.0. Please use the `chroma-mcp-client validate-evidence` console script installed via the Python package.
+
 This script simplifies the process of validating evidence for learning promotions.
 
 ## Overview
@@ -12,6 +14,14 @@ Validation evidence provides objective metrics to qualify the impact and quality
 - Save validation reports to files
 
 ## Usage
+
+**Recommended**: Use the console script directly:
+
+```bash
+chroma-mcp-client validate-evidence --file evidence.json
+```
+
+**Legacy wrapper script (deprecated)**:
 
 ```bash
 ./scripts/validate_evidence.sh --file evidence.json

@@ -237,7 +237,7 @@
   - [X] Fixed all test failures (`tests/thinking/test_thinking_cli.py`).
 
 - [X] **5.8 Document Working Memory (`../usage/client_commands.md`):**
-  - [X] Explained concept and benefits in `../thinking_tools/README-thinking.md`.
+  - [X] Explained concept and benefits in `../thinking_tools/README.md`.
   - [X] Documented **installed console script** (`record-thought`) usage in `../scripts/record-thought.md`.
   - [X] Updated IDE integration docs (`../integration/ide_integration.md`).
   - [~] **Needs Review:** Consolidate examples and ensure clarity.

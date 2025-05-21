@@ -16,8 +16,10 @@ This directory contains documentation related to various refactoring efforts and
 | [refactor_plan_mcp_sdk_compliance_v2.md](./refactor_plan_mcp_sdk_compliance_v2.md) | Detailed plan for MCP SDK compliance with expanded implementation details | Independent | Current SDK compliance plan with detailed implementation steps |
 | [hatch_smithery_integration.md](./hatch_smithery_integration.md) | Documentation for integrating Hatch and Smithery build tools into the project | Infrastructure | Implemented for development workflow improvements |
 | [mcp-reference.md](./mcp-reference.md) | Reference documentation for MCP (Model Control Protocol) implementation | Reference | Provides specifications and guidelines for MCP development |
-| [client_rename_plan.md](./client_rename_plan.md) | Plan for renaming the CLI executable from `chroma-client` to `chroma-mcp-client` | Infrastructure | In progress - Phase 1 (entry points, deprecation warnings) implemented, remaining documentation updates in progress |
-| [test_artifacts_organization_plan.md](./test_artifacts_organization_plan.md) | Plan for organizing test artifacts in a dedicated `logs/tests/` directory structure | Infrastructure | In progress - Phase 1 (directory structure, cleanup logic) implemented, remaining documentation updates in progress |
+| [client_rename_plan.md](./client_rename_plan.md) | Plan for renaming the CLI executable from `chroma-client` to `chroma-mcp-client` | Infrastructure | Phase 1 (entry points, deprecation warnings) implemented |
+| [test_artifacts_organization_plan.md](./test_artifacts_organization_plan.md) | Plan for organizing test artifacts in a dedicated `logs/tests/` directory structure | Infrastructure | Phase 1 (directory structure, cleanup logic) implemented |
+| [shell_script_migration_plan.md](./shell_script_migration_plan.md) | Plan for migrating all shell scripts to Python modules to improve maintainability, testability, and platform compatibility | Infrastructure | Phase 1 complete - all scripts and tests migrated to Python modules; remaining work: documentation |
+| [roi_measurement_plan.md](./roi_measurement_plan.md) | Plan for measuring the ROI of the RAG implementation | Phase 4 | Initial plan for ROI measurement framework development |
 
 ## Implementation Phases Explained
 
@@ -50,6 +52,7 @@ flowchart LR
     INFRA[Infrastructure\nImprovements]:::infra
     INFRA --> CR[CLI Renaming]:::component
     INFRA --> TA[Test Artifacts Organization]:::component
+    INFRA --> SSM[Shell Script Migration]:::component
     
     %% Phase 1 components
     P1 --> CR1[Core ChromaDB Collections]:::component
@@ -109,6 +112,7 @@ In parallel with the RAG pipeline development, other refactoring efforts have ad
 4. **Test Result Integration**: Implementation of structured test result tracking and automated test-driven learning workflows. This includes JUnit XML parsing, test transition detection (failure→success), validation evidence creation, and bidirectional linking between test results, code changes, and chat history.
 5. **CLI Renaming**: Renaming the `chroma-client` executable to `chroma-mcp-client` for better naming consistency with `chroma-mcp-server` and to avoid potential conflicts with official Chroma tools. The implementation includes backward compatibility through version 0.2.x with deprecation warnings, and a planned removal of the old entry point in version 0.3.0.
 6. **Test Artifacts Organization**: Organizing test artifacts in a dedicated `logs/tests/` directory structure to improve clarity and maintainability.
-7. **ROI Measurement**: Development of a framework for quantifying the value and effectiveness of the RAG implementation.
+7. **Shell Script Migration**: Migration of all shell scripts to Python modules to improve maintainability, testability, and platform compatibility; original shell scripts in `scripts/` are deprecated and will be removed in version 0.3.0.
+8. **ROI Measurement**: Development of a framework for quantifying the value and effectiveness of the RAG implementation.
 
 For questions about specific implementations, refer to the individual documents or review the implementation code in the corresponding modules.

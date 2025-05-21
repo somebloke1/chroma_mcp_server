@@ -1,6 +1,6 @@
 # Code Quality Check Logging Script
 
-This script simplifies the process of logging code quality metrics for validation evidence.
+**DEPRECATION NOTICE:** The `log_quality_check.sh` shell script is deprecated and will be removed in version 0.3.0. Please use the `chroma-mcp-client log-quality` console script installed via the Python package.
 
 ## Overview
 
@@ -12,6 +12,14 @@ Code quality improvements are an important form of validation evidence, demonstr
 - Add quality evidence to the validation system
 
 ## Usage
+
+**Recommended**: Use the console script directly:
+
+```bash
+chroma-mcp-client log-quality --after pylint-results-after.txt
+```
+
+**Legacy wrapper script (deprecated)**:
 
 ```bash
 ./scripts/log_quality_check.sh --after pylint-results-after.txt

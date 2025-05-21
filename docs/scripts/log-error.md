@@ -1,6 +1,6 @@
 # Runtime Error Logging Script
 
-This script simplifies the process of logging runtime errors for validation evidence and future promotion.
+**DEPRECATION NOTICE:** The `log_error.sh` shell script is deprecated and will be removed in version 0.3.0. Please use the `chroma-mcp-client log-error` console script installed via the Python package.
 
 ## Overview
 
@@ -13,6 +13,14 @@ When errors occur in a system, logging them with detailed information is valuabl
 - Verification status
 
 ## Usage
+
+**Recommended**: Use the installed console script directly:
+
+```bash
+chroma-mcp-client log-error --error-type "TypeError" --message "Cannot read property of undefined"
+```
+
+**Legacy wrapper script (deprecated)**:
 
 ```bash
 ./scripts/log_error.sh --error-type "TypeError" --message "Cannot read property of undefined"
@@ -46,8 +54,7 @@ When errors occur in a system, logging them with detailed information is valuabl
 ./scripts/log_error.sh \
   --error-type "ValueError" \
   --message "Invalid input value" \
-  --stacktrace "File 'main.py', line 42
-ValueError: Invalid input value" \
+  --stacktrace "File 'main.py', line 42\nValueError: Invalid input value" \
   --files "src/main.py,src/validation.py"
 ```
 
@@ -64,9 +71,7 @@ ValueError: Invalid input value" \
 
 ## Integration with Validation Workflow
 
-Runtime errors captured with this script become part of the validation evidence system and can be used to validate learning promotions. When an error is logged, it is stored in the ChromaDB collection and assigned a unique ID that can be referenced in validation evidence.
-
-The evidence can then be used with the `promote-learning` command to validate that a learning has been properly tested and fixed known issues.
+Runtime errors captured with this script become part of the validation evidence system and can be used to validate learning promotions. When an error is logged, it is stored in the ChromaDB collection and assigned a unique ID that can be referenced in validation evidence. The evidence can then be used with the `promote-learning` command to validate that a learning has been properly tested and fixed known issues.
 
 ## See Also
 

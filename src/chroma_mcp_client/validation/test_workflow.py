@@ -142,8 +142,13 @@ else
 fi"""
 
         test_transition_check = """# Added by TestWorkflowManager for test transition tracking
-echo "Checking for test transitions..."
-python -m chroma_mcp_client.cli check-test-transitions"""
+if command -v hatch &> /dev/null; then
+  echo "Checking for test transitions..."
+  hatch run python -m chroma_mcp_client.cli check-test-transitions
+else
+  echo "Checking for test transitions..."
+  python -m chroma_mcp_client.cli check-test-transitions
+fi"""
 
         # Handle post-commit hook (preserve existing content)
         post_commit_path = hooks_dir / "post-commit"

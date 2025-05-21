@@ -1,5 +1,7 @@
 # Wrapper Script: `promote_learning.sh`
 
+**DEPRECATION NOTICE:** The `promote_learning.sh` shell script is deprecated and will be removed in version 0.3.0. Please use the `promote-learning` console script installed via the Python package (`chroma-mcp-client promote-learning`).
+
 This script provides a simple wrapper for running the `promote-learning` command of the `chroma-mcp-client` tool within the correct Hatch environment.
 
 ## Purpose
@@ -22,7 +24,13 @@ Refer to the main [`chroma-mcp-client` documentation](chroma-mcp-client.md#promo
 
 ## Usage
 
-Navigate to the project root directory and run the script, passing the necessary arguments for the `promote-learning` command:
+**Recommended**: Use the console script directly:
+
+```bash
+chroma-mcp-client promote-learning [OPTIONS]
+```
+
+**Legacy wrapper script (deprecated)**:
 
 ```bash
 ./scripts/promote_learning.sh [OPTIONS_FOR_PROMOTE_LEARNING]

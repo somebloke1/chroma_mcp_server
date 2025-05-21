@@ -79,14 +79,22 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
 
 ## Development Scripts Overview
 
-The project includes several utility scripts in the `scripts/` directory to streamline common tasks:
+**DEPRECATION NOTICE:** The scripts in the `scripts/` directory are deprecated and will be removed in version 0.3.0. Please use the devtools commands installed with the Python package via Hatch:
 
-* `develop.sh`: Activates the Hatch development environment.
-* `test.sh`: Runs tests using pytest (via Hatch). Supports flags like `--coverage`, `--clean`.
-* `build.sh`: Cleans the build directory and builds the package wheel.
-* `publish.sh`: Publishes the package to PyPI or TestPyPI. Requires credentials and version.
-* `test_uvx_install.sh`: Builds the package locally and tests installing it via `uv pip install`.
-* `release.sh`: Automates the full release process (TestPyPI -> Prod PyPI -> Install specified version locally for `uvx` command). See script help (`./scripts/release.sh --help`) for options.
+* `hatch run develop-mcp`: Activates the Hatch development environment (replaces `develop.sh`).
+* `hatch run test-mcp`: Runs tests with coverage and other options (replaces `test.sh`).
+* `hatch run build-mcp`: Cleans the build directory and builds the package wheel (replaces `build.sh`).
+* `hatch run publish-mcp`: Publishes the package to PyPI or TestPyPI (replaces `publish.sh`).
+* `hatch run release-mcp`: Automates the full release process (replaces `release.sh`).
+
+**Legacy scripts (deprecated):**
+
+* `./scripts/develop.sh`
+* `./scripts/test.sh`
+* `./scripts/build.sh`
+* `./scripts/publish.sh`
+* `./scripts/test_uvx_install.sh`
+* `./scripts/release.sh`
 
 ## Common Development Workflow
 

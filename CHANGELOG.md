@@ -3,6 +3,17 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.19] - 2025-05-21
+
+**Added:**
+
+- Extracted `get_project_root()` into a dedicated `project_root.py` module under `src/chroma_mcp/dev_scripts/`, and updated `build.py`, `develop.py`, `release.py`, and `publish.py` to import from it for cleaner dependencies.
+- Completed migration of development scripts by removing the deprecated `test.py` and adding comprehensive unit tests for `build.py`, `develop.py`, `release.py`, and `publish.py` in `tests/scripts/`.
+
+**Changed:**
+
+- Updated unit tests under `tests/scripts/` to align with the new `get_project_root()` implementation and consolidated test execution via `hatch test`.
+
 ## [0.2.18] - 2025-05-17
 
 **Added:**

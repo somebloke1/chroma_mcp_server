@@ -321,6 +321,7 @@ LOG_LEVEL="INFO"
 - [ ] **Upgrade existing CLI tools (`analyze_chat_history.sh`, `promote_learning.sh`, `review_and_promote.sh`) to fully leverage enhanced metadata captured by the logging system for better context awareness and correlation.**
 - [x] **Rename CLI executable from `chroma-client` to `chroma-mcp-client` for naming consistency as outlined in [client_rename_plan.md](./client_rename_plan.md).**
 - [x] **Update test script to use new test artifact locations as outlined in [test_artifacts_organization_plan.md](./test_artifacts_organization_plan.md).**
+- [x] **Migrate all shell scripts to Python modules as outlined in [shell_script_migration_plan.md](./shell_script_migration_plan.md).**
 
 ---
 
@@ -337,7 +338,7 @@ LOG_LEVEL="INFO"
 **Implementation Tasks:**
 
 1. **Test Execution Result Capture:**
-   - [X] **Modify `test.sh` to generate and store structured test results**
+   - [X] **Modify hatch-test environment scripts to generate and store structured test results (replacing test.sh)**
      - [X] Add `--junitxml=test-results.xml` parameter to pytest call
      - [X] Implement parsing of JUnit XML to extract structured test data (in `test_collector.py`)
      - [ ] Track pass/fail counts, execution times, and specific test failures over time
@@ -525,7 +526,7 @@ This error-driven learning integration will transform our derived learnings coll
 - [X] **Add section to developer guide on effective use of confidence scores and action-oriented tagging.**
 - [X] **Develop troubleshooting guide for common issues with the enhanced context capture system.**
 - [X] **Create `docs/usage/test_result_integration.md` explaining the test result tracking system and its integration with the RAG workflow.**
-- [X] **Update test.sh documentation to include information about the new JUnit XML output and result logging.**
+- [X] **Update Testing and Build Guide to include JUnit XML output and result logging for hatch-test environment scripts.**
 - [X] **Add section to developer guide on interpreting test metrics and correlating them with RAG effectiveness.**
 - [X] **Create `docs/usage/automated_test_workflow.md` documenting the automated test-driven learning workflow, setup, and usage.**
 - [X] **Update `.cursorrules` document with guidance for the `--auto-capture-workflow` flag.**
@@ -673,7 +674,7 @@ This error-driven learning integration will transform our derived learnings coll
     - [ ] Create a visual indicator for bidirectional links in CLI interfaces
     - [ ] Add display formatting for validation evidence summary
 15. [X] **Initial implementation of test result integration:**
-    - [X] Update test.sh to generate JUnit XML output
+    - [X] Update hatch-test environment scripts to generate JUnit XML output
     - [X] Create the skeleton for test result parser
     - [X] Define schema for test_results_v1 collection
     - [X] Implement basic version of log-test-results command
@@ -684,7 +685,7 @@ This error-driven learning integration will transform our derived learnings coll
     - [X] Update CLI commands to incorporate evidence-based scoring
     - [X] Add validation reporting options to existing CLI tools
 17. [X] **Automate the Test-Driven Learning Workflow:**
-    - [X] **Enhance `test.sh` for full automation:**
+    - [X] **Enhance `hatch-test` environment scripts for full automation:**
       - [X] Add `--auto-capture-workflow` flag to enable automatic test workflow capture
       - [X] Automatically save failing test results on initial failure
       - [X] Implement git hook integration to detect when tests start passing after edits

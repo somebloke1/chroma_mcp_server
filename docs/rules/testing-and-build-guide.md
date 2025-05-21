@@ -4,47 +4,46 @@
 
 ## Testing Guidelines
 
-### Always Use Hatch for Running Tests
+### Always Use Hatch Test Command
 
-Standard tests should **always** be run through Hatch or the provided test script, not directly with pytest:
-
-```bash
-# Preferred: Using the test script (runs test matrix, handles coverage)
-./scripts/test.sh
-
-# Alternative: Using Hatch directly
-hatch run test
-```
-
-### Common Test Commands
+Standard tests should **always** be run via the built-in Hatch `test` command, not directly with pytest or custom wrappers:
 
 ```bash
-# Run all tests with coverage report
-./scripts/test.sh --coverage
+# Run all tests (default matrix, quiet)
+hatch test
 
-# Run tests with HTML coverage report
-./scripts/test.sh --html
+# Run tests with coverage report (via run-cov alias)
+# Select a specific Python version (e.g., Python 3.10):
+hatch -e hatch-test.py3.10 run run-cov
 
-# Force environment rebuild before testing (when dependencies change)
-./scripts/test.sh --clean
-
-# Run specific tests within the test matrix (new feature)
-./scripts/test.sh tests/tools/test_auto_log_chat_bridge.py
+# Generate HTML coverage report (via run-html alias)
+# Select a specific Python version (e.g., Python 3.10):
+hatch -e hatch-test.py3.10 run run-html
 
 # Run tests for a specific Python version only
-./scripts/test.sh --python 3.10
-# or
-./scripts/test.sh --py 3.11
+hatch test --python 3.10
 
-# Run tests with automated test failure/success tracking
-./scripts/test.sh --auto-capture-workflow
-# With coverage and verbose output
-./scripts/test.sh --coverage --verbose --auto-capture-workflow
-# or shorthand
-./scripts/test.sh -c -v --auto-capture-workflow
+# Combine options and target specific paths
+hatch test --cover --python 3.12 tests/tools/
+```
 
-# Combine options
-./scripts/test.sh --coverage --python 3.12 tests/tools/
+### Run tests with automated workflow capture (via run-autocapture alias)
+
+```bash
+# Run tests with coverage report and verbose output automatically captured under the hood
+hatch test --cover -v
+
+# Check for completed test transitions
+hatch run chroma-mcp-client check-test-transitions --workspace-dir .
+
+# Clean up processed test artifacts (specific to the completed workflow file)
+hatch run chroma-mcp-client cleanup-test-artifacts `<path/to/test_workflow_complete_TIMESTAMP.json>`
+# Note: the `<path/to/test_workflow_complete_TIMESTAMP.json>` is the path to the test workflow complete file, which is created by the `run-autocapture` alias and needs to be provided as an argument to the `cleanup-test-artifacts` command
+
+# Or to clean up all completed workflows at once:
+find logs/tests/workflows -type f -name 'test_workflow_complete_*.json' -exec \
+  hatch run chroma-mcp-client cleanup-test-artifacts {} \
+  ;
 ```
 
 ### Automated Test-Driven Learning
@@ -70,6 +69,8 @@ chroma-mcp-client check-test-transitions --workspace-dir .
 
 For complete details, see the [Automated Test Workflow Guide](../usage/automated_test_workflow.md).
 
+**Note:** The `--auto-capture-workflow` behavior is automatically applied on all `hatch test`, `run-cov`, and `cov` invocations, so a separate `run-autocapture` alias is no longer necessary.
+
 ### Avoid Direct pytest Usage
 
 ❌ **Incorrect:**
@@ -81,7 +82,7 @@ python -m pytest tests/
 ✅ **Correct:**
 
 ```bash
-hatch run test
+hatch test
 ```
 
 Using Hatch ensures:
@@ -96,7 +97,7 @@ Using Hatch ensures:
 Build the package using either:
 
 ```bash
-# Using the provided script (cleans first)
+# Using the provided script (cleans first, being deprecated from 0.3.0 onwards)
 ./scripts/build.sh
 
 # Or with Hatch directly
@@ -104,6 +105,14 @@ hatch build
 ```
 
 This generates the distributable files in the `dist/` directory.
+
+**Development Scripts:** Script aliases such as `build-mcp`, `publish-mcp`, and others are provided only when you install the `devtools` extra. Install via:
+
+```bash
+pip install chroma-mcp-server[devtools]
+```
+
+Or enable devtools in Hatch by adding `features = ["devtools"]` to your environment settings.
 
 ## Installing for IDE and CLI Usage
 
