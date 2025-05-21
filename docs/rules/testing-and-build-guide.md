@@ -67,7 +67,7 @@ After running tests with fixes, check for completed workflows:
 chroma-mcp-client check-test-transitions --workspace-dir .
 ```
 
-For complete details, see the [Automated Test Workflow Guide](docs/usage/automated_test_workflow.md).
+For complete details, see the [Automated Test Workflow Guide](../usage/automated_test_workflow.md).
 
 **Note:** The `--auto-capture-workflow` behavior is automatically applied on all `hatch test`, `run-cov`, and `cov` invocations, so a separate `run-autocapture` alias is no longer necessary.
 
@@ -100,7 +100,7 @@ Build the package using either:
 # Using the provided script (cleans first, being deprecated from 0.3.0 onwards)
 ./scripts/build.sh
 
-# Or with Hatch directly
+# Or with Hatch directly (recommended)
 hatch build
 ```
 
@@ -143,10 +143,10 @@ Please note, that for the MCP to be updated within the IDE, ask the user to manu
 Remember to activate the Hatch environment before making changes:
 
 ```bash
-# Using the script
+# Using the script (deprecated from 0.3.0 on)
 ./scripts/develop.sh
 
-# Or directly with Hatch
+# Or directly with Hatch (recommended)
 hatch shell
 ```
 
@@ -155,7 +155,7 @@ hatch shell
 When preparing a new release or updating the version:
 
 1. **Update CHANGELOG.md** with the new version information:
-   - Add a new section at the top with the new version number and date
+   - Add a new section at the top after the `# Changelog` header with the next block of lines, but before the first `## [version] - TIMESTAMP` entry with the new version number and date
    - Document all significant changes under "Added", "Fixed", "Changed", or "Removed" sections
    - Use clear, concise language to describe each change
 
@@ -174,8 +174,6 @@ When preparing a new release or updating the version:
 
 2. Ensure the version number is updated in `pyproject.toml`
 3. Build the package and verify the correct version appears in the build artifacts
-4. Test the new version to ensure all changes work correctly
-
-## Complete Documentation
+4. Test the new version to ensure all changes worComplete Documentation
 
 For comprehensive instructions, refer to the [Developer Guide](../developer_guide.md).

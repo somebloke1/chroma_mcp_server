@@ -199,3 +199,77 @@ def test_publish_hatch_install_fail(mock_run_command, mock_subprocess_run, mock_
     mock_subprocess_run.side_effect = fake_run
     ret = main()
     assert ret == 1
+
+
+@patch("sys.argv", ["publish", "--version", "2.0.0"])
+@patch("chroma_mcp.dev_scripts.publish.check_dist_files", return_value=True)
+@patch("subprocess.run")
+@patch("chroma_mcp.dev_scripts.publish.run_command")
+def test_main_version_flag(mock_run_command, mock_subprocess_run, mock_check_dist):
+    """Test publish main accepts --version flag and runs full flow."""
+    mock_run_command.side_effect = [0, 0, 0, 0]
+    mock_subprocess_run.return_value = MagicMock(returncode=0)
+    ret = main()
+    assert ret == 0
+    # Ensure full publish flow (install deps, tests, build, upload)
+    assert mock_run_command.call_count == 4
+
+
+@patch("sys.argv", ["publish", "--yes", "--skip-tests", "--skip-build"])
+@patch("chroma_mcp.dev_scripts.publish.check_dist_files", return_value=True)
+@patch("subprocess.run")
+@patch("chroma_mcp.dev_scripts.publish.run_command")
+def test_main_yes_flag(mock_run_command, mock_subprocess_run, mock_check_dist):
+    """Test publish main accepts --yes flag and skip flags."""
+    mock_run_command.side_effect = [0, 0]
+    mock_subprocess_run.return_value = MagicMock(returncode=0)
+    ret = main()
+    assert ret == 0
+    # Should only install dependencies and upload
+    calls = mock_run_command.call_args_list
+    assert len(calls) == 2
+    # First call: pip install dependencies
+    assert any("pip" in token for token in calls[0][0][0])
+    # Second call: upload via twine
+    assert any("twine" in token for token in calls[1][0][0])
+
+
+@patch("sys.argv", ["publish"])
+@patch("chroma_mcp.dev_scripts.publish.check_dist_files", return_value=True)
+@patch("subprocess.run")
+@patch("chroma_mcp.dev_scripts.publish.run_command")
+def test_main_interactive_token_prompt(mock_run_command, mock_subprocess_run, mock_check_dist, tmp_path, monkeypatch):
+    """Test publish main prompts for token when .pypirc is missing."""
+    # Simulate no .pypirc in home directory
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    # Ensure no .pypirc file
+    assert not (tmp_path / ".pypirc").exists()
+    # Mock getpass for interactive token input
+    monkeypatch.setattr("chroma_mcp.dev_scripts.publish.getpass.getpass", lambda prompt: "TOKEN123")
+    # Simulate successful run_command calls: deps, tests, build, upload
+    mock_run_command.side_effect = [0, 0, 0, 0]
+    mock_subprocess_run.return_value = MagicMock(returncode=0)
+    ret = main()
+    assert ret == 0
+    # Verify upload call includes provided token credentials
+    upload_call = mock_run_command.call_args_list[-1][0][0]
+    assert "-u" in upload_call and "TOKEN123" in upload_call and "-p" in upload_call
+
+
+@patch("sys.argv", ["publish"])
+@patch("chroma_mcp.dev_scripts.publish.check_dist_files", return_value=True)
+@patch("subprocess.run")
+@patch("chroma_mcp.dev_scripts.publish.run_command")
+def test_main_use_pypirc_config(mock_run_command, mock_subprocess_run, mock_check_dist, tmp_path, monkeypatch):
+    """Test publish main uses .pypirc config when available."""
+    # Simulate .pypirc present in home directory
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    (tmp_path / ".pypirc").write_text("[distutils]")
+    # Simulate successful run_command calls: deps, tests, build, upload
+    mock_run_command.side_effect = [0, 0, 0, 0]
+    mock_subprocess_run.return_value = MagicMock(returncode=0)
+    ret = main()
+    assert ret == 0
+    # Verify upload call uses repository alias (-r)
+    upload_call = mock_run_command.call_args_list[-1][0][0]
+    assert "-r" in upload_call and "pypi" in upload_call

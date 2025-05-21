@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+import getpass
 from chroma_mcp.dev_scripts.project_root import get_project_root
 
 
@@ -32,9 +33,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Publish the chroma-mcp-server package to PyPI")
 
     # Add arguments
-    parser.add_argument(
-        "--repo", default="pypi", choices=["pypi", "testpypi"], help="Repository to publish to (pypi or testpypi)"
-    )
+    parser.add_argument("--repo", default="pypi", choices=["pypi", "testpypi"], help="Repository to publish to (pypi or testpypi)")
+    parser.add_argument("--version", help="Version number being published (optional)")
+    parser.add_argument("-y", "--yes", action="store_true", help="Non-interactive mode, assume yes to prompts")
     parser.add_argument("--skip-build", action="store_true", help="Skip building the package before publishing")
     parser.add_argument("--skip-tests", action="store_true", help="Skip running tests before publishing")
 
@@ -62,7 +63,7 @@ def main() -> int:
     # Run tests if not skipped
     if not args.skip_tests:
         print("Running tests before publishing...")
-        if run_command(["hatch", "run", "test"], cwd=project_root) != 0:
+        if run_command(["hatch", "test"], cwd=project_root) != 0:
             print("Tests failed. Aborting publication.")
             return 1
 
@@ -90,7 +91,14 @@ def main() -> int:
 
     # Upload to PyPI
     print(f"Uploading package to {args.repo}...")
-    if run_command(["twine", "upload", "--repository-url", repo_url, "dist/*"], cwd=project_root) != 0:
+    # Use ~/.pypirc config if available; otherwise prompt for token
+    pypirc_path = Path.home() / ".pypirc"
+    if pypirc_path.exists():
+        cmd = ["twine", "upload", "-r", args.repo, "dist/*"]
+    else:
+        token = getpass.getpass(f"Enter your API token for {args.repo}: ")
+        cmd = ["twine", "upload", "--repository-url", repo_url, "-u", "__token__", "-p", token, "dist/*"]
+    if run_command(cmd, cwd=project_root) != 0:
         print(f"Failed to upload package to {args.repo}.")
         return 1
 

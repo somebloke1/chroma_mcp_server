@@ -89,11 +89,16 @@ def update_changelog(project_root: Path, version: str) -> bool:
 
 def main() -> int:
     """Main entry point for the release script."""
-    parser = argparse.ArgumentParser(description="Prepare a release of the chroma-mcp-server package")
+    parser = argparse.ArgumentParser(description="Guided release process for chroma-mcp-server package")
 
     # Add arguments
     parser.add_argument("--version", help="New version number (e.g., 0.2.19)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
+    parser.add_argument("-y", "--yes", action="store_true", help="Non-interactive mode, assume yes to prompts")
+    parser.add_argument("--skip-testpypi", action="store_true", help="Skip TestPyPI publication phase")
+    parser.add_argument("--test-only", action="store_true", help="Only perform TestPyPI phase and exit")
+    parser.add_argument("--skip-tests", action="store_true", help="Pass --skip-tests to publish commands")
+    parser.add_argument("--skip-build", action="store_true", help="Pass --skip-build to publish commands")
 
     args = parser.parse_args()
 
@@ -138,17 +143,40 @@ def main() -> int:
     else:
         print(f"CHANGELOG.md already contains version {new_version}, skipping update.")
 
-    print(
-        f"""
-Release preparation for v{new_version} completed. Next steps:
-1. Update the CHANGELOG.md with your changes
-2. Build the package with: hatch build
-3. Test the package with: ./scripts/test.sh
-4. Commit and tag the release
-5. Publish the package with: ./scripts/publish.sh
-    """
-    )
+    # Guided Publication Process
+    # Phase 1: TestPyPI
+    if not args.skip_testpypi:
+        print(f"📦 Publishing version {new_version} to TestPyPI...")
+        test_cmd = ["hatch", "run", "publish-mcp", "--repo", "testpypi", "--version", new_version]
+        if args.skip_tests:
+            test_cmd.append("--skip-tests")
+        if args.skip_build:
+            test_cmd.append("--skip-build")
+        if args.yes:
+            test_cmd.append("--yes")
+        if run_command(test_cmd, cwd=project_root) != 0:
+            print("❌ Failed to publish to TestPyPI.")
+            return 1
+        print("✅ Published to TestPyPI.")
+        if args.test_only:
+            print("Exiting after TestPyPI phase (--test-only specified).")
+            return 0
+    else:
+        print("⏩ Skipping TestPyPI phase.")
 
+    # Phase 2: Production PyPI
+    print(f"📦 Publishing version {new_version} to Production PyPI...")
+    prod_cmd = ["hatch", "run", "publish-mcp", "--repo", "pypi", "--version", new_version]
+    if args.skip_tests:
+        prod_cmd.append("--skip-tests")
+    if args.skip_build:
+        prod_cmd.append("--skip-build")
+    if args.yes:
+        prod_cmd.append("--yes")
+    if run_command(prod_cmd, cwd=project_root) != 0:
+        print("❌ Failed to publish to Production PyPI.")
+        return 1
+    print("✅ Published to Production PyPI.")
     return 0
 
 

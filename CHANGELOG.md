@@ -3,6 +3,24 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.21] - 2025-05-21
+
+**Changed:**
+
+- Removed `develop.py` script for interactive Hatch shell development, as it's being replaced by `hatch shell`
+- Updated Developer Guide to note deprecation of `curl` and `jq` in v0.3.0
+
+## [0.2.20] - 2025-05-21
+
+**Added:**
+
+- Introduced a guided release process in `src/chroma_mcp/dev_scripts/release.py` with interactive flags (`--yes`, `--skip-testpypi`, `--test-only`, `--skip-tests`, `--skip-build`) and automated TestPyPI and Production publication via `hatch run publish-mcp`.
+- Implemented enhanced changelog insertion logic in `release.py` to insert new entries before existing ones.
+
+**Changed:**
+
+- Updated `TestWorkflowManager.setup_git_hooks` in `src/chroma_mcp_client/validation/test_workflow.py` to use `hatch test --cover -v` for pre-push, `hatch run chroma-mcp-client index` for post-commit indexing, and `chroma-mcp-client check-test-transitions` for transition checks.
+
 ## [0.2.19] - 2025-05-21
 
 **Added:**

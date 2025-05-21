@@ -105,7 +105,7 @@ Build the package using either:
 # Using the provided script (cleans first, being deprecated from 0.3.0 onwards)
 ./scripts/build.sh
 
-# Or with Hatch directly
+# Or with Hatch directly (recommended)
 hatch build
 ```
 
@@ -148,10 +148,10 @@ Please note, that for the MCP to be updated within the IDE, ask the user to manu
 Remember to activate the Hatch environment before making changes:
 
 ```bash
-# Using the script
+# Using the script (deprecated from 0.3.0 on)
 ./scripts/develop.sh
 
-# Or directly with Hatch
+# Or directly with Hatch (recommended)
 hatch shell
 ```
 
@@ -160,7 +160,7 @@ hatch shell
 When preparing a new release or updating the version:
 
 1. **Update CHANGELOG.md** with the new version information:
-   - Add a new section at the top with the new version number and date
+   - Add a new section at the top after the `# Changelog` header with the next block of lines, but before the first `## [version] - TIMESTAMP` entry with the new version number and date
    - Document all significant changes under "Added", "Fixed", "Changed", or "Removed" sections
    - Use clear, concise language to describe each change
 

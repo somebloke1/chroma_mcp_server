@@ -11,7 +11,7 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
 1. **Prerequisites:**
     * Python 3.10 or higher
     * Git
-    * `curl` and `jq` (required by the `release.sh` script)
+    * `curl` and `jq` (required by the `release.sh` script, will be deprecated in v0.3.0)
     * Hatch (Install globally if you don't have it: `pip install hatch`)
 
 2. **Clone the Repository:**
@@ -21,13 +21,9 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
     cd chroma_mcp_server
     ```
 
-3. **Activate Hatch Environment:** Use the provided script or run `hatch shell` directly:
+3. **Activate Hatch Environment:** Run the Hatch shell directly:
 
     ```bash
-    # Using the script
-    ./scripts/develop.sh
-
-    # Or directly with Hatch
     hatch shell
     ```
 
@@ -81,7 +77,7 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
 
 **DEPRECATION NOTICE:** The scripts in the `scripts/` directory are deprecated and will be removed in version 0.3.0. Please use the devtools commands installed with the Python package via Hatch:
 
-* `hatch run develop-mcp`: Activates the Hatch development environment (replaces `develop.sh`).
+* `hatch shell`: Activates the Hatch environment (replaces `develop.sh`).
 * `hatch run test-mcp`: Runs tests with coverage and other options (replaces `test.sh`).
 * `hatch run build-mcp`: Cleans the build directory and builds the package wheel (replaces `build.sh`).
 * `hatch run publish-mcp`: Publishes the package to PyPI or TestPyPI (replaces `publish.sh`).
@@ -89,7 +85,6 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
 
 **Legacy scripts (deprecated):**
 
-* `./scripts/develop.sh`
 * `./scripts/test.sh`
 * `./scripts/build.sh`
 * `./scripts/publish.sh`
@@ -98,7 +93,7 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
 
 ## Common Development Workflow
 
-1. **Activate Environment:** Run `./scripts/develop.sh` or `hatch shell`.
+1. **Activate Environment:** Run `hatch shell`.
 2. **Make Code Changes:** Edit the source code in the `src/` directory.
 3. **Rebuild & Reinstall (Crucial!):** After making changes, especially to the server logic, CLI commands, or dependencies, you *must* rebuild and reinstall the package within the Hatch environment for the changes to take effect when using `hatch run` commands or potentially the development server script. Use:
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.2.19"
+version = "0.2.20"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -102,7 +102,6 @@ validate-evidence = "chroma_mcp_client.scripts.validate_evidence:main"
 build-mcp = "chroma_mcp.dev_scripts.build:main"
 release-mcp = "chroma_mcp.dev_scripts.release:main"
 publish-mcp = "chroma_mcp.dev_scripts.publish:main"
-develop-mcp = "chroma_mcp.dev_scripts.develop:main"
 
 [project.entry-points."smithery.mcps"]
 chroma = "chroma_mcp.cli:main"
@@ -140,7 +139,6 @@ validate = "python -m chroma_mcp_client.scripts.validate_evidence {args}"
 build = "python -m chroma_mcp.dev_scripts.build {args}"
 release = "python -m chroma_mcp.dev_scripts.release {args}"
 publish = "python -m chroma_mcp.dev_scripts.publish {args}"
-develop = "python -m chroma_mcp.dev_scripts.develop {args}"
 
 [tool.hatch.envs.hatch-test]
 dependencies = [

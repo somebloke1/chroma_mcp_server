@@ -82,3 +82,86 @@ def test_main_dry_run(mock_update_changelog, mock_update_version, mock_get_curre
     assert ret == 0
     mock_update_version.assert_not_called()
     mock_update_changelog.assert_not_called()
+
+
+@patch("sys.argv", ["release.py"])
+@patch("chroma_mcp.dev_scripts.release.get_current_version")
+@patch("chroma_mcp.dev_scripts.release.update_version")
+@patch("chroma_mcp.dev_scripts.release.update_changelog")
+@patch("chroma_mcp.dev_scripts.release.run_command")
+def test_main_guided_default(mock_run_command, mock_update_changelog, mock_update_version, mock_get_current_version):
+    """Test guided release default flow without skip flags."""
+    mock_get_current_version.return_value = "1.0.0"
+    mock_update_version.return_value = True
+    mock_update_changelog.return_value = True
+    mock_run_command.return_value = 0
+    ret = main()
+    assert ret == 0
+    calls = [args[0] for (args, _) in mock_run_command.call_args_list]
+    assert len(calls) == 2
+    # First call is TestPyPI
+    assert calls[0][:3] == ["hatch", "run", "publish-mcp"]
+    assert "--repo" in calls[0] and "testpypi" in calls[0]
+    # Second call is Production
+    assert calls[1][:3] == ["hatch", "run", "publish-mcp"]
+    assert "--repo" in calls[1] and "pypi" in calls[1]
+
+
+@patch("sys.argv", ["release.py", "--skip-testpypi"])
+@patch("chroma_mcp.dev_scripts.release.get_current_version")
+@patch("chroma_mcp.dev_scripts.release.update_version")
+@patch("chroma_mcp.dev_scripts.release.update_changelog")
+@patch("chroma_mcp.dev_scripts.release.run_command")
+def test_main_guided_skip_testpypi(mock_run_command, mock_update_changelog, mock_update_version, mock_get_current_version):
+    """Test guided release with --skip-testpypi."""
+    mock_get_current_version.return_value = "1.0.0"
+    mock_update_version.return_value = True
+    mock_update_changelog.return_value = True
+    mock_run_command.return_value = 0
+    ret = main()
+    assert ret == 0
+    calls = [args[0] for (args, _) in mock_run_command.call_args_list]
+    assert len(calls) == 1
+    # Only Production call
+    assert calls[0][:3] == ["hatch", "run", "publish-mcp"]
+    assert "--repo" in calls[0] and "pypi" in calls[0]
+
+
+@patch("sys.argv", ["release.py", "--test-only"])
+@patch("chroma_mcp.dev_scripts.release.get_current_version")
+@patch("chroma_mcp.dev_scripts.release.update_version")
+@patch("chroma_mcp.dev_scripts.release.update_changelog")
+@patch("chroma_mcp.dev_scripts.release.run_command")
+def test_main_guided_test_only(mock_run_command, mock_update_changelog, mock_update_version, mock_get_current_version):
+    """Test guided release with --test-only."""
+    mock_get_current_version.return_value = "1.0.0"
+    mock_update_version.return_value = True
+    mock_update_changelog.return_value = True
+    mock_run_command.return_value = 0
+    ret = main()
+    assert ret == 0
+    calls = [args[0] for (args, _) in mock_run_command.call_args_list]
+    assert len(calls) == 1
+    # Only TestPyPI call
+    assert calls[0][:3] == ["hatch", "run", "publish-mcp"]
+    assert "--repo" in calls[0] and "testpypi" in calls[0]
+
+
+@patch("sys.argv", ["release.py", "--skip-tests", "--skip-build"])
+@patch("chroma_mcp.dev_scripts.release.get_current_version")
+@patch("chroma_mcp.dev_scripts.release.update_version")
+@patch("chroma_mcp.dev_scripts.release.update_changelog")
+@patch("chroma_mcp.dev_scripts.release.run_command")
+def test_main_guided_skip_tests_build(mock_run_command, mock_update_changelog, mock_update_version, mock_get_current_version):
+    """Test guided release with --skip-tests and --skip-build flags."""
+    mock_get_current_version.return_value = "1.0.0"
+    mock_update_version.return_value = True
+    mock_update_changelog.return_value = True
+    mock_run_command.return_value = 0
+    ret = main()
+    assert ret == 0
+    calls = [args[0] for (args, _) in mock_run_command.call_args_list]
+    assert len(calls) == 2
+    # Both calls should include skip flags
+    for call in calls:
+        assert "--skip-tests" in call and "--skip-build" in call

@@ -244,7 +244,7 @@ echo "Custom operation..."
         # Verify both standard components are added when missing
         assert "Running post-commit hook: Indexing changed files" in updated_content
         assert "Checking for test transitions" in updated_content
-        assert "python -m chroma_mcp_client.cli check-test-transitions" in updated_content
+        assert "chroma-mcp-client check-test-transitions" in updated_content
 
     def test_setup_git_hooks_with_partial_components(self, tmp_path):
         """Test setup_git_hooks when hook exists with only some components."""
@@ -264,7 +264,7 @@ echo "Custom operation..."
 
 # Added by TestWorkflowManager for test transition tracking
 echo "Checking for test transitions..."
-python -m chroma_mcp_client.cli check-test-transitions
+chroma-mcp-client check-test-transitions
 """
         with open(post_commit_path, "w") as f:
             f.write(existing_content)
@@ -292,11 +292,11 @@ python -m chroma_mcp_client.cli check-test-transitions
 
         # Verify test transition check is still there
         assert "Checking for test transitions" in updated_content
-        assert "python -m chroma_mcp_client.cli check-test-transitions" in updated_content
+        assert "chroma-mcp-client check-test-transitions" in updated_content
 
         # Verify indexing code was added
         assert "Running post-commit hook: Indexing changed files" in updated_content
-        assert "hatch run python -m chroma_mcp_client.cli index" in updated_content
+        assert "hatch run chroma-mcp-client index" in updated_content
 
     def test_setup_git_hooks_with_all_components(self, tmp_path):
         """Test setup_git_hooks when hook exists with all components already."""
@@ -320,7 +320,7 @@ fi
 
 # Added by TestWorkflowManager for test transition tracking
 echo "Checking for test transitions..."
-python -m chroma_mcp_client.cli check-test-transitions
+chroma-mcp-client check-test-transitions
 """
         with open(post_commit_path, "w") as f:
             f.write(existing_content)
