@@ -4,6 +4,9 @@ This section contains detailed guides on how to use specific features and workfl
 
 ## Available Guides
 
+- **[Daily Workflow Integration](./daily_workflow_integration.md)**
+  - Explains how to integrate the `chroma-mcp-server` ecosystem into your daily development workflow.
+
 - **[Automated Test Workflow](./automated_test_workflow.md)**
   - Explains the fully automated test-driven learning workflow, including setup, how it captures test failures and successes, and its integration with Git hooks and ChromaDB for validated learning promotion.
 
