@@ -19,14 +19,16 @@ def run_command(cmd: list[str], cwd: Path = None) -> int:
     # Create a copy of the command for logging to avoid modifying the original
     log_cmd = list(cmd)
 
-    # Sanitize command for logging: redact token if -p is present
-    try:
-        p_index = log_cmd.index("-p")
-        if p_index + 1 < len(log_cmd):  # Ensure there's an argument after -p
-            log_cmd[p_index + 1] = "<TOKEN_REDACTED>"
-    except ValueError:
-        # '-p' not found, no token to redact in this specific way
-        pass
+    # Sanitize command for logging: redact sensitive data
+    sensitive_flags = ["-p", "--password", "--token"]
+    for flag in sensitive_flags:
+        try:
+            flag_index = log_cmd.index(flag)
+            if flag_index + 1 < len(log_cmd):  # Ensure there's an argument after the flag
+                log_cmd[flag_index + 1] = "<REDACTED>"
+        except ValueError:
+            # Flag not found, continue to the next one
+            continue
 
     # Further sanitize long commands for display purposes, if necessary,
     # after specific redaction has occurred.
@@ -35,7 +37,10 @@ def run_command(cmd: list[str], cwd: Path = None) -> int:
     else:
         display_cmd_str = " ".join(log_cmd)
 
-    print(f"Running: {display_cmd_str}")
+    if "<REDACTED>" in display_cmd_str:
+        print("Running: [Command contains sensitive data, redacted]")
+    else:
+        print(f"Running: {display_cmd_str}")
     result = subprocess.run(cmd, cwd=cwd)
     return result.returncode
 
