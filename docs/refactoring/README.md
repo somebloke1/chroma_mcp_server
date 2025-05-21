@@ -46,10 +46,10 @@ flowchart LR
     classDef infra fill:#483D8B,stroke:#333,stroke-width:1px,color:white
     
     %% Timeline flow
-    P1[Phase 1:\nBasic RAG Pipeline]:::phase1 --> P2[Phase 2:\nEnhanced Context]:::phase2 --> P3[Phase 3:\nThinking Tools &\nTest-Driven Learning]:::phase3 --> P4[Phase 4:\nEnterprise Readiness]:::phase4
+    P1[Phase 1: Basic RAG Pipeline]:::phase1 --> P2[Phase 2: Enhanced Context]:::phase2 --> P3[Phase 3: Thinking Tools & Test-Driven Learning]:::phase3 --> P4[Phase 4: Enterprise Readiness]:::phase4
     
     %% Infrastructure improvements
-    INFRA[Infrastructure\nImprovements]:::infra
+    INFRA[Infrastructure Improvements]:::infra
     INFRA --> CR[CLI Renaming]:::component
     INFRA --> TA[Test Artifacts Organization]:::component
     INFRA --> SSM[Shell Script Migration]:::component

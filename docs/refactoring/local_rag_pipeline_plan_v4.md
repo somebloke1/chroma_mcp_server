@@ -686,10 +686,9 @@ This error-driven learning integration will transform our derived learnings coll
     - [X] Add validation reporting options to existing CLI tools
 17. [X] **Automate the Test-Driven Learning Workflow:**
     - [X] **Enhance `hatch-test` environment scripts for full automation:**
-      - [X] Add `--auto-capture-workflow` flag to enable automatic test workflow capture
-      - [X] Automatically save failing test results on initial failure
-      - [X] Implement git hook integration to detect when tests start passing after edits
-      - [X] Add post-success validation to automatically compare before/after results
+      - [X] Add `--auto-capture-workflow` flag to `pytest` calls in `pyproject.toml` to enable the automatic test workflow capture pytest plugin.
+      - [X] Automatically save failing test results on initial failure (handled by the plugin)
+      - [X] Implement git hook integration to detect when tests start passing after edits (part of the plugin and setup command)
     - [X] **Create bidirectional linking with chat history:**
       - [X] Auto-detect which chat sessions influenced code that fixed tests
       - [X] Store references to chat IDs in test results

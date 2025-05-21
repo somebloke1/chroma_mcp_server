@@ -24,7 +24,7 @@ flowchart TD
     A[Developer] -- Runs Tests --> B["./scripts/test.sh -c -v"]
     
     subgraph "Test Result Collection"
-        B -- Generates --> C["JUnit XML\ntest-results.xml"]
+        B -- Generates --> C["JUnit XML test-results.xml"]
         C -- Parsed By --> D[test_collector.py]
         D -- Processes --> E["Structured Test Data"]
         E --> F["log-test-results CLI"]
@@ -39,19 +39,19 @@ flowchart TD
     end
     
     subgraph "Validation Process"
-        L["Test Status\nChange Detection"] -- Identifies --> M["Failure → Success\nTransitions"]
+        L["Test Status Change Detection"] -- Identifies --> M["Failure → Success Transitions"]
         M -- Creates --> N["TestTransitionEvidence"]
         N -- Contributes To --> O["Validation Score"]
         P["Runtime Errors"] -- Creates --> Q["RuntimeErrorEvidence"]
         Q -- Contributes To --> O
-        R["Code Quality\nMetrics"] -- Creates --> S["CodeQualityEvidence"]
+        R["Code Quality Metrics"] -- Creates --> S["CodeQualityEvidence"]
         S -- Contributes To --> O
     end
     
     subgraph "Learning Promotion"
-        O --> T["analyze-chat-history\nwith Validation"]
-        T -- Prioritizes --> U["High-Value Solutions\nwith Evidence"]
-        U --> V["review-and-promote\nInterface"]
+        O --> T["analyze-chat-history with Validation"]
+        T -- Prioritizes --> U["High-Value Solutions with Evidence"]
+        U --> V["review-and-promote Interface"]
         V -- Developer Approval --> W[(ChromaDB: derived_learnings_v1)]
     end
 

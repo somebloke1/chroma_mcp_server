@@ -94,11 +94,19 @@ Comprehensive documentation is available in the [docs directory](docs/):
 - [Main Documentation](docs/README.md) - Complete guide to installation, configuration, and usage
 - [Getting Started](docs/getting_started.md) - Detailed setup instructions
 - [Developer Guide](docs/developer_guide.md) - For contributors and developers
-- [Server Logging](docs/logging/server_logging.md) - Details on the improved logging system
+- [IDE & Tool Integration Guides](docs/integration/README.md) - Guides for integrating with IDEs and other tools.
+- [Automated Chat Logging](docs/integration/automated_chat_logging.md) - Enriched chat history with bidirectional linking
+- [Usage Guides](docs/usage/README.md) - Detailed guides on how to use specific features and workflows.
 - [Enhanced Context Capture](docs/usage/enhanced_context_capture.md) - Details on code diff extraction and tool sequencing
 - [Semantic Code Chunking](docs/usage/semantic_chunking.md) - Logic-preserving code chunking for meaningful retrieval
-- [Automated Chat Logging](docs/integration/automated_chat_logging.md) - Enriched chat history with bidirectional linking
 - [Automated Test Workflow](docs/usage/automated_test_workflow.md) - Test-driven learning with automatic validation
+- [Thinking Tools & Utilities](docs/thinking_tools/README.md) - Documentation for structured thinking and memory tools.
+- [Client and Developer Scripts](docs/scripts/README.md) - Guides for CLI tools and developer scripts.
+- [Logging Documentation](docs/logging/README.md) - Overview of logging features and configuration.
+- [Server Logging](docs/logging/server_logging.md) - Details on the improved logging system
+- [Automation Documentation](docs/automation/README.md) - Guides on automating development tasks.
+- [Project Rules & Guidelines](docs/rules/README.md) - Development rules, guidelines, and best practices.
+- [Refactoring Plans](docs/refactoring/README.md) - Documentation on various refactoring efforts and architectural plans.
 - [API Reference](docs/api_reference.md) - Available MCP tools and parameters
 
 ## License

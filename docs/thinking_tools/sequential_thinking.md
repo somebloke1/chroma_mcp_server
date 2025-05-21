@@ -28,11 +28,11 @@ flowchart TD
         E --> F["Thought 4: Decision & Rationale"]
     end
     
-    F --> G["Implementation Based on\nStructured Reasoning"]
+    F --> G["Implementation Based on Structured Reasoning"]
     
-    H[Future Developer] --> I["Query: Why did we\nchoose this approach?"]
-    I --> J["Retrieve Sequential\nThought Process"]
-    J --> K["Complete Understanding\nof Decision Logic"]
+    H[Future Developer] --> I["Query: Why did we choose this approach?"]
+    I --> J["Retrieve Sequential Thought Process"]
+    J --> K["Complete Understanding of Decision Logic"]
     K --> H
 
     style A fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
@@ -93,7 +93,7 @@ flowchart TD
     F -- Returns To --> H
     G -- Returns To --> H
     
-    H -- "Incorporates Prior\nThought Patterns" --> I["Enhanced Response"]
+    H -- "Incorporates Prior Thought Patterns" --> I["Enhanced Response"]
     I --> J[Developer]
     
     J -- "Captures New Thoughts" --> A
@@ -200,7 +200,7 @@ flowchart TD
     E --> G["Thought 5A: Path A Conclusion"]
     F --> H["Thought 5B: Path B Conclusion"]
     
-    G --> I["Final Decision: Selected Path A\nwith full reasoning history"]
+    G --> I["Final Decision: Selected Path A with full reasoning history"]
 
     style A fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
     style B fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px
@@ -381,21 +381,21 @@ Sequential Thinking works best as part of the broader "Second Brain" ecosystem:
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
-    A[(ChromaDB: thinking_sessions_v1)] -- "Reasoning\nPatterns" --> B[(ChromaDB: derived_learnings_v1)]
-    C[(ChromaDB: codebase_v1)] -- "Context For\nThought" --> A
-    D[(ChromaDB: chat_history_v1)] -- "Discussion\nContext" --> A
+    A[(ChromaDB: thinking_sessions_v1)] -- "Reasoning Patterns" --> B[(ChromaDB: derived_learnings_v1)]
+    C[(ChromaDB: codebase_v1)] -- "Context For Thought" --> A
+    D[(ChromaDB: chat_history_v1)] -- "Discussion Context" --> A
     
     B --> E[AI Assistant]
     C --> E
     D --> E
     A --> E
     
-    E -- "Enhanced Understanding:\nWhat + How + Why" --> F[Developer]
+    E -- "Enhanced Understanding: What + How + Why" --> F[Developer]
     
-    F -- "Explicit\nReasoning" --> A
-    F -- "Code\nChanges" --> C
-    F -- "AI\nInteractions" --> D
-    F -- "Golden\nInsights" --> B
+    F -- "Explicit Reasoning" --> A
+    F -- "Code Changes" --> C
+    F -- "AI Interactions" --> D
+    F -- "Golden Insights" --> B
 
     style A fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
     style B fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
@@ -457,28 +457,28 @@ Sequential Thinking naturally complements the test-driven learning flow describe
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
-    A[Complex Problem] --> B["Sequential Thinking\nAnalysis"]
-    A --> C["Test Design\nImplementation"]
+    A[Complex Problem] --> B["Sequential Thinking Analysis"]
+    A --> C["Test Design Implementation"]
     
     B -- "Informs" --> C
     
-    C -- "Initially Fails" --> D["Test Results\nCollection"]
+    C -- "Initially Fails" --> D["Test Results Collection"]
     
-    D -- "Evidence" --> E["Implementation\nGuided by Reasoning"]
+    D -- "Evidence" --> E["Implementation Guided by Reasoning"]
     
     B -- "Guides" --> E
     
     E --> F["Improved Implementation"]
     
-    F -- "Now Passes" --> G["Updated Test\nResults"]
+    F -- "Now Passes" --> G["Updated Test Results"]
     
-    B -- "Final Thoughts" --> H["Solution\nValidation"]
+    B -- "Final Thoughts" --> H["Solution Validation"]
     
-    G -- "Empirical\nEvidence" --> H
+    G -- "Empirical Evidence" --> H
     
-    H --> I["Complete Knowledge Package:\nReasoning + Evidence"]
+    H --> I["Complete Knowledge Package: Reasoning + Evidence"]
     
-    I --> J["High-Quality\nDerived Learning"]
+    I --> J["High-Quality Derived Learning"]
 
     style A fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
     style B fill:#AB47BC,stroke:#E6E6E6,stroke-width:1px

@@ -3,6 +3,30 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.24] - 2025-05-21
+
+**Added:**
+
+- Made the `--auto-capture-workflow` pytest plugin for test transition tracking distributable with the `chroma-mcp-server` package.
+- Created comprehensive `README.md` overviews for documentation subfolders: `docs/integration/`, `docs/logging/`, `docs/automation/`, `docs/rules/`, `docs/scripts/`, and `docs/usage/`.
+- Added new documentation page `docs/integration/pytest_plugin_usage.md` explaining how to use the newly distributable pytest plugin.
+
+**Changed:**
+
+- Updated the main project `README.md` and `docs/README.md` to include links to new documentation subfolder overviews and reordered existing links for better relevance.
+- Updated `docs/refactoring/local_rag_pipeline_plan_v4.md` and `docs/refactoring/shell_script_migration_plan.md` to reflect the integration of the `--auto-capture-workflow` pytest plugin.
+- Pinned `transformers` dependency to `~=4.41.0` in `pyproject.toml`.
+- Set `TOKENIZERS_PARALLELISM=false` for the `hatch-test` environment in `pyproject.toml` to resolve parallelism issues with tokenizers.
+
+**Fixed:**
+
+- Resolved `NameError: name 'Replicate' is not defined` that occurred during test runs by pinning the `transformers` dependency and disabling tokenizer parallelism.
+- Ensured the pytest plugin, specified via the `pytest11` entry point in `pyproject.toml`, is correctly loaded and recognized by `pytest` when tests are run via `hatch test`.
+
+**Removed:**
+
+- Removed `develop.py` script for interactive Hatch shell development, as it's being replaced by `hatch shell`
+
 ## [0.2.23] - 2025-05-21
 
 **Security:**

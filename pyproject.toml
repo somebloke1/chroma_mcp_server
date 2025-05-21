@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.2.23"
+version = "0.2.24"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -35,6 +35,7 @@ dependencies = [
     "numpy<2.0.0", # Fallback for torch 2.2.2 (version loaded by sentence-transformers) dependents on numpy<2.0.0
     "onnxruntime>=1.21.0", # For default cpu-based embeddings generation
     "sentence-transformers>=4.1.0", # Only needed with accurate cpu-based embeddings
+    "transformers~=4.41.0", # Pinning transformers version more specifically
 ]
 
 [project.optional-dependencies]
@@ -106,6 +107,9 @@ publish-mcp = "chroma_mcp.dev_scripts.publish:main"
 [project.entry-points."smithery.mcps"]
 chroma = "chroma_mcp.cli:main"
 
+[project.entry-points."pytest11"]
+chroma_mcp_workflow = "chroma_mcp_client.pytest_plugin"
+
 [project.urls]
 Homepage = "https://github.com/djm81/chroma_mcp_server"
 Repository = "https://github.com/djm81/chroma_mcp_server.git"
@@ -154,6 +158,9 @@ dependencies = [
 
 # Add dev-mode setting
 dev-mode = true
+
+[tool.hatch.envs.hatch-test.env-vars]
+TOKENIZERS_PARALLELISM = "false"
 
 [tool.hatch.envs.hatch-test.scripts]
 run = "pytest --timeout=5 -p no:xdist --junitxml=logs/tests/junit/test-results.xml --auto-capture-workflow {args}"
@@ -225,8 +232,6 @@ packages = [
     "src/chroma_mcp",
     "src/chroma_mcp_client", 
     "src/chroma_mcp_thinking",
-    "src/chroma_mcp/dev_scripts",
-    "src/chroma_mcp_client/scripts"
 ]
 
 [tool.hatch.envs.default.env-vars]
