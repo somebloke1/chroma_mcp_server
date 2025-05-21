@@ -191,8 +191,8 @@ The final score is a weighted average of these components, normalized to a 0-1 r
 
 See the CLI command reference for detailed parameter information:
 
-- [log-error](../scripts/log-error.md)
-- [log-test-results](../scripts/log-test-results.md)
-- [log-quality-check](../scripts/log-quality-check.md)
-- [validate-evidence](../scripts/validate-evidence.md)
-- [promote-learning](../scripts/promote-learning.md)
+- [log-error](docs/scripts/log-error.md)
+- [log-test-results](docs/scripts/log-test-results.md)
+- [log-quality-check](docs/scripts/log-quality-check.md)
+- [validate-evidence](docs/scripts/validate-evidence.md)
+- [promote-learning](docs/scripts/promote-learning.md)

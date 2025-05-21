@@ -4,7 +4,7 @@ This guide provides examples of how to integrate the `record-thought` console sc
 
 The goal is typically to create a command or keybinding that runs `record-thought` and passes the currently selected text (or prompts for input) as the thought content.
 
-Refer to the [record-thought script documentation](../scripts/record-thought.md) for command-line options.
+Refer to the [record-thought script documentation](docs/scripts/record-thought.md) for command-line options.
 
 ## Prerequisites
 

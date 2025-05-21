@@ -67,7 +67,7 @@ After running tests with fixes, check for completed workflows:
 chroma-mcp-client check-test-transitions --workspace-dir .
 ```
 
-For complete details, see the [Automated Test Workflow Guide](../usage/automated_test_workflow.md).
+For complete details, see the [Automated Test Workflow Guide](docs/usage/automated_test_workflow.md).
 
 **Note:** The `--auto-capture-workflow` behavior is automatically applied on all `hatch test`, `run-cov`, and `cov` invocations, so a separate `run-autocapture` alias is no longer necessary.
 

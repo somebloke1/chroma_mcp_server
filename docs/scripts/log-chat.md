@@ -83,7 +83,7 @@ Example:
 ]
 ```
 
-> **Note:** For a complete specification of the tool_usage format, including advanced usage, programmatic examples, and technical details, see the [Tool Usage Format Specification](../usage/tool_usage_format.md).
+> **Note:** For a complete specification of the tool_usage format, including advanced usage, programmatic examples, and technical details, see the [Tool Usage Format Specification](docs/usage/tool_usage_format.md).
 
 ## Expected Output
 

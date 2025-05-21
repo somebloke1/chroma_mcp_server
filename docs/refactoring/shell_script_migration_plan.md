@@ -36,7 +36,7 @@ These scripts are moved to `src/chroma_mcp/dev_scripts/`:
 - [x] `release.py` - Converted from `scripts/release.sh`
 - [x] `publish.py` - Converted from `scripts/publish.sh`
 
-Usage of `hatch test` command is described and needs to be updated in the [Testing and Build Guide](../rules/testing-and-build-guide.md) to reflect the new way of running the tests including coverage, HTML report, and auto-capture workflow.
+Usage of `hatch test` command is described and needs to be updated in the [Testing and Build Guide](docs/rules/testing-and-build-guide.md) to reflect the new way of running the tests including coverage, HTML report, and auto-capture workflow.
 
 ### Test Coverage
 

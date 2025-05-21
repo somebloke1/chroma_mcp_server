@@ -65,4 +65,4 @@
 ]
 ```
 
-For more details on the tool_usage format, see the [Tool Usage Format Specification](../usage/tool_usage_format.md).
+For more details on the tool_usage format, see the [Tool Usage Format Specification](docs/usage/tool_usage_format.md).

@@ -217,7 +217,7 @@ This creates:
 - A `pre-push` hook that runs tests with the `--auto-capture-workflow` flag
 - A `post-commit` hook that checks for test transitions
 
-> **Note**: The setup process preserves any existing content in your post-commit hook, particularly codebase indexing functionality. If you already have a post-commit hook for indexing files (as described in [Automating Codebase Indexing with Git Hooks](../automation/git_hooks.md)), the test transition check will be appended rather than replacing your existing hook.
+> **Note**: The setup process preserves any existing content in your post-commit hook, particularly codebase indexing functionality. If you already have a post-commit hook for indexing files (as described in [Automating Codebase Indexing with Git Hooks](docs/automation/git_hooks.md)), the test transition check will be appended rather than replacing your existing hook.
 
 You can also specify a custom workspace directory:
 

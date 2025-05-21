@@ -156,5 +156,5 @@ All changes have been implemented:
 
 ## References and Related Documents
 
-- [Automated Test Workflow Guide](../usage/automated_test_workflow.md)
-- [Test-Driven Learning Documentation](../thinking_tools/test_driven_learning.md)
+- [Automated Test Workflow Guide](docs/usage/automated_test_workflow.md)
+- [Test-Driven Learning Documentation](docs/thinking_tools/test_driven_learning.md)

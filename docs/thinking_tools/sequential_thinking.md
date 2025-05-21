@@ -452,7 +452,7 @@ record-thought --session-id $SESSION_ID "Thought 3 of 3: Solution Validation: Th
 
 ## Connecting Sequential Thinking with Test-Driven Learning
 
-Sequential Thinking naturally complements the test-driven learning flow described in [Test Result Integration](../usage/test_result_integration.md). By combining structured reasoning with empirical test evidence, you create a powerful knowledge acquisition system:
+Sequential Thinking naturally complements the test-driven learning flow described in [Test Result Integration](docs/usage/test_result_integration.md). By combining structured reasoning with empirical test evidence, you create a powerful knowledge acquisition system:
 
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
