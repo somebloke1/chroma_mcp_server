@@ -16,11 +16,26 @@ from chroma_mcp.dev_scripts.project_root import get_project_root
 
 def run_command(cmd: list[str], cwd: Path = None) -> int:
     """Run a shell command and return its exit code."""
-    if len(cmd) > 5:
-        sanitized_cmd = cmd[:5] + ["..."]
+    # Create a copy of the command for logging to avoid modifying the original
+    log_cmd = list(cmd)
+
+    # Sanitize command for logging: redact token if -p is present
+    try:
+        p_index = log_cmd.index("-p")
+        if p_index + 1 < len(log_cmd):  # Ensure there's an argument after -p
+            log_cmd[p_index + 1] = "<TOKEN_REDACTED>"
+    except ValueError:
+        # '-p' not found, no token to redact in this specific way
+        pass
+
+    # Further sanitize long commands for display purposes, if necessary,
+    # after specific redaction has occurred.
+    if len(log_cmd) > 7:  # Adjusted length for better visibility, can be tuned
+        display_cmd_str = " ".join(log_cmd[:7]) + " ..."
     else:
-        sanitized_cmd = cmd
-    print(f"Running: {' '.join(sanitized_cmd)}")
+        display_cmd_str = " ".join(log_cmd)
+
+    print(f"Running: {display_cmd_str}")
     result = subprocess.run(cmd, cwd=cwd)
     return result.returncode
 

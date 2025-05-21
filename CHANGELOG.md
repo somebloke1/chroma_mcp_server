@@ -3,6 +3,12 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.23] - 2025-05-21
+
+**Security:**
+
+- Fixed potential PyPI token exposure in `src/chroma_mcp/dev_scripts/publish.py` by improving the sanitization logic in the `run_command` function. The function now explicitly redacts the argument following a `-p` flag before logging the command.
+
 ## [0.2.22] - 2025-05-21
 
 **Fixed:**
