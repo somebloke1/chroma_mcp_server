@@ -112,10 +112,10 @@ If both are set, the command-line argument takes precedence.
 flowchart TD
     A[User/AI Interaction] --> B["Record Thought via MCP"]
     B --> C{"Embedding Function"}
-    C --> D[(ChromaDB Collection:\nsequential_thoughts_v1)]
+    C --> D[(ChromaDB Collection: sequential_thoughts_v1)]
     B --> D
 
-    E[AI Needs Context] --> F["Query via MCP for\nrelevant past info"]
+    E[AI Needs Context] --> F["Query via MCP for relevant past info"]
     F --> C
     F --> G["Query ChromaDB"]
     C --> G

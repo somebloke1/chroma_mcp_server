@@ -23,7 +23,7 @@ flowchart TD
     B --> C[AI Assistant]
     
     subgraph "Context Capture Process"
-        C --> D["Read Files/\nRetrieve Context"]
+        C --> D["Read Files & Retrieve Context"]
         D --> E["Generate Solution"]
         E --> F["Edit Files"]
         F --> G["auto_log_chat Rule"]
@@ -43,11 +43,11 @@ flowchart TD
     end
     
     N --> O[(ChromaDB: chat_history_v1)]
-    N -- "Creates/Updates\nBidirectional Links" --> P[(ChromaDB: codebase_v1)]
+    N -- "Creates/Updates Bidirectional Links" --> P[(ChromaDB: codebase_v1)]
     
-    Q[Another Developer] --> R["Question: How did\nthis code evolve?"]
+    Q[Another Developer] --> R["Question: How did this code evolve?"]
     R --> S["Query with Code Context"]
-    S --> T["Retrieve Linked Discussions\nwith Rich Context"]
+    S --> T["Retrieve Linked Discussions with Rich Context"]
     T --> Q
 
     style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
@@ -273,11 +273,11 @@ sequenceDiagram
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
-    A["Bug: API returns 500\non null input"] --> B["Developer asks AI\nfor help debugging"]
+    A["Bug: API returns 500 on null input"] --> B["Developer asks AI for help debugging"]
     
     B --> C["AI Assistant\nReviews Code"]
     
-    C --> D["AI: Null check missing\nin line 42"]
+    C --> D["AI: Null check missing in line 42"]
     
     D --> E["Developer implements fix\nwith AI guidance"]
     

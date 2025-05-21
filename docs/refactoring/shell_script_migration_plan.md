@@ -151,18 +151,24 @@ Tests for scripts should follow these patterns:
 
 **Note:** The `--py` flag is used to specify the Python version to use for the tests. This speeds up the tests by using only one Python version instead of the default of using matrix based on all defined Python versions.
 
+To leverage the automated test workflow capturing, ensure the `chroma-mcp-workflow` plugin is active (installed with `chroma-mcp-server[client]`) and pass the `--auto-capture-workflow` flag to `pytest` via `hatch test`:
+
 ```bash
-# Run all script tests
-python -m chroma_mcp.dev_scripts.test -v --py 3.10 --auto-capture-workflow tests/scripts/
+# Run all script tests with auto-capture in the default (e.g., 3.11) hatch-test environment
+# The --auto-capture-workflow flag will be passed to pytest by the alias in pyproject.toml
+hatch test tests/scripts/
 
-# Run a specific test file
-python -m chroma_mcp.dev_scripts.test -v --py 3.10 --auto-capture-workflow tests/scripts/test_log_chat.py
+# Run a specific test file with auto-capture
+hatch test tests/scripts/test_log_chat.py
 
-# Run all script tests with coverage report
-python -m chroma_mcp.dev_scripts.test -c -v --py 3.10 --auto-capture-workflow tests/scripts/
+# Run all script tests with coverage report and auto-capture
+hatch test --cover tests/scripts/
 
-# Run a specific test file with coverage report
-python -m chroma_mcp.dev_scripts.test -c -v --py 3.10 --auto-capture-workflow tests/scripts/test_log_chat.py
+# Run a specific test file with coverage report and auto-capture
+hatch test --cover tests/scripts/test_log_chat.py
+
+# To run against a specific python version (e.g. 3.10) if not the default:
+hatch test -e py3.10 tests/scripts/
 ```
 
 ## Deprecation Plan
