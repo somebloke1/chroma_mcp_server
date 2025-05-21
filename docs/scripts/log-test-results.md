@@ -1,5 +1,7 @@
 # Test Results Logging Script
 
+**DEPRECATION NOTICE:** The `log_test_results.sh` shell script is deprecated and will be removed in version 0.3.0. Please use the `chroma-mcp-client log-test` console script installed via the Python package.
+
 This script simplifies the process of logging test results for validation evidence and tracking test transitions.
 
 ## Overview
@@ -12,6 +14,14 @@ Test results provide a critical form of validation evidence for measuring the im
 - Calculate validation scores based on test improvements
 
 ## Usage
+
+**Recommended**: Use the console script directly:
+
+```bash
+chroma-mcp-client log-test --xml test-results.xml
+```
+
+**Legacy wrapper script (deprecated)**:
 
 ```bash
 ./scripts/log_test_results.sh --xml test-results.xml

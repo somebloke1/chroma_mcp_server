@@ -42,7 +42,7 @@ chroma-mcp-client check-test-transitions --workspace-dir /path/to/workspace --au
   ```
 
 - The legacy format with `tool` and `params` keys is deprecated but still supported for backward compatibility.
-- For complete details on tool usage format, see the [Tool Usage Format Specification](../usage/tool_usage_format.md).
+- For complete details on tool usage format, see the [Tool Usage Format Specification](docs/usage/tool_usage_format.md).
 
 **Client-Side/Framework Limitations Note (Important):**
 

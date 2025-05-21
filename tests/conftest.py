@@ -11,12 +11,15 @@ import os
 import warnings
 import argparse
 import sys
+import subprocess
+from datetime import datetime
+import glob
+import json
 
 # Import the server module to access its globals
 from src.chroma_mcp import server
 
 from typing import Dict, List, Optional, Any
-from datetime import datetime
 
 from unittest.mock import AsyncMock, MagicMock, patch
 from chromadb.types import Collection
@@ -638,3 +641,93 @@ def setup_logging(caplog):
             logger.removeHandler(handler)
 
     yield
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--auto-capture-workflow",
+        action="store_true",
+        dest="auto_capture_workflow",
+        help="Enable automated test workflow capturing (failures and transitions).",
+    )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_sessionfinish(session, exitstatus):
+    """
+    After the test session finishes, if auto-capture-workflow was requested,
+    log test results, generate workflow JSON (failed or transitioned),
+    and call the CLI with appropriate flags.
+    """
+    config = session.config
+    if not config.getoption("auto_capture_workflow"):
+        return
+
+    # Paths for JUnit XML and workflows
+    xml_path = os.path.join("logs", "tests", "junit", "test-results.xml")
+    if not os.path.exists(xml_path):
+        return
+
+    # Prepare base CLI command
+    base_cmd = ["chroma-mcp-client", "log-test-results", xml_path]
+
+    # Get current commit hash
+    try:
+        commit_hash = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=os.getcwd()).decode().strip()
+    except Exception:
+        commit_hash = "unknown"
+
+    # Ensure workflow directory exists
+    workflow_dir = os.path.join("logs", "tests", "workflows")
+    os.makedirs(workflow_dir, exist_ok=True)
+
+    # Timestamp for filenames
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    if exitstatus != 0:
+        # Test failures: log results and capture failure JSON
+        subprocess.run(base_cmd, check=False)
+        failure_file = os.path.join(workflow_dir, f"test_workflow_{ts}.json")
+        failure_data = {"status": "failed", "timestamp": ts, "xml_path": xml_path, "commit": commit_hash}
+        with open(failure_file, "w") as f:
+            json.dump(failure_data, f)
+    else:
+        # Test success: find most recent failure JSON
+        pattern = os.path.join(workflow_dir, "test_workflow_*.json")
+        # Exclude completed workflow files when determining previous failures
+        all_files = glob.glob(pattern)
+        files = [f for f in all_files if "test_workflow_complete_" not in os.path.basename(f)]
+
+        if files:
+            files.sort(key=os.path.getmtime)
+            latest = files[-1]
+            with open(latest) as f:
+                prev = json.load(f)
+            # Support both initial failure keys and completed workflow keys
+            before_xml = prev.get("xml_path") or prev.get("before_xml")
+            before_commit = prev.get("commit") or prev.get("before_commit")
+            # Log with transition evidence
+            cmd = base_cmd + [
+                "--before-xml",
+                before_xml,
+                "--commit-before",
+                before_commit,
+                "--commit-after",
+                commit_hash,
+            ]
+            subprocess.run(cmd, check=False)
+            # Write completed workflow JSON
+            completed_file = os.path.join(workflow_dir, f"test_workflow_complete_{ts}.json")
+            completed_data = {
+                "status": "transitioned",
+                "timestamp": ts,
+                "before_xml": before_xml,
+                "after_xml": xml_path,
+                "before_commit": before_commit,
+                "after_commit": commit_hash,
+            }
+            with open(completed_file, "w") as f:
+                json.dump(completed_data, f)
+        else:
+            # No failure history: just log results
+            subprocess.run(base_cmd, check=False)

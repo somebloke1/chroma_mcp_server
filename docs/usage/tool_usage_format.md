@@ -2,7 +2,7 @@
 
 This document provides a comprehensive specification for the `tool_usage` parameter used in various parts of the Chroma MCP Server, particularly in the `chroma_log_chat` tool and related functionality.
 
-**Document Purpose:** This is the canonical reference for the tool_usage format across the entire codebase. While individual tool documentation (like [`log-chat.md`](../scripts/log-chat.md)) may include basic usage examples, this specification covers all details, edge cases, and technical implementation aspects.
+**Document Purpose:** This is the canonical reference for the tool_usage format across the entire codebase. While individual tool documentation (like [`log-chat.md`](docs/scripts/log-chat.md)) may include basic usage examples, this specification covers all details, edge cases, and technical implementation aspects.
 
 ## Standard Format
 
@@ -114,4 +114,4 @@ If you encounter errors related to the `tool_usage` parameter:
 
 - [API Reference - chroma_log_chat](../api_reference.md#chroma_log_chat)
 - [Enhanced Context Capture](./enhanced_context_capture.md)
-- [Log Chat Script](../scripts/log-chat.md)
+- [Log Chat Script](docs/scripts/log-chat.md)

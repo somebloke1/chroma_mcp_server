@@ -15,7 +15,7 @@ This approach uses the `chroma-mcp-client` CLI, run via `hatch` to ensure the co
     ```
 
 2. **`hatch`:** The script relies on `hatch run` to execute the client CLI in the correct environment. Ensure `hatch` is installed and available in your terminal.
-3. **`.env` Configuration:** Your project needs a `.env` file at the root, configured for `chroma-mcp-client` to connect to your ChromaDB instance (persistent or http/cloud). See the [chroma-mcp-client documentation](../scripts/chroma-mcp-client.md) for `.env` setup details.
+3. **`.env` Configuration:** Your project needs a `.env` file at the root, configured for `chroma-mcp-client` to connect to your ChromaDB instance (persistent or http/cloud). See the [chroma-mcp-client documentation](docs/scripts/chroma-mcp-client.md) for `.env` setup details.
 4. **Git Repository:** This setup assumes you are working within a Git repository.
 
 ## Setup Steps

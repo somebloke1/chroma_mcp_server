@@ -169,7 +169,7 @@
         ---
         ```
 
-    See [Automated Chat History Logging](../integration/automated_chat_logging.md) for details on setting up this rule.
+    See [Automated Chat History Logging](docs/integration/automated_chat_logging.md) for details on setting up this rule.
 
   - [X] **Feasibility Confirmed:** ~~Investigate the reliability of enforcing such actions via IDE rules. Develop fallback or complementary mechanisms if needed.~~ **Confirmed:** Initial tests show the mechanism of using an IDE rule to trigger automated logging via MCP calls is feasible. **Note:** Continued monitoring for reliability across diverse interactions is recommended, as rule refinements were needed during initial testing.
 
@@ -237,7 +237,7 @@
   - [X] Fixed all test failures (`tests/thinking/test_thinking_cli.py`).
 
 - [X] **5.8 Document Working Memory (`../usage/client_commands.md`):**
-  - [X] Explained concept and benefits in `../thinking_tools/README-thinking.md`.
+  - [X] Explained concept and benefits in `../thinking_tools/README.md`.
   - [X] Documented **installed console script** (`record-thought`) usage in `../scripts/record-thought.md`.
   - [X] Updated IDE integration docs (`../integration/ide_integration.md`).
   - [~] **Needs Review:** Consolidate examples and ensure clarity.

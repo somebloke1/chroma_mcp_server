@@ -265,6 +265,7 @@ To use with Cursor, add or modify the `.cursor/mcp.json` file in your project ro
   "mcpServers": {
     "chroma_dev": {
       "command": "/path/to/project/scripts/run_chroma_mcp_server_dev.sh",
+      // DEPRECATION NOTICE: The `run_chroma_mcp_server_dev.sh` script is deprecated and will be removed in version 0.3.0. Use the hatch alias `chroma-mcp-server-dev` or run `python -m chroma_mcp.cli` instead.
       "args": [],
       "env": {
         "CHROMA_CLIENT_TYPE": "persistent",
@@ -312,6 +313,7 @@ To use with Cursor, add or modify the `.cursor/mcp.json` file in your project ro
 **Notes:**
 
 - Replace `/path/to/project/scripts/run_chroma_mcp_server_dev.sh` with the actual absolute path to the script in your development environment.
+- The `run_chroma_mcp_server_dev.sh` script is deprecated and will be removed in version 0.3.0. We recommend using the hatch alias `chroma-mcp-server-dev` or running `python -m chroma_mcp.cli` directly via Hatch.
 - Replace `/path/to/your/...` placeholders with actual paths for your data and log directories. It's recommended to use separate directories for dev, test, and prod to avoid data conflicts.
 - The `chroma_dev` configuration uses the `run_chroma_mcp_server_dev.sh` script, which runs the server directly from your local source code using Hatch. This is ideal for rapid development and testing changes without reinstalling.
 - The `chroma_test` configuration uses `uvx` to fetch and run the *latest* version available on TestPyPI. This is useful for testing release candidates.
@@ -319,21 +321,18 @@ To use with Cursor, add or modify the `.cursor/mcp.json` file in your project ro
 
 ## Running in Development
 
-For development purposes, the recommended approach is to use the wrapper script that runs the server within the Hatch environment:
+**Recommended**: Use the Hatch alias or direct module invocation:
 
 ```bash
 # Ensure you are in the project root directory
-./scripts/run_chroma_mcp_server_dev.sh [OPTIONS]
+hatch run chroma-mcp-server-dev [OPTIONS]
 ```
 
-**Important:** After modifying the code (server, client, etc.), you must rebuild and reinstall the package within the Hatch environment for changes to take effect:
+**Legacy wrapper script (deprecated)**:
 
 ```bash
-# Replace <version> with the actual version built
-hatch build && hatch run pip uninstall chroma-mcp-server -y && hatch run pip install 'dist/chroma_mcp_server-<version>-py3-none-any.whl[full,dev]'
+./scripts/run_chroma_mcp_server_dev.sh [OPTIONS]
 ```
-
-For more detailed development information, see the **[Developer Guide](developer_guide.md)**.
 
 ## Docker
 

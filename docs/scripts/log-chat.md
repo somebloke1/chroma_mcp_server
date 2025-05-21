@@ -1,6 +1,6 @@
 # Wrapper Script: `log_chat.sh`
 
-This script provides a simple wrapper for running the `log-chat` command of the `chroma-mcp-client` tool within the correct Hatch environment.
+**DEPRECATION NOTICE:** The `log_chat.sh` shell script is deprecated and will be removed in version 0.3.0. Please use the `log-chat` console script installed via the Python package (`chroma-mcp-client log-chat`).
 
 ## Purpose
 
@@ -20,7 +20,13 @@ hatch run chroma-mcp-client log-chat [ARGUMENTS...]
 
 ## Usage
 
-Navigate to the project root directory and run the script:
+**Recommended**: Use the console script directly:
+
+```bash
+chroma-mcp-client log-chat [OPTIONS]
+```
+
+**Legacy wrapper script (deprecated)**:
 
 ```bash
 ./scripts/log_chat.sh [OPTIONS]
@@ -77,7 +83,7 @@ Example:
 ]
 ```
 
-> **Note:** For a complete specification of the tool_usage format, including advanced usage, programmatic examples, and technical details, see the [Tool Usage Format Specification](../usage/tool_usage_format.md).
+> **Note:** For a complete specification of the tool_usage format, including advanced usage, programmatic examples, and technical details, see the [Tool Usage Format Specification](docs/usage/tool_usage_format.md).
 
 ## Expected Output
 

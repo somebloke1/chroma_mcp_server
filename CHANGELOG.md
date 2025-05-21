@@ -3,6 +3,54 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.23] - 2025-05-21
+
+**Security:**
+
+- Fixed potential PyPI token exposure in `src/chroma_mcp/dev_scripts/publish.py` by improving the sanitization logic in the `run_command` function. The function now explicitly redacts the argument following a `-p` flag before logging the command.
+
+## [0.2.22] - 2025-05-21
+
+**Fixed:**
+
+- Corrected `coverage.xml` output path in GitHub Actions workflow (`.github/workflows/tests.yml`) for proper Codecov integration.
+- Ensured `publish.py` handles `getpass` failures gracefully in non-interactive environments (e.g., CI).
+
+**Changed:**
+
+- Enhanced `publish.py` with an `--upload-retries` argument and verbose output for `twine` on retry attempts.
+- Updated `release.py` to include `--upload-retries` and to check if a version already exists on PyPI/TestPyPI before attempting to publish, skipping redundant uploads.
+- Updated documentation (including `docs/rules/testing-and-build-guide.md`, `docs/refactoring/shell_script_migration_plan.md`) to reflect deprecation of `build.sh`, `publish.sh`, `release.sh` and promote Python-based equivalents.
+
+## [0.2.21] - 2025-05-21
+
+**Changed:**
+
+- Removed `develop.py` script for interactive Hatch shell development, as it's being replaced by `hatch shell`
+- Updated Developer Guide to note deprecation of `curl` and `jq` in v0.3.0
+
+## [0.2.20] - 2025-05-21
+
+**Added:**
+
+- Introduced a guided release process in `src/chroma_mcp/dev_scripts/release.py` with interactive flags (`--yes`, `--skip-testpypi`, `--test-only`, `--skip-tests`, `--skip-build`) and automated TestPyPI and Production publication via `hatch run publish-mcp`.
+- Implemented enhanced changelog insertion logic in `release.py` to insert new entries before existing ones.
+
+**Changed:**
+
+- Updated `TestWorkflowManager.setup_git_hooks` in `src/chroma_mcp_client/validation/test_workflow.py` to use `hatch test --cover -v` for pre-push, `hatch run chroma-mcp-client index` for post-commit indexing, and `chroma-mcp-client check-test-transitions` for transition checks.
+
+## [0.2.19] - 2025-05-21
+
+**Added:**
+
+- Extracted `get_project_root()` into a dedicated `project_root.py` module under `src/chroma_mcp/dev_scripts/`, and updated `build.py`, `develop.py`, `release.py`, and `publish.py` to import from it for cleaner dependencies.
+- Completed migration of development scripts by removing the deprecated `test.py` and adding comprehensive unit tests for `build.py`, `develop.py`, `release.py`, and `publish.py` in `tests/scripts/`.
+
+**Changed:**
+
+- Updated unit tests under `tests/scripts/` to align with the new `get_project_root()` implementation and consolidated test execution via `hatch test`.
+
 ## [0.2.18] - 2025-05-17
 
 **Added:**

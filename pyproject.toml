@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chroma-mcp-server"
-version = "0.2.18"
+version = "0.2.23"
 description = "Chroma MCP Server - Vector Database Integration for LLM Applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -68,6 +68,11 @@ client = [
     "GitPython>=3.1.44", # For enhanced git interactions in client/thinking tools
 ]
 
+# Development tools (only included when [devtools] is specified)
+devtools = [
+    "chroma-mcp-server[dev]",
+]
+
 full = [
     "chroma-mcp-server[aimodels]",
     "chroma-mcp-server[server]",
@@ -75,13 +80,28 @@ full = [
 ]
 
 [project.scripts]
+# Server and client entry points
 chroma-mcp-server = "chroma_mcp.cli:main"
 # Keep old entry point temporarily for backward compatibility
 chroma-client = "chroma_mcp_client.deprecated_cli:main"
 # New recommended entry point
 chroma-mcp-client = "chroma_mcp_client.cli:main"
-# Add future scripts here: record-feedback = ..., record-thought = ...
+# Add scripts for client operations
 record-thought = "chroma_mcp_thinking.thinking_cli:main"
+# New client script wrappers
+log-chat = "chroma_mcp_client.scripts.log_chat:main"
+analyze-chat = "chroma_mcp_client.scripts.analyze_chat:main"
+promote-learning = "chroma_mcp_client.scripts.promote_learning:main"
+review-promote = "chroma_mcp_client.scripts.review_promote:main"
+log-error = "chroma_mcp_client.scripts.log_error:main"
+log-test = "chroma_mcp_client.scripts.log_test:main"
+log-quality = "chroma_mcp_client.scripts.log_quality:main"
+validate-evidence = "chroma_mcp_client.scripts.validate_evidence:main"
+
+# Development script entry points (only installed with [devtools])
+build-mcp = "chroma_mcp.dev_scripts.build:main"
+release-mcp = "chroma_mcp.dev_scripts.release:main"
+publish-mcp = "chroma_mcp.dev_scripts.publish:main"
 
 [project.entry-points."smithery.mcps"]
 chroma = "chroma_mcp.cli:main"
@@ -100,21 +120,27 @@ dependencies = [
 [tool.hatch.envs.default.scripts]
 chroma-mcp-server-dev = "python -m chroma_mcp.cli"
 print-cwd = "python -c 'import os; print(os.getcwd())'"
-analyze-chat = "./scripts/analyze_chat_history.sh {args}"
-promote-learn = "./scripts/promote_learning.sh {args}"
+# Use the new Python implementations instead of shell scripts
+analyze-chat = "python -m chroma_mcp_client.scripts.analyze_chat {args}"
+promote-learn = "python -m chroma_mcp_client.scripts.promote_learning {args}"
 # Interactive review and promote script alias
-review-promote = "./scripts/review_and_promote.sh {args}"
+review-promote = "python -m chroma_mcp_client.scripts.review_promote {args}"
 # Log a thought script alias
 log-thought = "python -m chroma_mcp_thinking.client {args}"
 # Log a chat entry with enhanced context
-log-chat = "./scripts/log_chat.sh {args}"
+log-chat = "python -m chroma_mcp_client.scripts.log_chat {args}"
 # Validation script aliases
-log-error = "./scripts/log_error.sh {args}"
-log-test = "./scripts/log_test_results.sh {args}"
-log-quality = "./scripts/log_quality_check.sh {args}"
-validate = "./scripts/validate_evidence.sh {args}"
+log-error = "python -m chroma_mcp_client.scripts.log_error {args}"
+log-test = "python -m chroma_mcp_client.scripts.log_test {args}"
+log-quality = "python -m chroma_mcp_client.scripts.log_quality {args}"
+validate = "python -m chroma_mcp_client.scripts.validate_evidence {args}"
 
-[tool.hatch.envs.test]
+# Development scripts (for maintainers)
+build = "python -m chroma_mcp.dev_scripts.build {args}"
+release = "python -m chroma_mcp.dev_scripts.release {args}"
+publish = "python -m chroma_mcp.dev_scripts.publish {args}"
+
+[tool.hatch.envs.hatch-test]
 dependencies = [
   "pytest>=8.3.5",
   "pytest-mock>=3.14.0",
@@ -129,18 +155,17 @@ dependencies = [
 # Add dev-mode setting
 dev-mode = true
 
-[tool.hatch.envs.test.scripts]
-run = "pytest {args:tests}"
-cov = [
-  # Run pytest via coverage run, remove --cov args from pytest command
-  "pytest --timeout=120 -p no:xdist {args:tests}",
-]
-html = [
-  # Run pytest via coverage run, remove --cov args from pytest command
-  "pytest --timeout=120 -p no:xdist {args:tests}",
-]
+[tool.hatch.envs.hatch-test.scripts]
+run = "pytest --timeout=5 -p no:xdist --junitxml=logs/tests/junit/test-results.xml --auto-capture-workflow {args}"
+run-cov = "coverage run -m pytest --timeout=5 -p no:xdist --junitxml=logs/tests/junit/test-results.xml --auto-capture-workflow {args}"
+cov = "coverage run -m pytest --timeout=5 -p no:xdist --junitxml=logs/tests/junit/test-results.xml --auto-capture-workflow {args}"
+cov-combine = "coverage combine --quiet"
+xml = "coverage xml -o logs/tests/coverage/coverage.xml"
+run-html = "coverage html --data-file=logs/tests/coverage/.coverage -d logs/tests/coverage/html"
+run-autocapture = "pytest --timeout=5 -p no:xdist --junitxml=logs/tests/junit/test-results.xml --auto-capture-workflow {args}"
+cov-report = "coverage report -m"
 
-[[tool.hatch.envs.test.matrix]]
+[[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.11", "3.12"]
 
 [tool.coverage.run]
@@ -196,7 +221,13 @@ dev-mode-dirs = ["src"]  # This enables editable install for development
 
 # Add this section to tell hatch where the package source code is
 [tool.hatch.build.targets.wheel]
-packages = ["src/chroma_mcp", "src/chroma_mcp_client", "src/chroma_mcp_thinking"]
+packages = [
+    "src/chroma_mcp",
+    "src/chroma_mcp_client", 
+    "src/chroma_mcp_thinking",
+    "src/chroma_mcp/dev_scripts",
+    "src/chroma_mcp_client/scripts"
+]
 
 [tool.hatch.envs.default.env-vars]
 CHROMA_CLIENT_TYPE = "persistent"

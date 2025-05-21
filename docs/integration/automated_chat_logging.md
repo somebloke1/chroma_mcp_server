@@ -4,7 +4,7 @@ This document explains how to configure and utilize the `auto_log_chat` rule to 
 
 ## Purpose
 
-The goal is to create a persistent log of chat interactions (prompts, responses, actions taken) within ChromaDB. This history can then be analyzed to derive learnings, understand development patterns, or provide richer context for future AI interactions, fulfilling Phase 4 of the [Local RAG Pipeline Plan](../refactoring/local_rag_pipeline_plan_v4.md).
+The goal is to create a persistent log of chat interactions (prompts, responses, actions taken) within ChromaDB. This history can then be analyzed to derive learnings, understand development patterns, or provide richer context for future AI interactions, fulfilling Phase 4 of the [Local RAG Pipeline Plan](docs/refactoring/local_rag_pipeline_plan_v4.md).
 
 ## Rule Overview
 
@@ -96,7 +96,7 @@ chroma-mcp-client log-chat \
   --session-id "550e8400-e29b-41d4-a716-446655440000"
 ```
 
-For further details on this command, see the [CLI Reference](../scripts/chroma-mcp-client.md#log-chat).
+For further details on this command, see the [CLI Reference](docs/scripts/chroma-mcp-client.md#log-chat).
 
 ## Tool Usage Format
 
@@ -114,6 +114,6 @@ Each tool usage item must contain:
 - `name`: The name of the tool that was used
 - `args`: (Optional) An object containing the arguments passed to the tool
 
-For comprehensive details about the format, technical specifics, and examples, refer to the [Tool Usage Format Specification](../usage/tool_usage_format.md).
+For comprehensive details about the format, technical specifics, and examples, refer to the [Tool Usage Format Specification](docs/usage/tool_usage_format.md).
 
-For further details on the logging command, see the [CLI Reference](../scripts/chroma-mcp-client.md#log-chat).
+For further details on the logging command, see the [CLI Reference](docs/scripts/chroma-mcp-client.md#log-chat).

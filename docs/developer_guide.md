@@ -11,7 +11,7 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
 1. **Prerequisites:**
     * Python 3.10 or higher
     * Git
-    * `curl` and `jq` (required by the `release.sh` script)
+    * `curl` and `jq` (required by the `release.sh` script, will be deprecated in v0.3.0)
     * Hatch (Install globally if you don't have it: `pip install hatch`)
 
 2. **Clone the Repository:**
@@ -21,13 +21,9 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
     cd chroma_mcp_server
     ```
 
-3. **Activate Hatch Environment:** Use the provided script or run `hatch shell` directly:
+3. **Activate Hatch Environment:** Run the Hatch shell directly:
 
     ```bash
-    # Using the script
-    ./scripts/develop.sh
-
-    # Or directly with Hatch
     hatch shell
     ```
 
@@ -79,18 +75,25 @@ This project uses [Hatch](https://hatch.pypa.io/) for development and package ma
 
 ## Development Scripts Overview
 
-The project includes several utility scripts in the `scripts/` directory to streamline common tasks:
+**DEPRECATION NOTICE:** The scripts in the `scripts/` directory are deprecated and will be removed in version 0.3.0. Please use the devtools commands installed with the Python package via Hatch:
 
-* `develop.sh`: Activates the Hatch development environment.
-* `test.sh`: Runs tests using pytest (via Hatch). Supports flags like `--coverage`, `--clean`.
-* `build.sh`: Cleans the build directory and builds the package wheel.
-* `publish.sh`: Publishes the package to PyPI or TestPyPI. Requires credentials and version.
-* `test_uvx_install.sh`: Builds the package locally and tests installing it via `uv pip install`.
-* `release.sh`: Automates the full release process (TestPyPI -> Prod PyPI -> Install specified version locally for `uvx` command). See script help (`./scripts/release.sh --help`) for options.
+* `hatch shell`: Activates the Hatch environment (replaces `develop.sh`).
+* `hatch run test-mcp`: Runs tests with coverage and other options (replaces `test.sh`).
+* `hatch run build-mcp`: Cleans the build directory and builds the package wheel (replaces `build.sh`).
+* `hatch run publish-mcp`: Publishes the package to PyPI or TestPyPI (replaces `publish.sh`).
+* `hatch run release-mcp`: Automates the full release process (replaces `release.sh`).
+
+**Legacy scripts (deprecated):**
+
+* `./scripts/test.sh`
+* `./scripts/build.sh`
+* `./scripts/publish.sh`
+* `./scripts/test_uvx_install.sh`
+* `./scripts/release.sh`
 
 ## Common Development Workflow
 
-1. **Activate Environment:** Run `./scripts/develop.sh` or `hatch shell`.
+1. **Activate Environment:** Run `hatch shell`.
 2. **Make Code Changes:** Edit the source code in the `src/` directory.
 3. **Rebuild & Reinstall (Crucial!):** After making changes, especially to the server logic, CLI commands, or dependencies, you *must* rebuild and reinstall the package within the Hatch environment for the changes to take effect when using `hatch run` commands or potentially the development server script. Use:
 

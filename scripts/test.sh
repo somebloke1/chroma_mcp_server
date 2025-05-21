@@ -144,12 +144,12 @@ fi
 
 # Determine the execution command based on coverage flag and Python version
 if [ -n "$PYTHON_VERSION" ]; then
-    # Format the Python version into the hatch environment name (e.g., test.py3.10)
+    # Format the Python version into the hatch environment name (e.g., hatch-test.py3.10)
     # First, ensure the version doesn't already start with "py"
     if [[ "$PYTHON_VERSION" == py* ]]; then
-        PY_ENV="test.$PYTHON_VERSION"
+        PY_ENV="hatch-test.py$PYTHON_VERSION"
     else
-        PY_ENV="test.py$PYTHON_VERSION"
+        PY_ENV="hatch-test.py$PYTHON_VERSION"
     fi
     echo "Limiting tests to Python version $PYTHON_VERSION (environment: $PY_ENV)"
     
@@ -161,13 +161,13 @@ if [ -n "$PYTHON_VERSION" ]; then
         RUN_CMD="hatch -e $PY_ENV run python -m pytest $PYTEST_ARGS"
     fi
 else
-    # Run on all Python versions using the default test matrix
+    # Run on python 3.10 by default
     if [ "$COVERAGE" = true ]; then
         echo "Running tests with Coverage enabled (Verbosity: $VERBOSE_LEVEL)..."
-        RUN_CMD="hatch run test:coverage run -m pytest $PYTEST_ARGS"
+        RUN_CMD="hatch run hatch-test.py3.10:coverage run -m pytest $PYTEST_ARGS"
     else
         echo "Running tests without Coverage (Verbosity: $VERBOSE_LEVEL)..."
-        RUN_CMD="hatch run test:python -m pytest $PYTEST_ARGS"
+        RUN_CMD="hatch run hatch-test.py3.10:python -m pytest $PYTEST_ARGS"
     fi
 fi
 

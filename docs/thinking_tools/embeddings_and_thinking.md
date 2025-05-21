@@ -144,7 +144,7 @@ To use these thinking tools effectively, AI assistants should follow the memory 
 5. Connect conceptual discussions with concrete code implementations
 6. Document conceptual evolution with clear markers
 
-For more details on how AI assistants should use these tools, see the [Memory Integration Rules](../rules/memory-integration-rules.md).
+For more details on how AI assistants should use these tools, see the [Memory Integration Rules](docs/rules/memory-integration-rules.md).
 
 ## The Thinking Tools (`thinking_tools.py`)
 

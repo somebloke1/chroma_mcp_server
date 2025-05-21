@@ -1,5 +1,7 @@
 # Script: `review-and-promote.sh`
 
+**DEPRECATION NOTICE:** The `review-and-promote.sh` shell script is deprecated and will be removed in version 0.3.0. Please use the `review-promote` console script installed via the Python package (`chroma-mcp-client review-promote`).
+
 This script provides a convenient way to launch the interactive chat history review and promotion workflow.
 
 ## Purpose
@@ -54,10 +56,19 @@ The new version includes several significant enhancements:
 
 ## Usage
 
-```bash
-# Run with default settings (7 day limit, 50 fetch limit)
-./scripts/review_and_promote.sh
+**Recommended**: Use the console script directly:
 
+```bash
+chroma-mcp-client review-promote [OPTIONS]
+```
+
+**Legacy wrapper script (deprecated)**:
+
+```bash
+./scripts/review_and_promote.sh [OPTIONS]
+```
+
+```bash
 # Run with custom day limit
 ./scripts/review_and_promote.sh --days-limit 3
 

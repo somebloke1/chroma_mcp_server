@@ -1,6 +1,6 @@
 # Wrapper Script: `analyze_chat_history.sh`
 
-This script provides a simple wrapper for running the `analyze-chat-history` command of the `chroma-mcp-client` tool within the correct Hatch environment.
+**DEPRECATION NOTICE:** The `analyze_chat_history.sh` shell script is deprecated and will be removed in version 0.3.0. Please use the `analyze-chat-history` console script installed via the Python package (`chroma-mcp-client analyze-chat-history`).
 
 ## Purpose
 
@@ -20,7 +20,13 @@ hatch run python -m chroma_mcp_client.cli analyze-chat-history [ARGUMENTS...]
 
 ## Usage
 
-Navigate to the project root directory and run the script:
+**Recommended**: Use the console script directly:
+
+```bash
+chroma-mcp-client analyze-chat-history [OPTIONS]
+```
+
+**Legacy wrapper script (deprecated)**:
 
 ```bash
 ./scripts/analyze_chat_history.sh [OPTIONS]
