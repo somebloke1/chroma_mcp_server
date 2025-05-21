@@ -55,7 +55,7 @@ jobs:
     - name: Run tests with coverage run
       # Run tests using 'coverage run' managed by hatch environment
       # Pass arguments like timeout/no-xdist directly to pytest
-      run: hatch run test:coverage run -m pytest --timeout=120 -p no:xdist --junitxml=logs/tests/junit/test-results.xml tests/
+      run: hatch test --cover -v tests/
     
     - name: Combine coverage data (if needed)
       # Important if tests were run in parallel, harmless otherwise
