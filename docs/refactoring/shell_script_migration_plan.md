@@ -1,5 +1,12 @@
 # Shell Script Migration Plan
 
+**DEPRECATION NOTICE:** The original shell scripts in `scripts/` (build.sh, publish.sh, release.sh, develop.sh, test.sh) are deprecated and will be removed in version 0.3.0. Please use the console entry points provided by the Python package:
+
+- `build-mcp` (replaces `scripts/build.sh`)
+- `publish-mcp` (replaces `scripts/publish.sh`)
+- `release-mcp` (replaces `scripts/release.sh`)
+- `test-mcp` which should be used instead of `scripts/test.sh` has been removed in favor of the more targeted `hatch test` command
+
 This plan outlines the conversion of shell scripts to Python modules in the chroma-mcp-server codebase. All scripts are being migrated to Python to improve maintainability, testability, and platform compatibility.
 
 ## Migration Approach
@@ -170,3 +177,7 @@ The original shell scripts located in the `scripts/` directory are deprecated an
 - `chroma-mcp-client log-test`
 - `chroma-mcp-client log-quality`
 - `chroma-mcp-client validate-evidence`
+- `build-mcp` (replaces `scripts/build.sh`)
+- `publish-mcp` (replaces `scripts/publish.sh`)
+- `release-mcp` (replaces `scripts/release.sh`)
+- `test-mcp` which should be used instead of `scripts/test.sh` has been removed in favor of the more targeted `hatch test` command

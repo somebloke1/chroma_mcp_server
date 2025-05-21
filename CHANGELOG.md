@@ -3,6 +3,19 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.22] - 2025-05-21
+
+**Fixed:**
+
+- Corrected `coverage.xml` output path in GitHub Actions workflow (`.github/workflows/tests.yml`) for proper Codecov integration.
+- Ensured `publish.py` handles `getpass` failures gracefully in non-interactive environments (e.g., CI).
+
+**Changed:**
+
+- Enhanced `publish.py` with an `--upload-retries` argument and verbose output for `twine` on retry attempts.
+- Updated `release.py` to include `--upload-retries` and to check if a version already exists on PyPI/TestPyPI before attempting to publish, skipping redundant uploads.
+- Updated documentation (including `docs/rules/testing-and-build-guide.md`, `docs/refactoring/shell_script_migration_plan.md`) to reflect deprecation of `build.sh`, `publish.sh`, `release.sh` and promote Python-based equivalents.
+
 ## [0.2.21] - 2025-05-21
 
 **Changed:**

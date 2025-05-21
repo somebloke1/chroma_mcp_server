@@ -97,11 +97,11 @@ Using Hatch ensures:
 Build the package using either:
 
 ```bash
-# Using the provided script (cleans first, being deprecated from 0.3.0 onwards)
+# Using the provided script (deprecated; removed in v0.3.0)
 ./scripts/build.sh
 
-# Or with Hatch directly (recommended)
-hatch build
+# Or with the devtools wrapper command (recommended)
+hatch run build-mcp
 ```
 
 This generates the distributable files in the `dist/` directory.

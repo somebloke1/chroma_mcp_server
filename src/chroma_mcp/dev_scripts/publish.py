@@ -10,12 +10,17 @@ import subprocess
 import sys
 from pathlib import Path
 import getpass
+import time
 from chroma_mcp.dev_scripts.project_root import get_project_root
 
 
 def run_command(cmd: list[str], cwd: Path = None) -> int:
     """Run a shell command and return its exit code."""
-    print(f"Running: {' '.join(cmd)}")
+    if len(cmd) > 5:
+        sanitized_cmd = cmd[:5] + ["..."]
+    else:
+        sanitized_cmd = cmd
+    print(f"Running: {' '.join(sanitized_cmd)}")
     result = subprocess.run(cmd, cwd=cwd)
     return result.returncode
 
@@ -33,11 +38,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Publish the chroma-mcp-server package to PyPI")
 
     # Add arguments
-    parser.add_argument("--repo", default="pypi", choices=["pypi", "testpypi"], help="Repository to publish to (pypi or testpypi)")
+    parser.add_argument(
+        "--repo", default="pypi", choices=["pypi", "testpypi"], help="Repository to publish to (pypi or testpypi)"
+    )
     parser.add_argument("--version", help="Version number being published (optional)")
     parser.add_argument("-y", "--yes", action="store_true", help="Non-interactive mode, assume yes to prompts")
     parser.add_argument("--skip-build", action="store_true", help="Skip building the package before publishing")
     parser.add_argument("--skip-tests", action="store_true", help="Skip running tests before publishing")
+    parser.add_argument("--upload-retries", type=int, default=0, help="Number of times to retry upload on failure")
 
     args = parser.parse_args()
 
@@ -96,12 +104,29 @@ def main() -> int:
     if pypirc_path.exists():
         cmd = ["twine", "upload", "-r", args.repo, "dist/*"]
     else:
-        token = getpass.getpass(f"Enter your API token for {args.repo}: ")
-        cmd = ["twine", "upload", "--repository-url", repo_url, "-u", "__token__", "-p", token, "dist/*"]
-    if run_command(cmd, cwd=project_root) != 0:
-        print(f"Failed to upload package to {args.repo}.")
-        return 1
-
+        try:
+            token = getpass.getpass(f"Enter your API token for {args.repo}: ")
+        except Exception:
+            # Non-interactive environment or prompt failed; fallback to using repository alias
+            cmd = ["twine", "upload", "-r", args.repo, "dist/*"]
+        else:
+            cmd = ["twine", "upload", "--repository-url", repo_url, "-u", "__token__", "-p", token, "dist/*"]
+    # Attempt upload with retries, adding verbose flag on retry attempts
+    retries = args.upload_retries
+    attempt = 0
+    base_cmd = cmd
+    verbose_cmd = base_cmd + ["--verbose"]
+    while True:
+        current_cmd = base_cmd if attempt == 0 else verbose_cmd
+        exit_code = run_command(current_cmd, cwd=project_root)
+        if exit_code == 0:
+            break
+        attempt += 1
+        if attempt > retries:
+            print(f"Failed to upload package to {args.repo}.")
+            return 1
+        print(f"Upload failed, retrying {attempt}/{retries} with verbose output...")
+        time.sleep(5)
     print(f"Package successfully published to {args.repo}!")
     return 0
 

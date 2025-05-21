@@ -63,7 +63,7 @@ jobs:
     
     - name: Generate coverage XML report
       # Use hatch to run coverage in the correct environment
-      run: hatch run coverage xml
+      run: hatch run coverage xml -o logs/tests/coverage/coverage.xml
     
     - name: Generate coverage report summary
       # Display summary in the logs
