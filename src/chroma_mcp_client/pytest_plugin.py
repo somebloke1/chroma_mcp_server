@@ -5,7 +5,7 @@ import subprocess
 import json
 from datetime import datetime
 import glob
-import pathlib # Import pathlib
+import pathlib  # Import pathlib
 
 
 def pytest_addoption(parser):
@@ -79,13 +79,15 @@ def pytest_sessionfinish(session, exitstatus):
             before_commit = prev.get("commit") or prev.get("before_commit")
 
             if not before_xml_str:
-                print(f"pytest-sessionfinish: 'xml_path' or 'before_xml' not found in {latest_failure_json_path}. Cannot determine previous XML.")
-                subprocess.run(base_cmd, check=False, cwd=str(project_root)) # Log current results anyway
+                print(
+                    f"pytest-sessionfinish: 'xml_path' or 'before_xml' not found in {latest_failure_json_path}. Cannot determine previous XML."
+                )
+                subprocess.run(base_cmd, check=False, cwd=str(project_root))  # Log current results anyway
                 return
 
             cmd = base_cmd + [
                 "--before-xml",
-                before_xml_str, # Ensure this is a string path
+                before_xml_str,  # Ensure this is a string path
                 "--commit-before",
                 before_commit,
                 "--commit-after",
@@ -106,4 +108,4 @@ def pytest_sessionfinish(session, exitstatus):
                 json.dump(completed_data, f)
         else:
             # No failure history: just log results
-            subprocess.run(base_cmd, check=False, cwd=str(project_root)) 
+            subprocess.run(base_cmd, check=False, cwd=str(project_root))

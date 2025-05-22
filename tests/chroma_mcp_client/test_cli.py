@@ -15,6 +15,9 @@ import logging
 import uuid
 from io import StringIO
 
+# Import the schema for spec
+from chroma_mcp_client.validation.schemas import ValidationEvidence, ValidationEvidenceType, CodeQualityEvidence
+
 # Module to test
 from chroma_mcp_client import cli
 from chroma_mcp_client.cli import main, DEFAULT_COLLECTION_NAME
@@ -1207,8 +1210,6 @@ def test_promote_learning_with_validation_evidence(mock_get_client_ef, mock_argp
         mock_promoter_class.return_value = mock_promoter_instance
 
         # Create a mock evidence object with a score above threshold
-        from chroma_mcp_client.validation.schemas import ValidationEvidence, ValidationEvidenceType
-
         mock_evidence = ValidationEvidence(
             id=validation_evidence_id,
             score=0.85,
@@ -1480,56 +1481,128 @@ def test_validate_evidence_command_from_file(mock_get_client_ef, mock_argparse, 
 @patch("uuid.uuid4")
 @patch("argparse.ArgumentParser")
 @patch("chroma_mcp_client.cli.get_client_and_ef")
-def test_log_quality_check_command(mock_get_client_ef, mock_argparse, mock_uuid, capsys, caplog):
-    """Test that the log-quality-check command runs quality checks and reports results."""
-    # Mocks
-    mock_client = MagicMock(spec=chromadb.ClientAPI)
-    mock_ef = MagicMock(spec=DefaultEmbeddingFunction)
-    mock_get_client_ef.return_value = (mock_client, mock_ef)
-    mock_uuid.return_value = uuid.UUID("99887766-5544-3322-1100-aabbccddeeff")
-    quality_id = "99887766-5544-3322-1100-aabbccddeeff"
+@patch("chroma_mcp_client.validation.evidence_collector.store_validation_evidence")
+@patch("chroma_mcp_client.validation.evidence_collector.collect_validation_evidence")
+def test_log_quality_check_command(
+    mock_collect_evidence,
+    mock_store_validation_evidence,
+    mock_get_client_ef,
+    mock_argparse,
+    mock_uuid,
+    capsys,
+    caplog,
+    tmp_path,
+):
+    """Test the log-quality-check command correctly stores evidence."""
+    mock_client_instance = MagicMock(spec=chromadb.ClientAPI)
+    mock_get_client_ef.return_value = (mock_client_instance, DefaultEmbeddingFunction())
 
-    # Mock quality check function
-    with patch("chroma_mcp_client.validation.code_quality_collector.run_quality_check") as mock_quality_check:
-        # Set up mock quality evidence
-        mock_quality_evidence = MagicMock()
-        mock_quality_evidence.before_value = 25
-        mock_quality_evidence.after_value = 15
-        mock_quality_evidence.percentage_improvement = 40.0  # (25-15)/25 * 100
-        mock_quality_check.return_value = mock_quality_evidence
+    unique_evidence_id = f"evidence-{uuid.uuid4()}"
+    mock_uuid.return_value = unique_evidence_id
 
-        # Command Args
-        args_dict = {
-            "command": "log-quality-check",
-            "verbose": 1,
-            "tool": "pylint",
-            "before_output": "/path/to/before_output.txt",
-            "after_output": "/path/to/after_output.txt",
-            "metric_type": "error_count",
-            "collection_name": "validation_evidence_v1",
-        }
-        mock_parser_instance = mock_argparse.return_value
-        mock_args = create_mock_args(**args_dict)
-        mock_parser_instance.parse_args.return_value = mock_args
+    # 1. Create a dummy target file that the linting output refers to
+    dummy_target_py_file = tmp_path / "dummy_module.py"
+    dummy_target_py_file.write_text("CONSTANT_VAR = 1\nprint('hello')\n")
 
-        # Run command
-        cli.main()
+    # 2. Create a dummy 'before_output' file with more issues for the dummy target file
+    dummy_before_pylint_file = tmp_path / "dummy_before_pylint.txt"
+    dummy_before_pylint_file.write_text(
+        f"{dummy_target_py_file.name}:1:0: C0114: Missing module docstring (missing-module-docstring)\n"
+        f'{dummy_target_py_file.name}:2:0: C0103: Constant name "CONSTANT_VAR" doesn\'t conform to UPPER_CASE naming style (invalid-name)\n'
+        # Intentionally causing an error that will be "fixed"
+    )
 
-        # Assertions
-        # Check quality check was called
-        mock_quality_check.assert_called_once_with(
-            tool="pylint",
-            before_output_path="/path/to/before_output.txt",
-            after_output_path="/path/to/after_output.txt",
-            metric_type="error_count",
-        )
+    # 3. Create a dummy 'after_output' file with fewer issues for the dummy target file
+    dummy_after_pylint_file = tmp_path / "dummy_after_pylint.txt"
+    dummy_after_pylint_file.write_text(
+        f"{dummy_target_py_file.name}:1:0: C0114: Missing module docstring (missing-module-docstring)\n"
+    )
 
-        # Check output
-        captured = capsys.readouterr()
-        assert f"Quality check ID: {quality_id}" in captured.out
-        assert "Before value: 25" in captured.out
-        assert "After value: 15" in captured.out
-        assert "Improvement: 40.00%" in captured.out
+    mock_parser_instance = mock_argparse.return_value
+    mock_args = create_mock_args(
+        command="log-quality-check",
+        verbose=0,
+        tool="pylint",
+        before_output=str(dummy_before_pylint_file),
+        after_output=str(dummy_after_pylint_file),
+        metric_type="error_count",
+        collection_name="validation_evidence_v1",
+    )
+    mock_parser_instance.parse_args.return_value = mock_args
+
+    # Configure the mocks for the patched functions from evidence_collector
+    final_evidence_id_for_cli_output = "test-evidence-id-123"
+    mock_store_validation_evidence.return_value = final_evidence_id_for_cli_output
+
+    # This is what collect_validation_evidence is mocked to return.
+    # It needs to have the code_quality_improvements attribute for cli.py.
+    mock_returned_validation_evidence = MagicMock(spec=ValidationEvidence)
+
+    # Create a mock for the CodeQualityEvidence item that would be inside the list
+    # This represents the item that create_code_quality_evidence would produce
+    # and that cli.py will try to access for printing.
+    mock_cq_item_for_print = MagicMock(spec=CodeQualityEvidence)
+    mock_cq_item_for_print.before_value = 2.0  # Expected before value from dummy files
+    mock_cq_item_for_print.after_value = 1.0  # Expected after value from dummy files
+    mock_cq_item_for_print.metric_type = "linting"  # Default from create_code_quality_evidence
+    mock_cq_item_for_print.tool = "pylint"
+    mock_cq_item_for_print.file_path = dummy_target_py_file.name  # Or how it's stored
+    mock_cq_item_for_print.percentage_improvement = 50.0
+
+    # Set the attribute on the object that collect_validation_evidence returns
+    mock_returned_validation_evidence.code_quality_improvements = [mock_cq_item_for_print]
+    # Set other attributes if cli.py uses them before store_validation_evidence or for printing
+    # For example, the overall score might be calculated by collect_validation_evidence
+    mock_returned_validation_evidence.score = 0.5  # Example score
+
+    mock_collect_evidence.return_value = mock_returned_validation_evidence
+
+    main()  # Call the CLI main function
+
+    # Assert that collect_validation_evidence was called correctly.
+    # It should be called with the list of CodeQualityEvidence objects produced by
+    # the actual create_code_quality_evidence function.
+    mock_collect_evidence.assert_called_once()
+    args_call_collect, kwargs_call_collect = mock_collect_evidence.call_args
+    assert "code_quality_improvements" in kwargs_call_collect
+    list_passed_to_collect = kwargs_call_collect["code_quality_improvements"]
+    assert len(list_passed_to_collect) == 1
+    actual_cq_evidence_created = list_passed_to_collect[0]
+
+    # Verify the content of the CodeQualityEvidence object that was created by the
+    # non-mocked create_code_quality_evidence and passed to the mocked collect_validation_evidence
+    assert isinstance(actual_cq_evidence_created, CodeQualityEvidence)  # Check it's the real type
+    assert actual_cq_evidence_created.tool == "pylint"
+    # The file_path in CodeQualityEvidence is an absolute path after processing in create_code_quality_evidence
+    # In the test, dummy_target_py_file.name is just the filename. We need to see how it's stored.
+    # For now, let's assume create_code_quality_evidence stores the name as is if it can't resolve full path for some reason
+    # or if it's processing based on keys from parsed results.
+    # Let's check what create_code_quality_evidence actually does with file_path.
+    # It takes file_path from improvements.items(), which are keys from before_results/after_results.
+    # Our parsers use the filename as key. So this should be dummy_target_py_file.name.
+    assert actual_cq_evidence_created.file_path == dummy_target_py_file.name
+    assert actual_cq_evidence_created.before_value == 2.0
+    assert actual_cq_evidence_created.after_value == 1.0
+    assert actual_cq_evidence_created.percentage_improvement == 50.0
+    assert actual_cq_evidence_created.metric_type == "linting"  # Default in CodeQualityEvidence constructor
+
+    # Assert that store_validation_evidence was called correctly
+    mock_store_validation_evidence.assert_called_once_with(
+        evidence=mock_returned_validation_evidence,
+        collection_name="validation_evidence_v1",
+        chroma_client=mock_client_instance,
+    )
+
+    captured = capsys.readouterr()
+    # The ID in the output comes from the return value of mock_store_validation_evidence
+    assert f"Code quality evidence stored with ID: {final_evidence_id_for_cli_output}" in captured.out
+    # The metric type in the printout comes from args.metric_type if not found in evidence,
+    # but our CodeQualityEvidence schema has 'metric_type' which should be 'linting' by default.
+    assert (
+        "Tool: pylint, Metric: linting" in captured.out
+    )  # Assuming metric_type is set to 'linting' in CodeQualityEvidence
+    assert "Before (linting): 2.0, After (linting): 1.0" in captured.out
+    assert "Improvement: +50.00%" in captured.out
 
 
 @patch("chroma_mcp_client.validation.test_workflow.check_for_completed_workflows")

@@ -58,6 +58,10 @@ flowchart TD
 
 *Fig 1: Traditional workflow - Knowledge is fragmented, context for AI is often stale, and retrieval is a manual, time-consuming chore.*
 
+[View a static version of Fig 1 below for better zooming/scrolling]
+![Fig 1: Traditional workflow](./diagrams/fig1_traditional_workflow.svg)
+*(To update: `mmdc -i <source_file_for_fig1>.mmd -o docs/diagrams/fig1_traditional_workflow.svg -b transparent`)*
+
 ### Improved Workflow: Integrated, Evolving Knowledge with Chroma MCP Ecosystem (v4 Plan)
 
 ```mermaid
@@ -86,13 +90,13 @@ graph TD
         C -- Optionally Uses --> Q[LoRA Adapter];
     end
 
-    I[Thinking Tools] -- Records/Queries --> H;
+    I[Thinking Tools] -- Records/Queries --> TS1;
     B -- Semantic Query / Thinking / AI Interaction --> C;
     K -- Rich, Current, Evolving Context --> B;
 
     subgraph "Measurement & Quality Loop (Planned)"
-        R[Test Execution] -- Generates JUnit XML --> S[log-test-results];
-        S -- MCP Call --> C;
+        R[Test Execution] -- Generates JUnit XML --> S[log-test-results CLI];
+        S -- Stores Results --> T;
         C -- Stores Results --> T[(ChromaDB: test_results_v1)];
         C -- Updates Code Links --> H;
         C -- Updates Chat Links --> M;
@@ -109,6 +113,7 @@ graph TD
         M
         O
         T
+        TS1[(ChromaDB: thinking_sessions_v1)]
     end
     subgraph Automation
         D
@@ -137,6 +142,7 @@ graph TD
     style M fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
     style O fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
     style T fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
+    style TS1 fill:#66BB6A,stroke:#E6E6E6,stroke-width:1px
     style C fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
     style I fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
     style D fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
@@ -153,6 +159,10 @@ graph TD
 ```
 
 *Fig 2: The Chroma MCP ecosystem - Automated indexing, enhanced chat logging with context capture, bidirectional linking, test result integration, ROI measurement, and a phased learning loop create a unified, always-current, and evolving knowledge hub.*
+
+[View a static version of Fig 2 below for better zooming/scrolling]
+![Fig 2: The Chroma MCP ecosystem](./diagrams/fig2_chroma_mcp_ecosystem.svg)
+*(To update: `mmdc -i <source_file_for_fig2>.mmd -o docs/diagrams/fig2_chroma_mcp_ecosystem.svg -b transparent`)*
 
 ## The Chroma MCP Ecosystem: Components
 
@@ -311,24 +321,24 @@ flowchart TD
     
     subgraph "Thought Capture Process"
         C --> D["record-thought CLI or MCP Tool"]
-        D -- "Thought 1 of N\nIssue Analysis" --> E[(ChromaDB: thinking_sessions_v1)]
-        D -- "Thought 2 of N\nSolution Approaches" --> E
-        D -- "Thought 3 of N\nImplementation Plan" --> E
-        D -- "Thought N of N\nVerification Strategy" --> E
+        D -- "Thought 1 of N Issue Analysis" --> E[(ChromaDB: thinking_sessions_v1)]
+        D -- "Thought 2 of N Solution Approaches" --> E
+        D -- "Thought 3 of N Implementation Plan" --> E
+        D -- "Thought N of N Verification Strategy" --> E
     end
     
-    E -- "Find Similar\nThoughts" --> F[MCP Tool: find_similar_thoughts]
+    E -- "Find Similar Thoughts" --> F[MCP Tool: find_similar_thoughts]
     F --> G[AI Assistant]
-    G -- "Builds On\nPrevious Thoughts" --> H[Enhanced Response]
+    G -- "Builds On Previous Thoughts" --> H[Enhanced Response]
     H --> A
     
     E -- "Session Summary" --> I[MCP Tool: get_session_summary]
-    I --> J["Analyze for\nPromotion"]
+    I --> J["Analyze for Promotion"]
     J --> K[(ChromaDB: derived_learnings_v1)]
     
-    L[Another Developer] --> M["Query: 'Why did we choose\nthis approach for X?'"]
+    L[Another Developer] --> M["Query Why did we choose X"]
     M --> N[MCP Tool: find_similar_thoughts]
-    N --> O["Retrieves Original\nReasoning Process"]
+    N --> O["Retrieves Original Reasoning"]
     O --> L
 
     style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
@@ -349,6 +359,10 @@ flowchart TD
 ```
 
 *Fig 3: Sequential Thinking Flow - Capturing and utilizing structured thought processes.*
+
+[View a static version of Fig 3 below for better zooming/scrolling]
+![Fig 3: Sequential Thinking Flow](./diagrams/fig3_sequential_thinking_flow.svg)
+*(To update: `mmdc -i <source_file_for_fig3>.mmd -o docs/diagrams/fig3_sequential_thinking_flow.svg -b transparent`)*
 
 #### How Thought Collection Works
 
@@ -407,7 +421,7 @@ flowchart TD
         C -- "Consults" --> G
         C -- "Generates Response" --> H[Code Solution/Explanation]
         H --> I[auto_log_chat Rule]
-        I -- "Extract Context" --> J["• Code Diff\n• Tool Sequence\n• Confidence Score"]
+        I -- "Extract Context" --> J["Code Diff, Tool Sequence, Confidence Score"]
         J --> K["chroma_log_chat MCP Call"]
         K -- "Rich Context, Bidirectional Links" --> L[(ChromaDB: chat_history_v1)]
         K -- "Updates Related Code Links" --> G
@@ -415,19 +429,19 @@ flowchart TD
     
     subgraph "Learning Promotion Flow"
         L -- "Regularly" --> M["analyze-chat-history CLI"]
-        M -- "Prioritizes by\nConfidence Score" --> N["High-Value Interactions\nwith Evidence"]
+        M -- "Analyzes Chats, Shows Scores" --> N["High-Value Interactions with Evidence"]
         N --> O["review-and-promote CLI"]
         O -- "Developer Approval" --> P[(ChromaDB: derived_learnings_v1)]
         P -- "Enhanced Relevance" --> Q["Future RAG Queries"]
         Q --> C
     end
     
-    R[Other Developer] --> S["Query: 'How did we fix\nthe XYZ bug?'"]
+    R[Other Developer] --> S["Query: How did we fix the XYZ bug?"]
     S --> T["chroma_query_documents"]
     T -- "Semantic Search" --> L
     T -- "Follows Links to" --> G
     T -- "Retrieves Golden Solutions" --> P
-    T --> U["Complete Context with\nCode + Discussion + Solution"]
+    T --> U["Complete Context with Code + Discussion + Solution"]
     U --> R
 
     style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
@@ -454,6 +468,10 @@ flowchart TD
 ```
 
 *Fig 4: Code and Chat Auto-Logging Flow - Capturing context and creating bidirectional links.*
+
+[View a static version of Fig 4 below for better zooming/scrolling]
+![Fig 4: Code and Chat Auto-Logging Flow](./diagrams/fig4_code_chat_autologging_flow.svg)
+*(To update: `mmdc -i <source_file_for_fig4>.mmd -o docs/diagrams/fig4_code_chat_autologging_flow.svg -b transparent`)*
 
 #### How Code and Chat Logging Works
 
@@ -507,10 +525,10 @@ The "Second Brain" captures test results, tracks transitions from failure to suc
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
-    A[Developer] -- Writes/Modifies Code --> B["Run Tests\n./scripts/test.sh -c -v"]
+    A[Developer] -- Writes/Modifies Code --> B["Run Tests ./scripts/test.sh -c -v"]
     
     subgraph "Test Execution and Capture"
-        B -- "Generates" --> C["JUnit XML\ntest-results.xml"]
+        B -- "Generates" --> C["JUnit XML test-results.xml"]
         C --> D["log-test-results CLI"]
         D -- "Structured Test Data" --> E[(ChromaDB: test_results_v1)]
         D -- "Updates Links to" --> F[(ChromaDB: codebase_v1)]
@@ -521,17 +539,17 @@ flowchart TD
         H["Test Failure"] -- "Developer Seeks Help" --> I[AI Assistant]
         I -- "Consults" --> F
         I -- "Provides Fix" --> J["Fix Implemented"]
-        J --> K["Rerun Tests\n./scripts/test.sh -c -v"]
+        J --> K["Rerun Tests ./scripts/test.sh -c -v"]
         K -- "Now Passing" --> L["log-test-results CLI"]
-        L -- "Records Transition\nFailure → Success" --> M["Evidence: TestTransition"]
+        L -- "Records Transition Failure → Success" --> M["Evidence: TestTransition"]
         M --> N["High Validation Score"]
     end
     
     subgraph "Validation-Driven Learning"
-        E -- "Analyze Test Patterns" --> O["analyze-chat-history\nwith Validation Scores"]
-        O --> P["High-Value Fixes with\nTest Evidence"]
+        E -- "Analyze Test Patterns" --> O["analyze-chat-history with Validation Scores"]
+        O --> P["High-Value Fixes with Test Evidence"]
         P --> Q["review-and-promote CLI"]
-        Q -- "Auto-Prioritized by\nValidation Score" --> R[(ChromaDB: derived_learnings_v1)]
+        Q -- "Promotes with Score Info" --> R[(ChromaDB: derived_learnings_v1)]
         S["Runtime Error"] --> T["log-error CLI"]
         T -- "Structured Error Data" --> U["Evidence: RuntimeError"]
         U --> V["Combined Validation Score"]
@@ -540,7 +558,7 @@ flowchart TD
     
     W[New Developer] -- "Encounters Similar Issue" --> X["Query with Error Context"]
     X --> Y["RAG with Validated Solutions"]
-    Y -- "Returns Proven Fix\nWith Test Evidence" --> W
+    Y -- "Returns Proven Fix With Test Evidence" --> W
 
     style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
     style B fill:#7E57C2,stroke:#E6E6E6,stroke-width:1px
@@ -570,6 +588,10 @@ flowchart TD
 ```
 
 *Fig 5: Test-Driven Learning Flow - Capturing test transitions and using them as validation evidence.*
+
+[View a static version of Fig 5 below for better zooming/scrolling]
+![Fig 5: Test-Driven Learning Flow](./diagrams/fig5_test_driven_learning_flow.svg)
+*(To update: `mmdc -i <source_file_for_fig5>.mmd -o docs/diagrams/fig5_test_driven_learning_flow.svg -b transparent`)*
 
 #### How Test-Driven Learning Works
 
@@ -625,9 +647,9 @@ These three flows work together as complementary parts of a unified learning eco
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
     subgraph "Developer Knowledge Sources"
-        A["Explicit Reasoning\n(Sequential Thinking)"]
-        B["Code & Chat Interactions\n(Auto-Logging)"]
-        C["Evidence-Based Validation\n(Test Results & Errors)"]
+        A["Explicit Reasoning (Sequential Thinking)"]
+        B["Code & Chat Interactions (Auto-Logging)"]
+        C["Evidence-Based Validation (Test Results & Errors)"]
     end
     
     subgraph "ChromaDB Collections"
@@ -643,13 +665,13 @@ flowchart TD
     B --> F
     C --> G
     
-    D -- "Promotion of\nValuable Insights" --> H
-    F -- "Promotion of\nValidated Solutions" --> H
-    E -- "Bidirectional\nLinks" --> F
-    G -- "Validation\nEvidence" --> F
+    D -- "Promotion of Valuable Insights" --> H
+    F -- "Promotion of Validated Solutions" --> H
+    E -- "Bidirectional Links" --> F
+    G -- "Validation Evidence" --> F
     
-    H -- "Enhanced RAG" --> I["AI Assistance with\nComprehensive Context"]
-    I --> J["More Effective\nDevelopment"]
+    H -- "Enhanced RAG" --> I["AI Assistance with Comprehensive Context"]
+    I --> J["More Effective Development"]
 
     style A fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
     style B fill:#42A5F5,stroke:#E6E6E6,stroke-width:1px
@@ -664,6 +686,10 @@ flowchart TD
 ```
 
 *Fig 6: The Integrated Learning Ecosystem - Three complementary knowledge flows feeding a unified Second Brain.*
+
+[View a static version of Fig 6 below for better zooming/scrolling]
+![Fig 6: The Integrated Learning Ecosystem](./diagrams/fig6_integrated_learning_ecosystem.svg)
+*(To update: `mmdc -i <source_file_for_fig6>.mmd -o docs/diagrams/fig6_integrated_learning_ecosystem.svg -b transparent`)*
 
 ### Key Integration Points
 

@@ -314,8 +314,9 @@ class TestEvidenceCollector:
             metadata = call_kwargs["metadatas"][0]
             assert metadata["evidence_id"] == "test-uuid"
             assert metadata["chat_id"] == "chat-123"
-            assert metadata["evidence_types"] == ["test_transition"]
-            assert metadata["test_transition_count"] == 1
+            assert metadata["evidence_types"] == "test_transition"
+            assert metadata["score"] == 0.7
+            assert metadata["meets_threshold"] is True
 
             # Test with collection creation
             mock_client.reset_mock()

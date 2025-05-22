@@ -3,6 +3,29 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.25] - 2025-05-22
+
+**Added:**
+
+- Improved `docs/integration/pytest_plugin_usage.md` with clearer instructions on dependency setup (`chroma-mcp-server[client]`), environment activation, and plugin verification steps (`pip list`, `pytest --trace-config`) for external projects.
+- Enhanced `pytest_plugin_usage.md` with more detailed examples for running `pytest --auto-capture-workflow` directly and via various `hatch run` scenarios.
+
+**Changed:**
+
+- Updated `scripts/test.sh` to use `hatch run chroma-mcp-client <command>` instead of `hatch run python -m chroma_mcp_client.cli <command>` for all client CLI calls.
+- Refined the `log-quality-check` command in `src/chroma_mcp_client/cli.py` to correctly handle coverage data separately and use the appropriate evidence creation and storage functions.
+- Simplified Mermaid diagrams (Figures 3, 4, 5) in `docs/getting_started_second_brain.md` by adjusting labels to ensure compatibility with `mmdc` for SVG generation.
+- Updated `docs/getting_started_second_brain.md` to include generated SVGs for Figures 1-6 and updated the corresponding Mermaid source code within the document to match the simplified versions used for SVG generation.
+
+**Fixed:**
+
+- Resolved multiple `TypeError` and `AttributeError` issues in `src/chroma_mcp_client/cli.py` and `tests/chroma_mcp_client/test_cli.py` related to the `log-quality-check` command. This included correcting function calls, parameter passing, mock setups, imports, and patch targets for `create_code_quality_evidence`, `store_validation_evidence`, and `collect_validation_evidence`.
+- Addressed `ValueError` during metadata storage in `store_validation_evidence` by serializing complex list fields (e.g., `code_quality_improvements`, `test_transitions`, `runtime_errors`) to JSON and storing `evidence_types` as a CSV string.
+- Fixed `AttributeError: 'ValidationEvidence' object has no attribute 'id'` by adding a default `id` field to the `ValidationEvidence` schema and removing explicit `id` assignment in `collect_validation_evidence`.
+- Resolved `AttributeError: 'ValidationEvidence' object has no attribute 'threshold'` by removing an incorrect reference in `store_validation_evidence`.
+- Corrected a test assertion in `tests/chroma_mcp_client/validation/test_evidence_collector.py` to expect a CSV string for `evidence_types`.
+- Ensured the `--auto-capture-workflow` functions correctly with both `scripts/test.sh` and `hatch test --cover -v`.
+
 ## [0.2.24] - 2025-05-21
 
 **Added:**

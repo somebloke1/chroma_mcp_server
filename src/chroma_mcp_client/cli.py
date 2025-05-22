@@ -15,6 +15,9 @@ import uuid
 import time
 import json
 import click
+from typing import Tuple, Dict, Any, List
+import re
+import datetime
 
 # Get our specific logger
 logger = logging.getLogger(__name__)
@@ -41,6 +44,9 @@ from .validation.test_workflow import (
     setup_automated_workflow,
     cleanup_test_artifacts,
 )
+
+# Import the schema for CodeQualityEvidence
+from .validation.schemas import CodeQualityEvidence
 
 # --- Constants ---
 DEFAULT_COLLECTION_NAME = "codebase_v1"
@@ -954,26 +960,159 @@ def main():
     elif args.command == "log-quality-check":
         logger.info("Executing 'log-quality-check' command...")
         try:
-            # Import at runtime to avoid circular imports
-            from chroma_mcp_client.validation.code_quality_collector import create_code_quality_evidence
-            from chroma_mcp_client.validation.code_quality_collector import run_quality_check
-
-            # Run quality check comparison
-            quality_evidence = run_quality_check(
-                tool=args.tool,
-                before_output_path=args.before_output,
-                after_output_path=args.after_output,
-                metric_type=args.metric_type,
+            from chroma_mcp_client.validation.code_quality_collector import (
+                create_code_quality_evidence,
+                parse_ruff_output,
+                parse_pylint_output,
+                parse_flake8_output,
             )
 
-            # Store in ChromaDB if needed
-            quality_id = str(uuid.uuid4())
-            print(f"Quality check ID: {quality_id}")
-            print(f"Before value: {quality_evidence.before_value}")
-            print(f"After value: {quality_evidence.after_value}")
-            print(f"Improvement: {quality_evidence.percentage_improvement:.2f}%")
+            # Import from evidence_collector
+            from chroma_mcp_client.validation.evidence_collector import (
+                collect_validation_evidence,
+                store_validation_evidence,
+            )
 
-            logger.info(f"'log-quality-check' command finished. Quality ID: {quality_id}")
+            # Placeholder for a coverage parsing function - this was added in a previous step
+            def parse_coverage_output(output_str: str) -> Tuple[float, Dict[str, Any]]:
+                total_coverage = 0.0
+                detailed_metrics = {}
+                match = re.search(r"TOTAL\s+\d+\s+\d+\s+(\d+)%", output_str)
+                if match:
+                    total_coverage = float(match.group(1))
+                else:
+                    logger.warning("Could not parse total coverage percentage from output.")
+                return total_coverage, detailed_metrics
+
+            before_results_parsed: Dict[str, List[Dict[str, Any]]] = {}
+            after_results_parsed: Dict[str, List[Dict[str, Any]]] = {}
+            before_value_metric: float = 0.0
+            after_value_metric: float = 0.0
+
+            if args.before_output:
+                try:
+                    with open(args.before_output, "r") as f_before:
+                        before_content = f_before.read()
+                    if args.tool == "coverage":
+                        before_value_metric, _ = parse_coverage_output(before_content)
+                    elif args.tool == "ruff":
+                        before_results_parsed = parse_ruff_output(before_content)
+                        before_value_metric = sum(len(issues) for issues in before_results_parsed.values())
+                    elif args.tool == "pylint":
+                        before_results_parsed = parse_pylint_output(before_content)
+                        before_value_metric = sum(len(issues) for issues in before_results_parsed.values())
+                    elif args.tool == "flake8":
+                        before_results_parsed = parse_flake8_output(before_content)
+                        before_value_metric = sum(len(issues) for issues in before_results_parsed.values())
+                    else:
+                        logger.warning(f"Parsing for tool {args.tool} 'before' output not fully implemented.")
+                except FileNotFoundError:
+                    logger.warning(f"Before output file not found: {args.before_output}")
+                except Exception as e:
+                    logger.error(f"Error parsing before output file {args.before_output}: {e}")
+
+            try:
+                with open(args.after_output, "r") as f_after:
+                    after_content = f_after.read()
+                if args.tool == "coverage":
+                    after_value_metric, _ = parse_coverage_output(after_content)
+                elif args.tool == "ruff":
+                    after_results_parsed = parse_ruff_output(after_content)
+                    after_value_metric = sum(len(issues) for issues in after_results_parsed.values())
+                elif args.tool == "pylint":
+                    after_results_parsed = parse_pylint_output(after_content)
+                    after_value_metric = sum(len(issues) for issues in after_results_parsed.values())
+                elif args.tool == "flake8":
+                    after_results_parsed = parse_flake8_output(after_content)
+                    after_value_metric = sum(len(issues) for issues in after_results_parsed.values())
+                else:
+                    logger.warning(f"Parsing for tool {args.tool} 'after' output not fully implemented.")
+            except FileNotFoundError:
+                logger.error(f"After output file not found: {args.after_output}. This is required.")
+                sys.exit(1)
+            except Exception as e:
+                logger.error(f"Error parsing after output file {args.after_output}: {e}")
+                sys.exit(1)
+
+            code_quality_evidence_list = []
+            if args.tool == "coverage":
+                logger.info(f"[DEBUG COVERAGE] tool: {args.tool}, metric_type: {args.metric_type}")
+                logger.info(
+                    f"[DEBUG COVERAGE] before_value_metric: {before_value_metric}, after_value_metric: {after_value_metric}"
+                )
+                # For coverage, we handle it directly as it's a single metric typically.
+                # We don't use before_results_parsed/after_results_parsed for coverage in this path.
+                evidence_item = CodeQualityEvidence(
+                    tool=args.tool,
+                    metric_type=args.metric_type,  # Should be 'coverage'
+                    before_value=before_value_metric,
+                    after_value=after_value_metric,
+                    percentage_improvement=(after_value_metric - before_value_metric),  # For coverage, higher is better
+                    file_path="overall",  # Coverage is usually project-wide
+                    measured_at=datetime.datetime.now().isoformat(),
+                )
+                code_quality_evidence_list.append(evidence_item)
+                logger.info(f"[DEBUG COVERAGE] code_quality_evidence_list after append: {code_quality_evidence_list}")
+            else:
+                # For other tools (linting), use the existing structured approach
+                code_quality_evidence_list = create_code_quality_evidence(
+                    tool_name=args.tool, before_results=before_results_parsed, after_results=after_results_parsed
+                )
+
+            if not code_quality_evidence_list:
+                logger.error("Failed to create code quality evidence list.")
+                sys.exit(1)
+
+            # Assuming we might get multiple evidence items if, for example,
+            # the function processed multiple files or metric types internally.
+            # For now, let's assume it gives one primary piece of evidence,
+            # or we focus on the first if multiple.
+            # The evidence object itself will have before_value, after_value, metric_type
+
+            # We need to wrap this list into a collect_validation_evidence call
+            validation_evidence_to_store = collect_validation_evidence(
+                code_quality_improvements=code_quality_evidence_list  # Pass the list here
+            )
+
+            evidence_id = store_validation_evidence(
+                evidence=validation_evidence_to_store, collection_name=args.collection_name, chroma_client=client
+            )
+
+            logger.info(f"Code quality evidence stored with ID: {evidence_id}")
+            print(f"Code quality evidence stored with ID: {evidence_id}")
+
+            actual_before_value = 0.0
+            actual_after_value = 0.0
+            actual_metric_type = args.metric_type  # Default to args, but prefer from evidence
+
+            if validation_evidence_to_store.code_quality_improvements:
+                # Assuming the first item is the primary one for this CLI call's direct output
+                primary_cq_evidence = validation_evidence_to_store.code_quality_improvements[0]
+                actual_before_value = primary_cq_evidence.before_value
+                actual_after_value = primary_cq_evidence.after_value
+                actual_metric_type = primary_cq_evidence.metric_type
+
+            # Use actual_metric_type derived from the evidence object for consistent output
+            print(f"  Tool: {args.tool}, Metric: {actual_metric_type}")
+
+            print(
+                f"  Before ({actual_metric_type}): {actual_before_value}, After ({actual_metric_type}): {actual_after_value}"
+            )
+
+            improvement = 0.0
+            # Recalculate improvement based on actual values from evidence
+            if actual_metric_type == "coverage":  # Coverage increases
+                improvement = actual_after_value - actual_before_value
+                print(f"  Change: {improvement:+.2f}%")
+            elif actual_before_value > 0:  # For things like error counts, where lower is better
+                improvement = ((actual_before_value - actual_after_value) / actual_before_value) * 100
+                print(f"  Improvement: {improvement:+.2f}%")
+            else:  # If before was 0, and after is > 0, it's a regression. If both 0, no change.
+                if actual_after_value > 0:
+                    print(f"  Regression: {actual_after_value} new issues/points.")
+                else:
+                    print("  No change (both before and after are 0).")
+
         except Exception as e:
             logger.error(f"An error occurred during quality check logging: {e}", exc_info=True)
             print(f"Error during logging: {e}")

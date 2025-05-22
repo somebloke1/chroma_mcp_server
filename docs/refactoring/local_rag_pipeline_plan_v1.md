@@ -1,4 +1,6 @@
-# ✅ Action Plan: Local RAG Pipeline with Chroma MCP Server
+# ✅ Action Plan v1: Local RAG Pipeline (Implicit Learning via Chat History)
+
+**Note:** This plan is outdated and has been replaced by [local_rag_pipeline_plan_v4.md](local_rag_pipeline_plan_v4.md).
 
 **Goal:** Implement a local RAG pipeline using `chroma-mcp-server` for enhanced code generation, testing, and knowledge retrieval in development environments (Cursor, Windsurf, etc.), incorporating a feedback loop and focusing on cost-efficiency and quality improvement.
 

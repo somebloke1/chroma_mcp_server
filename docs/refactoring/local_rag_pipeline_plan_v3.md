@@ -1,5 +1,7 @@
 # ✅ Action Plan v3: Local RAG Pipeline (Implicit Learning via Chat History)
 
+**Note:** This plan is outdated and has been replaced by [local_rag_pipeline_plan_v4.md](local_rag_pipeline_plan_v4.md).
+
 **Goal:** Implement a local RAG pipeline using **direct ChromaDB access for automation (indexing, CI)** via installable client commands and the **`chroma-mcp-server` for interactive AI tasks (working memory, automated chat logging)**, focusing on deriving implicit learning by correlating summarized chat interactions with code changes.
 
 **Architecture:**

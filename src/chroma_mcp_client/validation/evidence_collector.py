@@ -62,7 +62,6 @@ def collect_validation_evidence(
 
     # Create the evidence object
     evidence = ValidationEvidence(
-        id=str(uuid.uuid4()),
         score=0.0,  # Will be calculated
         evidence_types=evidence_types,
         test_transitions=test_transitions,
@@ -257,7 +256,7 @@ class EvidenceCollector:
             "timestamp": timestamp,
             "score": evidence.score,
             "meets_threshold": evidence.meets_threshold(),
-            "evidence_types": evidence_type_strings,
+            "evidence_types": ",".join(evidence_type_strings),
             "test_transition_count": len(evidence.test_transitions or []),
             "runtime_error_count": len(evidence.runtime_errors or []),
             "code_quality_count": len(evidence.code_quality or []),
@@ -343,57 +342,57 @@ def store_validation_evidence(
     Store validation evidence in ChromaDB.
 
     Args:
-        evidence: ValidationEvidence object
-        collection_name: ChromaDB collection name
-        chat_id: Optional chat ID for metadata
-        chroma_client: Optional ChromaDB client
+        evidence: The ValidationEvidence object to store.
+        collection_name: Name of the ChromaDB collection.
+        chat_id: Optional ID of the associated chat interaction.
+        chroma_client: Optional ChromaDB client instance.
 
     Returns:
-        ID of the stored evidence
+        The ID of the stored evidence document.
     """
-    # Import here to avoid circular imports
-    try:
-        from chroma_mcp.utils.chroma_client import get_chroma_client
+    # Import here to avoid circular imports at the module level if issues arise
+    from chroma_mcp.utils.chroma_client import get_chroma_client
 
-        if chroma_client is None:
-            chroma_client = get_chroma_client()
-    except ImportError:
-        # Support using the client passed directly
-        if chroma_client is None:
-            raise ValueError("ChromaDB client is required")
+    if chroma_client is None:
+        chroma_client = get_chroma_client()
 
     # Ensure collection exists
     try:
         collection = chroma_client.get_collection(name=collection_name)
-    except Exception:
-        collection = chroma_client.get_or_create_collection(name=collection_name)
+    except Exception:  # Be more specific if ChromaDB raises a specific "not found" error
+        # If EF needs to be specified, it should be handled here or by get_chroma_client
+        collection = chroma_client.create_collection(name=collection_name)
 
-    # Generate evidence ID if not present
-    evidence_id = getattr(evidence, "id", None) or str(uuid.uuid4())
+    evidence_id = evidence.id  # Use the ID from the evidence object
     timestamp = datetime.datetime.now().isoformat()
 
-    # Prepare document and metadata
-    document = evidence.model_dump_json()
-
-    # Convert evidence types to simple strings without enum prefix
-    evidence_type_strings = [t.value for t in evidence.evidence_types]
-
-    metadata = {
+    # Prepare metadata, serializing list fields to JSON strings
+    metadata_to_store = {
         "evidence_id": evidence_id,
-        "timestamp": timestamp,
         "score": evidence.score,
         "meets_threshold": evidence.meets_threshold(),
-        "evidence_types": evidence_type_strings,
-        "test_transition_count": len(evidence.test_transitions or []),
-        "runtime_error_count": len(evidence.runtime_errors or []),
-        "code_quality_count": len(evidence.code_quality_improvements or []),
+        "timestamp": timestamp,
+        "evidence_types": ",".join([et.value for et in evidence.evidence_types]),  # Store enum values as CSV
+        # Serialize complex list fields to JSON strings
+        "test_transitions": (
+            json.dumps([t.model_dump() for t in evidence.test_transitions]) if evidence.test_transitions else None
+        ),
+        "runtime_errors": (
+            json.dumps([r.model_dump() for r in evidence.runtime_errors]) if evidence.runtime_errors else None
+        ),
+        "code_quality_improvements": (
+            json.dumps([cq.model_dump() for cq in evidence.code_quality_improvements])
+            if evidence.code_quality_improvements
+            else None
+        ),
     }
-
-    # Add chat ID if provided
     if chat_id:
-        metadata["chat_id"] = chat_id
+        metadata_to_store["chat_id"] = chat_id
 
-    # Store in collection
-    collection.add(documents=[document], metadatas=[metadata], ids=[evidence_id])
+    # The document itself could be a summary or the full JSON representation of the evidence
+    # For simplicity, let's use the JSON representation as the document content as well
+    document_content = evidence.model_dump_json()
+
+    collection.add(documents=[document_content], metadatas=[metadata_to_store], ids=[evidence_id])
 
     return evidence_id

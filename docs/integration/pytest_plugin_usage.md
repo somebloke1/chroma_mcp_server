@@ -4,8 +4,8 @@ The `chroma-mcp-server` package includes a Pytest plugin that enables automated 
 
 ## Prerequisites
 
-1. **`chroma-mcp-server` Installed with Client Extras:**
-    Ensure that `chroma-mcp-server` is installed in your project's environment with the `client` extras, which include the pytest plugin.
+1. **`chroma-mcp-server` Installed with Client Extras in Your Project:**
+    Ensure that `chroma-mcp-server` is installed **in your project's environment** with the `client` extras. This is what provides the pytest plugin.
 
     ```bash
     pip install "chroma-mcp-server[client]"
@@ -13,18 +13,18 @@ The `chroma-mcp-server` package includes a Pytest plugin that enables automated 
     # pip install "chroma-mcp-server[client]==0.2.23"
     ```
 
-2. **Pytest Installed:**
+2. **Pytest Installed in Your Project:**
     Your project must use `pytest` for running tests.
 
     ```bash
     pip install pytest
     ```
 
-3. **ChromaDB Setup:**
-    You need a running ChromaDB instance (local or remote) and your project environment should be configured to connect to it. This typically involves setting environment variables like `CHROMA_DB_IMPL`, `CHROMA_DB_PATH` (for local persistent), or `CHROMA_HTTP_URL` (for HTTP). Refer to the main `chroma-mcp-server` documentation for ChromaDB setup.
+3. **ChromaDB Setup for Your Project:**
+    You need a running ChromaDB instance and your project environment should be configured to connect to it.
 
-4. **`.env` File (Recommended):**
-    Place a `.env` file in your project root with the necessary ChromaDB connection details. The plugin and `chroma-mcp-client` will load these.
+4. **`.env` File in Your Project (Recommended):**
+    Place a `.env` file in your project root with the necessary ChromaDB connection details.
 
     Example `.env` for a local persistent ChromaDB:
 
@@ -35,6 +35,72 @@ The `chroma-mcp-server` package includes a Pytest plugin that enables automated 
     LOG_LEVEL="INFO"
     TOKENIZERS_PARALLELISM="false"
     ```
+
+## Integrating the Plugin into Your Project
+
+To use the `--auto-capture-workflow` functionality in your own project (let's call it `your-project`), follow these steps:
+
+**1. Declare `chroma-mcp-server[client]` as a Dependency:**
+
+In `your-project/pyproject.toml` (or your project's equivalent dependency file, like `requirements.txt`), add `chroma-mcp-server` with the `[client]` extra:
+
+```toml
+# In your-project/pyproject.toml
+
+[project]
+# ... other project metadata for your-project ...
+dependencies = [
+    "chroma-mcp-server[client]>=0.2.24", # Replace with the desired or latest version
+    # ... other dependencies for your-project ...
+]
+
+# If you are not using a [project] table, but perhaps directly defining
+# dependencies for a Hatch environment, it would look like:
+# [tool.hatch.envs.default.dependencies]
+# "chroma-mcp-server[client]>=0.2.24"
+```
+
+The `[client]` extra is essential as it ensures the `chroma_mcp_client.pytest_plugin` module and its dependencies are installed.
+
+**2. Install/Update Your Project's Environment:**
+
+Ensure that this dependency is installed into the Python environment you use for running `pytest` in `your-project`.
+
+- If using Hatch for `your-project`:
+
+  Hatch typically installs/updates dependencies when an environment is created or when you run commands like `hatch build` or `hatch dep sync <your-env-name>`.
+  
+  If you've just added the dependency, ensure your environment is up-to-date. You might need to:
+
+  - Recreate the environment: `hatch env remove <your-env-name>` (e.g., `hatch-test.py3.12`) and then let Hatch rebuild it on the next `hatch run <your-env-name>:pytest ...` command.
+  - Or explicitly install/update: `hatch run <your-env-name>:pip install --upgrade "chroma-mcp-server[client]"`
+
+**3. Verify Plugin Discovery (Crucial):**
+
+Before using the `--auto-capture-workflow` flag, confirm that `pytest` in `your-project`'s environment can find the plugin:
+
+   a. **Activate your project's test environment:**
+      ```bash
+      # Example if using Hatch for your-project
+      hatch shell <your-env-name>
+      hatch shell hatch-test.py3.12 # if you have such a matrix
+      ```
+
+   b. **Check installed packages:**
+      Inside the activated shell, run:
+      ```bash
+      pip list
+      ```
+      Verify that `chroma-mcp-server` is listed and is the version you expect.
+
+   c. **Check `pytest` plugin registration:**
+      Still inside the activated shell, run:
+      ```bash
+      pytest --trace-config
+      ```
+      The output **must** include a line similar to this (the path will vary):
+      `PLUGIN registered: chroma_mcp_workflow (<...>/dist-packages/chroma_mcp_client/pytest_plugin.py)`
+      If `chroma_mcp_workflow` is *not* listed here, `pytest` does not see the plugin, and the `--auto-capture-workflow` flag will be unrecognized. This usually means `chroma-mcp-server[client]` is not correctly installed in *this specific active environment*.
 
 ## Enabling the Plugin
 
@@ -58,17 +124,19 @@ When you run `pytest --auto-capture-workflow`:
 
 ## Usage Examples
 
-Assuming your project uses `pytest` and you have your environment set up:
+Assuming your project uses `pytest` and you have your environment set up **as described in "Integrating the Plugin into Your Project"**:
 
 **Running Pytest with the Workflow Capture:**
+
+Directly with `pytest` (if it's in your PATH and the environment is active):
 
 ```bash
 pytest --auto-capture-workflow
 ```
 
-Or, if you run tests via a script or a tool like `nox` or `tox`, ensure this flag is added to the `pytest` invocation.
+**If using `hatch`:**
 
-**If using `hatch` (similar to `chroma-mcp-server`'s own setup):**
+If your project has a `pyproject.toml` with a test script defined (as shown in the `chroma-mcp-server` example):
 
 You can define a script alias in your project's `pyproject.toml`:
 
@@ -76,13 +144,35 @@ You can define a script alias in your project's `pyproject.toml`:
 [tool.hatch.envs.hatch-test.scripts]
 # Example: always run tests with the workflow capture
 cov = "coverage run -m pytest --auto-capture-workflow {args}"
+# Or a simpler version without coverage directly in the alias
+test-workflow = "pytest --auto-capture-workflow {args}"
 ```
 
 Then you can run:
 
 ```bash
-hatch test --cover # (or hatch run cov)
+hatch run hatch-test:cov # (or hatch run hatch-test:test-workflow)
+# or, if 'cov' is the default script for the 'test' or 'hatch-test' environment
+# hatch test --cover (using the 'cov' script)
 ```
+
+**Using `hatch run` (Recommended for projects without specific `pyproject.toml` test scripts):**
+
+If your project doesn't have a `pyproject.toml` or you don't want to add custom scripts, you can directly invoke `pytest` within the Hatch environment:
+
+```bash
+# Assuming 'pytest' is available in the default Hatch environment
+hatch run pytest --auto-capture-workflow
+
+# If you use a specific environment, e.g., 'test' or 'hatch-test'
+hatch run test:pytest --auto-capture-workflow
+
+# To include coverage:
+hatch run test:coverage run -m pytest --auto-capture-workflow
+```
+
+This method bypasses the need for `pyproject.toml` script definitions for the simple execution of `pytest` with the required flag.
+The `--auto-capture-workflow` flag is passed directly to `pytest`.
 
 ## Setting up Git Hooks (Optional but Recommended)
 
