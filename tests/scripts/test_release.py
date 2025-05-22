@@ -112,7 +112,9 @@ def test_main_guided_default(mock_run_command, mock_update_changelog, mock_updat
 @patch("chroma_mcp.dev_scripts.release.update_version")
 @patch("chroma_mcp.dev_scripts.release.update_changelog")
 @patch("chroma_mcp.dev_scripts.release.run_command")
-def test_main_guided_skip_testpypi(mock_run_command, mock_update_changelog, mock_update_version, mock_get_current_version):
+def test_main_guided_skip_testpypi(
+    mock_run_command, mock_update_changelog, mock_update_version, mock_get_current_version
+):
     """Test guided release with --skip-testpypi."""
     mock_get_current_version.return_value = "1.0.0"
     mock_update_version.return_value = True
@@ -152,7 +154,9 @@ def test_main_guided_test_only(mock_run_command, mock_update_changelog, mock_upd
 @patch("chroma_mcp.dev_scripts.release.update_version")
 @patch("chroma_mcp.dev_scripts.release.update_changelog")
 @patch("chroma_mcp.dev_scripts.release.run_command")
-def test_main_guided_skip_tests_build(mock_run_command, mock_update_changelog, mock_update_version, mock_get_current_version):
+def test_main_guided_skip_tests_build(
+    mock_run_command, mock_update_changelog, mock_update_version, mock_get_current_version
+):
     """Test guided release with --skip-tests and --skip-build flags."""
     mock_get_current_version.return_value = "1.0.0"
     mock_update_version.return_value = True

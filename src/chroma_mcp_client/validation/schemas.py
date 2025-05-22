@@ -105,6 +105,7 @@ class CodeQualityEvidence(BaseModel):
 class ValidationEvidence(BaseModel):
     """Complete validation evidence for a learning candidate."""
 
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique ID for this validation evidence.")
     evidence_types: List[ValidationEvidenceType]
     score: float = Field(..., description="Computed validation score from 0.0 to 1.0")
     test_transitions: Optional[List[TestTransitionEvidence]] = None

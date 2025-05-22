@@ -30,3 +30,12 @@ This section contains detailed guides on how to use specific features and workfl
 
 - **[Validation System](./validation_system.md)**
   - Describes the evidence-based validation system for promoting learnings, including different types of evidence and the scoring mechanism.
+
+- **[Implicit Learning and Analysis](./implicit_learning.md)**
+  - Covers how the system automatically captures data from development activities for analysis and pattern identification, primarily through the `chat_history_v1` collection.
+
+- **[Derived Learnings](./derived_learnings.md)**
+  - Explains the `derived_learnings_v1` collection, the process of curating high-quality insights, and how these learnings are used to augment RAG.
+
+- **[Troubleshooting Context Capture](./troubleshooting_context_capture.md)**
+  - Provides guidance on diagnosing and resolving common issues with the enhanced context capture system, ensuring rich data logging.

@@ -204,7 +204,7 @@ if [ -f "${XML_OUTPUT_PATH}" ]; then
             
             # Store the failure in validation system
             echo "📋 Registering test failure in workflow system..."
-            python -m chroma_mcp_client.cli log-test-results "${XML_OUTPUT_PATH}"
+            hatch run chroma-mcp-client log-test-results "${XML_OUTPUT_PATH}" --commit-after "${CURRENT_COMMIT}"
             
             # Save commit hash for the failure
             echo "${CURRENT_COMMIT}" > "${FAILURE_XML}.commit"
@@ -260,7 +260,7 @@ if [ -f "${XML_OUTPUT_PATH}" ]; then
                     
                     # Run test transition detection with the found failure XML
                     echo "📊 Analyzing test transitions..."
-                    python -m chroma_mcp_client.cli log-test-results "${XML_OUTPUT_PATH}" --before-xml "${FAILURE_XML}" --commit-before "${FAILURE_COMMIT}" --commit-after "${CURRENT_COMMIT}"
+                    hatch run chroma-mcp-client log-test-results "${XML_OUTPUT_PATH}" --before-xml "${FAILURE_XML}" --commit-before "${FAILURE_COMMIT}" --commit-after "${CURRENT_COMMIT}"
                     
                     # Create a completed workflow file in the new location
                     COMPLETED_WORKFLOW="${WORKFLOW_DIR}/test_workflow_complete_${TIMESTAMP}.json"
@@ -269,7 +269,7 @@ if [ -f "${XML_OUTPUT_PATH}" ]; then
                     
                     # Attempt auto-cleanup of processed artifacts
                     echo "🗑️ Cleaning up processed artifacts..."
-                    python -m chroma_mcp_client.cli cleanup-test-artifacts "${COMPLETED_WORKFLOW}"
+                    hatch run chroma-mcp-client cleanup-test-artifacts "${COMPLETED_WORKFLOW}"
                 else
                     echo "⚠️ Previous failure XML not found: ${FAILURE_XML}"
                 fi
@@ -282,7 +282,7 @@ if [ -f "${XML_OUTPUT_PATH}" ]; then
         echo "🔍 Logging test results to validation system..."
         
         # Base log command
-        LOG_CMD="python -m chroma_mcp_client.cli log-test-results ${XML_OUTPUT_PATH}"
+        LOG_CMD="hatch run chroma-mcp-client log-test-results ${XML_OUTPUT_PATH}"
         
         # Add before XML if specified
         if [ -n "$BEFORE_XML" ]; then
@@ -332,29 +332,25 @@ if [ "$COVERAGE" = true ]; then
     echo "<<< Coverage run finished >>>"
     # Comment out ALL subsequent coverage commands
     echo "Combining parallel coverage data (if any)..."
-    hatch run coverage combine --quiet
+    hatch run hatch-test.py3.10:coverage combine || echo "No data to combine" # Allow to fail if no .coverage files
     echo "Generating XML coverage report..."
-    hatch run coverage xml -o "${COVERAGE_DIR}/coverage.xml" # Generate XML for Codecov
+    hatch run hatch-test.py3.10:coverage xml -o "${COVERAGE_DIR}/coverage.xml"
+    COVERAGE_OUTPUT_FILE="${COVERAGE_DIR}/coverage_output.txt" # File to store text output
     echo "Generating XML terminal coverage report..."
-    hatch run coverage report -m # Show terminal report
-    
-    # Log code quality metrics if requested
+    hatch run hatch-test.py3.10:coverage report > "${COVERAGE_OUTPUT_FILE}"
+    cat "${COVERAGE_OUTPUT_FILE}"
+
     if [ "$LOG_RESULTS" = true ]; then
         echo "🔍 Logging code quality metrics from coverage..."
-        
-        # Create temporary coverage output file
-        COV_OUTPUT_FILE="${COVERAGE_DIR}/coverage_output.txt"
-        hatch run coverage report -m > "${COV_OUTPUT_FILE}"
-        
-        # Log quality metrics
-        echo "Executing: python -m chroma_mcp_client.cli log-quality-check --tool coverage --after-output ${COV_OUTPUT_FILE} --metric-type coverage"
-        python -m chroma_mcp_client.cli log-quality-check --tool coverage --after-output "${COV_OUTPUT_FILE}" --metric-type coverage
+        # Use hatch run for consistency and to ensure correct environment
+        echo "Executing: hatch run chroma-mcp-client log-quality-check --tool coverage --after-output $COVERAGE_OUTPUT_FILE --metric-type coverage"
+        hatch run chroma-mcp-client log-quality-check --tool coverage --after-output "$COVERAGE_OUTPUT_FILE" --metric-type coverage
     fi
-    
+
     if [ "$HTML" = true ]; then
         echo "Generating HTML coverage report..."
         # Directory is now configured in pyproject.toml to be "${COVERAGE_DIR}/html"
-        hatch run coverage html
+        hatch run hatch-test.py3.10:coverage html
     fi
     echo "<<< Coverage combination finished >>>"
 fi

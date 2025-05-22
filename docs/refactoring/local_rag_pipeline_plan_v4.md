@@ -653,20 +653,20 @@ This error-driven learning integration will transform our derived learnings coll
 10. [X] **Update tests to correctly mock and verify the ChromaDB client interactions**
 11. [ ] **Enhance `analyze_chat_history.sh` to leverage new metadata:**
     - [ ] Prioritize entries with higher confidence scores for analysis
-    - [ ] Use already-captured code context instead of regenerating git diffs
+    - [X] Use already-captured code context instead of regenerating git diffs
     - [ ] Leverage tool sequence data for better correlation
     - [ ] Use bidirectional linking information already present
 12. [ ] **Improve `promote_learning.sh` to utilize enhanced context:**
     - [ ] Add support for including code context and diffs from source chat entry
-    - [ ] Use confidence scores to inform default confidence of promoted learnings
+    - [X] Use confidence scores to inform default confidence of promoted learnings
     - [ ] Include references to original modification type and tool sequences
     - [ ] Incorporate validation scores from evidence to prioritize promotion candidates
 13. [ ] **Enhance `review_and_promote.sh` interface:**
-    - [ ] Show rich context (code diffs, tool sequences) during review
+    - [X] Show rich context (code diffs, tool sequences) during review
     - [ ] Sort/prioritize entries by confidence score
     - [ ] Add option to filter by modification type (refactor/bugfix/feature/documentation)
     - [ ] Display linked code chunks via bidirectional linking
-    - [ ] Show validation evidence and scores for each candidate
+    - [X] Show validation evidence and scores for each candidate
 14. [ ] **General enhancement task for CLI tools:**
     - [ ] Create a shared module for context rendering to ensure consistent formatting across tools
     - [ ] Implement color coding for diff display in terminal output

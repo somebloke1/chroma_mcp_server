@@ -1,5 +1,7 @@
 # ✅ Action Plan v2: Local RAG Pipeline (Hybrid Approach)
 
+**Note:** This plan is outdated and has been replaced by [local_rag_pipeline_plan_v4.md](local_rag_pipeline_plan_v4.md).
+
 **Goal:** Implement a local RAG pipeline using **direct ChromaDB access for automation (indexing, CI)** via installable client commands and the **`chroma-mcp-server` for interactive AI tasks (feedback, working memory)**, focusing on practicality, cost-efficiency, and quality improvement.
 
 **Architecture:**
