@@ -10,8 +10,8 @@ This directory contains documentation related to various refactoring efforts and
 | [local_rag_pipeline_plan_v2.md](./local_rag_pipeline_plan_v2.md) | Revised plan for the Local RAG pipeline with improved collection structure | Phase 1 | Refinement of v1, incorporating feedback and clarifying collection roles |
 | [local_rag_pipeline_plan_v3.md](./local_rag_pipeline_plan_v3.md) | Enhanced Local RAG pipeline with added bidirectional linking and context management | Phase 2 | Extended v2 with enhanced context capture features |
 | [local_rag_pipeline_plan_v4.md](./local_rag_pipeline_plan_v4.md) | Current implementation plan with comprehensive context capture, thinking tools integration, and automated test-driven learning | Phase 2-3 | Active plan with significant progress - context capture, bidirectional linking, validation evidence system, and automated test workflow now fully implemented |
+| [persistent-developer-memory-service-v1.md](./persistent-developer-memory-service-v1.md) | Evolution to comprehensive "Developer Memory Platform" with cross-language support, AI-powered reasoning, real-time collaboration, and enhanced technical capabilities | Phase 4 | Future roadmap building on v4 foundation - focuses on multi-language intelligence, local AI integration, proactive warnings, and community plugin ecosystem |
 | [learning_validation_workflow.md](./learning_validation_workflow.md) | Error-driven learning validation approach for promoting only validated learnings | Phase 3 | Implementation plan for evidence-based learning validation |
-| [enterprise-readiness-upgrade.md](./enterprise-readiness-upgrade.md) | Assessment and upgrade plan for enterprise deployment readiness | Phase 4 | Strategic roadmap for evolving the system to meet enterprise requirements in security, scalability, and compliance |
 | [refactor_plan_mcp_sdk_compliance_v1.md](./refactor_plan_mcp_sdk_compliance_v1.md) | Initial plan for making Chroma MCP Server compliant with MCP SDK standards | Independent | First version of SDK compliance plan |
 | [refactor_plan_mcp_sdk_compliance_v2.md](./refactor_plan_mcp_sdk_compliance_v2.md) | Detailed plan for MCP SDK compliance with expanded implementation details | Independent | Current SDK compliance plan with detailed implementation steps |
 | [hatch_smithery_integration.md](./hatch_smithery_integration.md) | Documentation for integrating Hatch and Smithery build tools into the project | Infrastructure | Implemented for development workflow improvements |
@@ -42,11 +42,12 @@ flowchart LR
     classDef phase2 fill:#006100,stroke:#333,stroke-width:1px,color:white
     classDef phase3 fill:#7C0200,stroke:#333,stroke-width:1px,color:white
     classDef phase4 fill:#5a3d5c,stroke:#333,stroke-width:1px,color:white
+    classDef phase5 fill:#8B4513,stroke:#333,stroke-width:1px,color:white
     classDef component fill:#2a2a2a,stroke:#F8B229,stroke-width:2px,color:white
     classDef infra fill:#483D8B,stroke:#333,stroke-width:1px,color:white
     
     %% Timeline flow
-    P1[Phase 1: Basic RAG Pipeline]:::phase1 --> P2[Phase 2: Enhanced Context]:::phase2 --> P3[Phase 3: Thinking Tools & Test-Driven Learning]:::phase3 --> P4[Phase 4: Enterprise Readiness]:::phase4
+    P1[Phase 1: Basic RAG Pipeline]:::phase1 --> P2[Phase 2: Enhanced Context]:::phase2 --> P3[Phase 3: Thinking Tools & Test-Driven Learning]:::phase3 --> P4[Phase 4: Developer Memory Platform]:::phase4
     
     %% Infrastructure improvements
     INFRA[Infrastructure Improvements]:::infra
@@ -74,10 +75,11 @@ flowchart LR
     P3 --> GH[Git Hook Integration]:::component
     
     %% Phase 4 components (planned)
-    P4 --> SE[Security Enhancements]:::component
-    P4 --> SC2[Scalability Improvements]:::component
-    P4 --> MT[Multi-Team Collaboration]:::component
-    P4 --> CO[Compliance Features]:::component
+    P4 --> ML[Multi-Language Intelligence]:::component
+    P4 --> AI[Local AI Integration]:::component
+    P4 --> PW[Proactive Warnings]:::component
+    P4 --> RT[Real-Time Streaming]:::component
+    P4 --> PE[Plugin Ecosystem]:::component
 ```
 
 ### Phase 1: Basic Local RAG Pipeline
@@ -98,9 +100,17 @@ The current phase integrates the sequential thinking utilities with the enhanced
 - Git hook integration for continuous monitoring of test health
 - Promotion mechanism for high-quality fixes to derived learnings
 
-### Phase 4: Enterprise Readiness Evolution
+### Phase 4: Developer Memory Platform
 
-This planned phase focuses on evolving the system to meet enterprise-grade requirements across security, scalability, high availability, multi-team collaboration, and compliance. It provides a strategic roadmap for transforming the developer-focused implementation into a robust platform suitable for large organizational deployments.
+This future roadmap phase transforms the system into a comprehensive "Developer Memory Platform" with advanced technical capabilities:
+
+- **Multi-Language Intelligence**: Universal pattern recognition and cross-language learning transfer across Python, JavaScript, Java, Go, Rust, and community-contributed languages
+- **Local AI Integration**: Advanced reasoning capabilities with local AI models (Ollama, etc.) and optional cloud model integration for sophisticated analysis and insights
+- **Proactive Warning System**: Real-time code analysis against historical patterns with intelligent risk assessment and recommendation engine
+- **Real-Time Streaming**: WebSocket-based memory streaming for live team synchronization and collaborative learning propagation
+- **Community Plugin Ecosystem**: Comprehensive plugin architecture enabling community-driven extensions, IDE integrations, and tool-specific adapters
+
+This phase emphasizes maintaining the open-source, self-hosted foundation while significantly expanding technical capabilities and community engagement.
 
 ## Other Refactoring Efforts
 

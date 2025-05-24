@@ -26,6 +26,13 @@ The CLI tools (`analyze_chat_history.sh`, `promote_learning.sh`, `review_and_pro
 
 ### Traditional Workflow: Scattered Knowledge & Manual Search
 
+*Fig 1: Traditional workflow - Knowledge is fragmented, context for AI is often stale, and retrieval is a manual, time-consuming chore.*
+
+![Fig 1: Traditional workflow](./diagrams/fig1_traditional_workflow.svg)
+
+<details>
+<summary>📋 View mermaid source code</summary>
+
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
@@ -56,13 +63,16 @@ flowchart TD
     style G fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
 ```
 
-*Fig 1: Traditional workflow - Knowledge is fragmented, context for AI is often stale, and retrieval is a manual, time-consuming chore.*
-
-[View a static version of Fig 1 below for better zooming/scrolling]
-![Fig 1: Traditional workflow](./diagrams/fig1_traditional_workflow.svg)
-*(To update: `mmdc -i <source_file_for_fig1>.mmd -o docs/diagrams/fig1_traditional_workflow.svg -b transparent`)*
+</details>
 
 ### Improved Workflow: Integrated, Evolving Knowledge with Chroma MCP Ecosystem (v4 Plan)
+
+*Fig 2: The Chroma MCP ecosystem - Automated indexing, enhanced chat logging with context capture, bidirectional linking, test result integration, ROI measurement, and a phased learning loop create a unified, always-current, and evolving knowledge hub.*
+
+![Fig 2: The Chroma MCP ecosystem](./diagrams/fig2_chroma_mcp_ecosystem.svg)
+
+<details>
+<summary>📋 View mermaid source code</summary>
 
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
@@ -158,11 +168,7 @@ graph TD
     style U fill:#FF8A65,stroke:#E6E6E6,stroke-width:1px
 ```
 
-*Fig 2: The Chroma MCP ecosystem - Automated indexing, enhanced chat logging with context capture, bidirectional linking, test result integration, ROI measurement, and a phased learning loop create a unified, always-current, and evolving knowledge hub.*
-
-[View a static version of Fig 2 below for better zooming/scrolling]
-![Fig 2: The Chroma MCP ecosystem](./diagrams/fig2_chroma_mcp_ecosystem.svg)
-*(To update: `mmdc -i <source_file_for_fig2>.mmd -o docs/diagrams/fig2_chroma_mcp_ecosystem.svg -b transparent`)*
+</details>
 
 ## The Chroma MCP Ecosystem: Components
 
@@ -313,6 +319,13 @@ The Chroma MCP "Second Brain" features three key learning mechanisms that work t
 
 Structured thought capture enables developers to record their reasoning process, decision-making, and problem-solving approaches. This creates an invaluable record of the "why" behind technical decisions.
 
+*Fig 3: Sequential Thinking Flow - Capturing and utilizing structured thought processes.*
+
+![Fig 3: Sequential Thinking Flow](./diagrams/fig3_sequential_thinking_flow.svg)
+
+<details>
+<summary>📋 View mermaid source code</summary>
+
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
@@ -358,11 +371,7 @@ flowchart TD
     style O fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
 ```
 
-*Fig 3: Sequential Thinking Flow - Capturing and utilizing structured thought processes.*
-
-[View a static version of Fig 3 below for better zooming/scrolling]
-![Fig 3: Sequential Thinking Flow](./diagrams/fig3_sequential_thinking_flow.svg)
-*(To update: `mmdc -i <source_file_for_fig3>.mmd -o docs/diagrams/fig3_sequential_thinking_flow.svg -b transparent`)*
+</details>
 
 #### How Thought Collection Works
 
@@ -403,6 +412,13 @@ Later, when another team member asks, "Why are we using PostgreSQL?" the system 
 ### 2. Code and Chat Auto-Logging with Bidirectional Linking
 
 The heart of the "Second Brain" is the automatic capture of code changes and related discussions, connected through bidirectional links that enable comprehensive context retrieval.
+
+*Fig 4: Code and Chat Auto-Logging Flow - Capturing context and creating bidirectional links.*
+
+![Fig 4: Code and Chat Auto-Logging Flow](./diagrams/fig4_code_chat_autologging_flow.svg)
+
+<details>
+<summary>📋 View mermaid source code</summary>
 
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
@@ -467,11 +483,7 @@ flowchart TD
     style U fill:#FFCA28,stroke:#E6E6E6,stroke-width:1px,color:#333333
 ```
 
-*Fig 4: Code and Chat Auto-Logging Flow - Capturing context and creating bidirectional links.*
-
-[View a static version of Fig 4 below for better zooming/scrolling]
-![Fig 4: Code and Chat Auto-Logging Flow](./diagrams/fig4_code_chat_autologging_flow.svg)
-*(To update: `mmdc -i <source_file_for_fig4>.mmd -o docs/diagrams/fig4_code_chat_autologging_flow.svg -b transparent`)*
+</details>
 
 #### How Code and Chat Logging Works
 
@@ -521,6 +533,13 @@ flowchart TD
 ### 3. Test Result Integration and Error-Driven Learning
 
 The "Second Brain" captures test results, tracks transitions from failure to success, and uses this evidence to validate and prioritize learnings based on concrete improvements.
+
+*Fig 5: Test-Driven Learning Flow - Capturing test transitions and using them as validation evidence.*
+
+![Fig 5: Test-Driven Learning Flow](./diagrams/fig5_test_driven_learning_flow.svg)
+
+<details>
+<summary>📋 View mermaid source code</summary>
 
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
@@ -587,11 +606,7 @@ flowchart TD
     style Y fill:#26A69A,stroke:#E6E6E6,stroke-width:1px,color:#333333
 ```
 
-*Fig 5: Test-Driven Learning Flow - Capturing test transitions and using them as validation evidence.*
-
-[View a static version of Fig 5 below for better zooming/scrolling]
-![Fig 5: Test-Driven Learning Flow](./diagrams/fig5_test_driven_learning_flow.svg)
-*(To update: `mmdc -i <source_file_for_fig5>.mmd -o docs/diagrams/fig5_test_driven_learning_flow.svg -b transparent`)*
+</details>
 
 #### How Test-Driven Learning Works
 
@@ -643,6 +658,13 @@ flowchart TD
 
 These three flows work together as complementary parts of a unified learning ecosystem:
 
+*Fig 6: The Integrated Learning Ecosystem - Three complementary knowledge flows feeding a unified Second Brain.*
+
+![Fig 6: The Integrated Learning Ecosystem](./diagrams/fig6_integrated_learning_ecosystem.svg)
+
+<details>
+<summary>📋 View mermaid source code</summary>
+
 ```mermaid
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
@@ -685,11 +707,7 @@ flowchart TD
     style J fill:#26A69A,stroke:#E6E6E6,stroke-width:1px
 ```
 
-*Fig 6: The Integrated Learning Ecosystem - Three complementary knowledge flows feeding a unified Second Brain.*
-
-[View a static version of Fig 6 below for better zooming/scrolling]
-![Fig 6: The Integrated Learning Ecosystem](./diagrams/fig6_integrated_learning_ecosystem.svg)
-*(To update: `mmdc -i <source_file_for_fig6>.mmd -o docs/diagrams/fig6_integrated_learning_ecosystem.svg -b transparent`)*
+</details>
 
 ### Key Integration Points
 
